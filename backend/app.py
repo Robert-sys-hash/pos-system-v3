@@ -24,6 +24,9 @@ def create_app():
     # Konfiguracja ścieżek dla frontendu
     frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
     
+    # Lista błędów blueprintów do debugowania
+    blueprint_errors = []
+    
     app = Flask(__name__, static_folder=None)
     
     # Określ środowisko
@@ -56,11 +59,16 @@ def create_app():
          supports_credentials=True)
     
     # Rejestracja blueprintów API
+    blueprint_errors = []
     try:
         # 1. Najpierw blueprint kuponów!
         from api.coupons import coupons_bp
         app.register_blueprint(coupons_bp, url_prefix='/api')
         print("✅ Coupons blueprint OK (pierwszy)")
+    except Exception as e:
+        error_msg = f"❌ Błąd coupons blueprint: {e}"
+        print(error_msg)
+        blueprint_errors.append(error_msg)
 
         # Potem reszta
         from api.customers import customers_bp
@@ -433,6 +441,17 @@ def create_app():
             'usage': f'This is an API backend. Frontend available at: {os.environ.get("FRONTEND_URL", "https://web-production-c493.up.railway.app")}'
         })
     
+    @app.route('/api/debug/blueprint-errors')
+    def debug_blueprint_errors():
+        """Debug błędów podczas ładowania blueprintów"""
+        return jsonify({
+            'blueprint_errors': blueprint_errors,
+            'error_count': len(blueprint_errors),
+            'working_directory': os.getcwd(),
+            'backend_directory': os.path.dirname(__file__),
+            'python_path': sys.path
+        })
+
     @app.route('/api/debug/blueprints')
     def debug_blueprints():
         """Debug info o zarejestrowanych blueprintach"""
