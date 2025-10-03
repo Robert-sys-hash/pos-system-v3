@@ -1,0 +1,13 @@
+{
+  "name": "pos-system-v3",
+  "version": "1.0.0",
+  "description": "POS System V3 - Point of Sale Application",
+  "main": "backend/app.py",
+  "scripts": {
+    "start": "cd backend && python app.py",
+    "build": "cd frontend && npm install && npm run build"
+  },
+  "engines": {
+    "python": "3.11.x"
+  }
+}

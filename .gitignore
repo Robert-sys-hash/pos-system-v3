@@ -16,7 +16,6 @@ yarn-debug.log*
 yarn-error.log*
 
 # Build outputs
-/frontend/build/
 /deployment/
 
 # Database backups
@@ -28,7 +27,6 @@ backend_debug.log
 backend.log
 
 # Environment
-.env
 .env.local
 .env.production
 
@@ -48,3 +46,6 @@ novitus_*.log
 # Temporary files
 *.tmp
 *.temp
+
+# Railway ignores
+.railway/

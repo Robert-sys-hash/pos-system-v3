@@ -1,0 +1,12 @@
+# Railway.app deployment configuration
+
+[build]
+command = "cd frontend && npm install && npm run build"
+
+[deploy]
+command = "cd backend && python app.py"
+
+[[services]]
+name = "web"
+type = "web"
+port = "$PORT"
