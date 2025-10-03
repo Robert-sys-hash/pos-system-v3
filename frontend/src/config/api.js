@@ -10,12 +10,12 @@ const isProduction = process.env.NODE_ENV === 'production';
 const API_CONFIG = {
   // URL bazowy API
   BASE_URL: isProduction 
-    ? '/api'  // Względny URL dla produkcji (obsługiwany przez .htaccess)
-    : 'http://localhost:5002/api',  // Bezpośredni URL dla developmentu
+    ? 'https://web-production-c493.up.railway.app'  // Railway backend URL
+    : 'http://localhost:5002/api',  // Local development
     
   // Pełny URL (jeśli potrzebny)
   FULL_URL: isProduction
-    ? `${window.location.origin}/api`
+    ? 'https://web-production-c493.up.railway.app'
     : 'http://localhost:5002/api'
 };
 
