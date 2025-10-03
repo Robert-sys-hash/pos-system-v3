@@ -524,7 +524,8 @@ if __name__ == '__main__':
         print("🔍 Sprawdzam alternatywne lokalizacje...")
         # Sprawdź różne możliwe lokalizacje bazy
         alternatives = [
-            os.path.join(os.path.dirname(__file__), '..', 'kupony.db'),
+            os.path.join(os.path.dirname(__file__), 'kupony.db'),  # backend/kupony.db (Railway)
+            os.path.join(os.path.dirname(__file__), '..', 'kupony.db'),  # Lokalne
             os.path.join(os.path.dirname(__file__), '..', '..', 'kupony.db'),
         ]
         for alt_path in alternatives:
