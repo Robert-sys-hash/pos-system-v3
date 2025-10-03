@@ -20,7 +20,13 @@ except ImportError:
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def create_app():
-    app = Flask(__name__)
+    # Konfiguracja ścieżek dla frontendu
+    frontend_dir = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build')
+    static_dir = os.path.join(frontend_dir, 'static')
+    
+    app = Flask(__name__, 
+                static_folder=static_dir, 
+                static_url_path='/static')
     
     # Określ środowisko
     env = os.environ.get('FLASK_ENV', 'development')
@@ -411,7 +417,7 @@ def create_app():
             'version': '3.0.0',
             'status': 'running',
             'description': 'Backend API for POS System V3',
-            'frontend_url': 'http://localhost:3002',
+            'frontend_url': os.environ.get('FRONTEND_URL', 'https://web-production-c493.up.railway.app'),
             'modules': [
                 'products', 'customers', 'pos', 'shifts', 'auth', 'coupons',
                 'invoices', 'admin', 'cenowki', 'kasa-bank', 'locations'
@@ -426,13 +432,38 @@ def create_app():
                 'kasa_bank': '/api/kasa-bank/saldo',
                 'locations': '/api/locations/'
             },
-            'usage': 'This is an API backend. Please use the React frontend at http://localhost:3000'
+            'usage': f'This is an API backend. Frontend available at: {os.environ.get("FRONTEND_URL", "https://web-production-c493.up.railway.app")}'
         })
     
     # Favicon - zapobieganie błędom 404
     @app.route('/favicon.ico')
     def favicon():
         return '', 204  # No content
+    
+    # Obsługa frontendu - serwuj React build
+    @app.route('/')
+    @app.route('/<path:path>')
+    def serve_frontend(path=''):
+        frontend_dir = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build')
+        
+        # Jeśli to request API, nie obsługuj jako frontend
+        if path.startswith('api/'):
+            return jsonify({'error': 'API endpoint not found'}), 404
+            
+        # Sprawdź czy plik istnieje
+        if path and os.path.exists(os.path.join(frontend_dir, path)):
+            return app.send_static_file(path)
+        
+        # Dla wszystkich innych - serwuj index.html (React Router)
+        if os.path.exists(os.path.join(frontend_dir, 'index.html')):
+            return app.send_static_file('index.html')
+        
+        # Fallback jeśli nie ma frontendu
+        return jsonify({
+            'message': 'POS System V3 API',
+            'frontend_build': 'not_found',
+            'api_docs': 'Available at /api'
+        })
     
     return app
 
