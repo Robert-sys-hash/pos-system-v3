@@ -7,10 +7,14 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import os
 import sys
-from dotenv import load_dotenv
 
-# Załaduj zmienne środowiskowe
-load_dotenv()
+# Załaduj zmienne środowiskowe - opcjonalnie
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    # dotenv nie jest dostępny, używamy zmiennych środowiskowych Railway
+    pass
 
 # Dodaj ścieżkę do modułów
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
