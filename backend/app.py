@@ -451,9 +451,9 @@ def create_app():
     def serve_frontend_root():
         # Sprawdź różne lokalizacje frontendu
         possible_paths = [
-            os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build', 'index.html'),
-            os.path.join(os.path.dirname(__file__), 'static', 'index.html'),
-            os.path.join(os.path.dirname(__file__), '..', 'build', 'index.html')
+            os.path.join(os.path.dirname(__file__), 'static', 'index.html'),  # Railway: backend/static/
+            os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build', 'index.html'),  # Lokalne
+            os.path.join(os.path.dirname(__file__), '..', 'build', 'index.html')  # Alternatywne
         ]
         
         for index_path in possible_paths:
@@ -462,13 +462,20 @@ def create_app():
                 return send_file(index_path)
         
         # Debug info jeśli nie znajdzie
-        return jsonify({
-            'message': 'POS System V3 - Frontend not found',
+        current_dir = os.path.dirname(__file__)
+        static_dir = os.path.join(current_dir, 'static')
+        debug_info = {
+            'message': 'POS System V3 - Frontend files not found',
             'searched_paths': possible_paths,
-            'current_dir': os.path.dirname(__file__),
-            'api': '/api',
-            'note': 'Frontend build not accessible'
-        })
+            'current_dir': current_dir,
+            'static_dir_exists': os.path.exists(static_dir),
+            'api': '/api'
+        }
+        
+        if os.path.exists(static_dir):
+            debug_info['static_contents'] = os.listdir(static_dir)
+        
+        return jsonify(debug_info)
     
     @app.route('/<path:path>')
     def serve_frontend_path(path):
