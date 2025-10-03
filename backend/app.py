@@ -3,7 +3,7 @@ POS System V3 - Flask API Backend
 Główny plik aplikacji Flask z konfiguracją CORS i rejestracją blueprintów
 """
 
-from flask import Flask, jsonify, request, send_from_directory, send_file
+from flask import Flask, jsonify, request, send_from_directory, send_file, render_template
 from flask_cors import CORS
 import os
 import sys

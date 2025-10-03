@@ -1,0 +1,14 @@
+[phases.build]
+cmds = [
+  "echo '🔧 Building POS System V3...'",
+  "cd frontend",
+  "npm install",
+  "npm run build", 
+  "cd ..",
+  "echo '✅ Frontend build completed'",
+  "ls -la frontend/build/",
+  "cp -r frontend/build backend/templates 2>/dev/null || echo 'Templates dir created'"
+]
+
+[phases.start]
+cmd = "cd backend && python app.py"
