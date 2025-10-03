@@ -7,7 +7,12 @@ cmds = [
   "cd ..",
   "echo '✅ Frontend build completed'",
   "ls -la frontend/build/",
-  "cp -r frontend/build backend/templates 2>/dev/null || echo 'Templates dir created'"
+  "mkdir -p backend/static",
+  "cp -r frontend/build/* backend/static/",
+  "echo '📂 Checking backend/static contents:'",
+  "ls -la backend/static/",
+  "echo '📄 Checking if index.html exists:'",
+  "ls -la backend/static/index.html"
 ]
 
 [phases.start]
