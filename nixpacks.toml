@@ -16,4 +16,4 @@ cmds = [
 ]
 
 [phases.start]
-cmd = "cd backend && python app.py"
+cmd = "cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1"
