@@ -433,6 +433,32 @@ def create_app():
             'usage': f'This is an API backend. Frontend available at: {os.environ.get("FRONTEND_URL", "https://web-production-c493.up.railway.app")}'
         })
     
+    @app.route('/api/debug/blueprints')
+    def debug_blueprints():
+        """Debug info o zarejestrowanych blueprintach"""
+        blueprints_info = {}
+        for name, blueprint in app.blueprints.items():
+            blueprints_info[name] = {
+                'name': blueprint.name,
+                'url_prefix': getattr(blueprint, 'url_prefix', None),
+                'routes': []
+            }
+            
+            # Pobierz routes blueprintu
+            for rule in app.url_map.iter_rules():
+                if rule.endpoint.startswith(f'{name}.'):
+                    blueprints_info[name]['routes'].append({
+                        'endpoint': rule.endpoint,
+                        'rule': str(rule),
+                        'methods': list(rule.methods)
+                    })
+        
+        return jsonify({
+            'blueprints_count': len(app.blueprints),
+            'blueprints': blueprints_info,
+            'all_routes_count': len(list(app.url_map.iter_rules()))
+        })
+
     @app.route('/api/test')
     def test_endpoint():
         """Prosty test endpoint bez blueprintów"""
