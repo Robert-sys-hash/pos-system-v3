@@ -538,14 +538,14 @@ def create_app():
         
         return jsonify(debug_info)
 
+    # Catch-all route TYLKO dla frontendu - wyklucza API
+    @app.route('/', defaults={'path': ''})
     @app.route('/<path:path>')
-    def serve_frontend_path(path):
-        print(f"🔍 DEBUG: Request path: {path}")
-        
-        # Jeśli to request API, przekieruj do 404
+    def serve_frontend_path(path=''):
+        # NATYCHMIAST przekieruj API do 404 - nie przetwarzaj
         if path.startswith('api/'):
-            print(f"❌ API path not found: {path}")
-            return jsonify({'error': 'API endpoint not found', 'path': path}), 404
+            from flask import abort
+            abort(404)
             
         # Sprawdź czy to plik statyczny
         possible_base_dirs = [
