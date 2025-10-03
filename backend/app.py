@@ -507,6 +507,54 @@ def create_app():
             'api_available': '/api'
         })
     
+    @app.route('/api/debug/database')
+    def debug_database():
+        """Debug info o bazie danych"""
+        import sqlite3
+        db_path = app.config.get('DATABASE_PATH')
+        current_dir = os.path.dirname(__file__)
+        
+        debug_info = {
+            'config_db_path': db_path,
+            'current_directory': current_dir,
+            'db_exists': os.path.exists(db_path) if db_path else False,
+            'possible_paths': [],
+            'working_directory': os.getcwd()
+        }
+        
+        # Sprawdź wszystkie możliwe lokalizacje
+        possible_paths = [
+            os.path.join(current_dir, 'kupony.db'),
+            os.path.join(current_dir, '..', 'kupony.db'),
+            os.path.join(current_dir, '..', '..', 'kupony.db'),
+            'kupony.db'
+        ]
+        
+        for path in possible_paths:
+            abs_path = os.path.abspath(path)
+            debug_info['possible_paths'].append({
+                'path': path,
+                'absolute_path': abs_path,
+                'exists': os.path.exists(abs_path)
+            })
+            
+        # Sprawdź czy możemy połączyć się z bazą
+        if db_path and os.path.exists(db_path):
+            try:
+                conn = sqlite3.connect(db_path)
+                cursor = conn.cursor()
+                cursor.execute("SELECT count(*) FROM sqlite_master WHERE type='table'")
+                table_count = cursor.fetchone()[0]
+                conn.close()
+                debug_info['database_status'] = 'connected'
+                debug_info['tables_count'] = table_count
+            except Exception as e:
+                debug_info['database_status'] = f'error: {str(e)}'
+        else:
+            debug_info['database_status'] = 'not_found'
+            
+        return jsonify(debug_info)
+
     return app
 
 # Utwórz instancję aplikacji dla Heroku
