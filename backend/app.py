@@ -449,17 +449,25 @@ def create_app():
     # Obsługa frontendu - serwuj React build
     @app.route('/')
     def serve_frontend_root():
-        frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
-        index_path = os.path.join(frontend_dir, 'index.html')
+        # Sprawdź różne lokalizacje frontendu
+        possible_paths = [
+            os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build', 'index.html'),
+            os.path.join(os.path.dirname(__file__), 'static', 'index.html'),
+            os.path.join(os.path.dirname(__file__), '..', 'build', 'index.html')
+        ]
         
-        if os.path.exists(index_path):
-            return send_file(index_path)
+        for index_path in possible_paths:
+            if os.path.exists(index_path):
+                print(f"✅ Serving frontend from: {index_path}")
+                return send_file(index_path)
         
+        # Debug info jeśli nie znajdzie
         return jsonify({
-            'message': 'POS System V3',
-            'status': 'Frontend build not found',
+            'message': 'POS System V3 - Frontend not found',
+            'searched_paths': possible_paths,
+            'current_dir': os.path.dirname(__file__),
             'api': '/api',
-            'note': f'Looking for index.html at: {index_path}'
+            'note': 'Frontend build not accessible'
         })
     
     @app.route('/<path:path>')
@@ -469,19 +477,25 @@ def create_app():
             return jsonify({'error': 'API endpoint not found'}), 404
             
         # Sprawdź czy to plik statyczny
-        frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
-        file_path = os.path.join(frontend_dir, path)
+        possible_base_dirs = [
+            os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'),
+            os.path.join(os.path.dirname(__file__), 'static'),
+            os.path.join(os.path.dirname(__file__), '..', 'build')
+        ]
         
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-            return send_file(file_path)
+        for base_dir in possible_base_dirs:
+            file_path = os.path.join(base_dir, path)
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                return send_file(file_path)
         
         # Dla wszystkich innych ścieżek - serwuj index.html (React Router)
-        index_path = os.path.join(frontend_dir, 'index.html')
-        if os.path.exists(index_path):
-            return send_file(index_path)
+        for base_dir in possible_base_dirs:
+            index_path = os.path.join(base_dir, 'index.html')
+            if os.path.exists(index_path):
+                return send_file(index_path)
             
         return jsonify({
-            'message': 'POS System V3 - Path not found',
+            'message': 'POS System V3 - File not found',
             'requested_path': path,
             'api_available': '/api'
         })
