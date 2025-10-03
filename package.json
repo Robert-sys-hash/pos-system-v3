@@ -5,9 +5,11 @@
   "main": "backend/app.py",
   "scripts": {
     "start": "cd backend && python app.py",
-    "build": "cd frontend && npm install && npm run build"
+    "build": "cd frontend && npm install && npm run build",
+    "heroku-postbuild": "cd frontend && npm install && npm run build"
   },
   "engines": {
+    "node": "18.x",
     "python": "3.11.x"
   }
 }

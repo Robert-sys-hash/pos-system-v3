@@ -3,7 +3,7 @@ POS System V3 - Flask API Backend
 Główny plik aplikacji Flask z konfiguracją CORS i rejestracją blueprintów
 """
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory, send_file
 from flask_cors import CORS
 import os
 import sys
@@ -21,12 +21,9 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 def create_app():
     # Konfiguracja ścieżek dla frontendu
-    frontend_dir = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build')
-    static_dir = os.path.join(frontend_dir, 'static')
+    frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
     
-    app = Flask(__name__, 
-                static_folder=static_dir, 
-                static_url_path='/static')
+    app = Flask(__name__, static_folder=None)
     
     # Określ środowisko
     env = os.environ.get('FLASK_ENV', 'development')
@@ -440,29 +437,53 @@ def create_app():
     def favicon():
         return '', 204  # No content
     
+    # Serwuj static files frontendu
+    @app.route('/static/<path:filename>')
+    def serve_static(filename):
+        frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
+        static_dir = os.path.join(frontend_dir, 'static')
+        if os.path.exists(static_dir):
+            return send_from_directory(static_dir, filename)
+        return jsonify({'error': 'Static file not found'}), 404
+    
     # Obsługa frontendu - serwuj React build
     @app.route('/')
-    @app.route('/<path:path>')
-    def serve_frontend(path=''):
-        frontend_dir = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build')
+    def serve_frontend_root():
+        frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
+        index_path = os.path.join(frontend_dir, 'index.html')
         
-        # Jeśli to request API, nie obsługuj jako frontend
+        if os.path.exists(index_path):
+            return send_file(index_path)
+        
+        return jsonify({
+            'message': 'POS System V3',
+            'status': 'Frontend build not found',
+            'api': '/api',
+            'note': f'Looking for index.html at: {index_path}'
+        })
+    
+    @app.route('/<path:path>')
+    def serve_frontend_path(path):
+        # Jeśli to request API, przekieruj do 404
         if path.startswith('api/'):
             return jsonify({'error': 'API endpoint not found'}), 404
             
-        # Sprawdź czy plik istnieje
-        if path and os.path.exists(os.path.join(frontend_dir, path)):
-            return app.send_static_file(path)
+        # Sprawdź czy to plik statyczny
+        frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
+        file_path = os.path.join(frontend_dir, path)
         
-        # Dla wszystkich innych - serwuj index.html (React Router)
-        if os.path.exists(os.path.join(frontend_dir, 'index.html')):
-            return app.send_static_file('index.html')
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            return send_file(file_path)
         
-        # Fallback jeśli nie ma frontendu
+        # Dla wszystkich innych ścieżek - serwuj index.html (React Router)
+        index_path = os.path.join(frontend_dir, 'index.html')
+        if os.path.exists(index_path):
+            return send_file(index_path)
+            
         return jsonify({
-            'message': 'POS System V3 API',
-            'frontend_build': 'not_found',
-            'api_docs': 'Available at /api'
+            'message': 'POS System V3 - Path not found',
+            'requested_path': path,
+            'api_available': '/api'
         })
     
     return app
