@@ -1,2 +1,2 @@
 release: ./build.sh
-web: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1
+web: cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1 --log-level info
