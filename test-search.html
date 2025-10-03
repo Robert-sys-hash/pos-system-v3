@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test wyszukiwania produktów</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        input { padding: 10px; margin: 10px 0; width: 300px; }
+        .product { border: 1px solid #ddd; padding: 10px; margin: 5px 0; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>Test wyszukiwania produktów</h1>
+    
+    <input type="text" id="searchInput" placeholder="Wpisz nazwę produktu (np. mleko)..." />
+    <button onclick="searchProducts()">Szukaj</button>
+    
+    <div id="status"></div>
+    <div id="results"></div>
+
+    <script>
+        async function searchProducts() {
+            const query = document.getElementById('searchInput').value;
+            const statusDiv = document.getElementById('status');
+            const resultsDiv = document.getElementById('results');
+            
+            statusDiv.innerHTML = 'Wyszukiwanie...';
+            resultsDiv.innerHTML = '';
+            
+            try {
+                const response = await fetch(`http://localhost:5002/api/products/search?query=${encodeURIComponent(query)}`);
+                const data = await response.json();
+                
+                console.log('API Response:', data);
+                
+                if (data.success) {
+                    statusDiv.innerHTML = `<span class="success">✅ Znaleziono ${data.data.products.length} produktów</span>`;
+                    
+                    data.data.products.forEach(product => {
+                        const productDiv = document.createElement('div');
+                        productDiv.className = 'product';
+                        productDiv.innerHTML = `
+                            <strong>${product.name}</strong><br>
+                            ID: ${product.id}<br>
+                            Cena: ${product.price} zł<br>
+                            Kategoria: ${product.category}<br>
+                            ${product.barcode ? `EAN: ${product.barcode}` : ''}
+                        `;
+                        resultsDiv.appendChild(productDiv);
+                    });
+                } else {
+                    statusDiv.innerHTML = `<span class="error">❌ Błąd: ${data.message}</span>`;
+                }
+                
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.innerHTML = `<span class="error">❌ Błąd połączenia: ${error.message}</span>`;
+            }
+        }
+        
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchProducts();
+            }
+        });
+    </script>
+</body>
+</html>

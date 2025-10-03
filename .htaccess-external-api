@@ -1,0 +1,37 @@
+# .htaccess dla hostingu bez obsługi Python CGI
+# Przekierowuje API do zewnętrznego serwera (np. Heroku, Railway)
+
+RewriteEngine On
+
+# Obsługa CORS
+Header always set Access-Control-Allow-Origin "*"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+
+# Obsługa preflight requests
+RewriteCond %{REQUEST_METHOD} OPTIONS
+RewriteRule ^(.*)$ $1 [R=200,L]
+
+# API Routes - przekierowanie do zewnętrznego serwera
+# ZMIEŃ na adres swojego API serwera (Heroku, Railway, etc.)
+RewriteRule ^api/(.*)$ https://your-api-domain.herokuapp.com/$1 [P,L]
+
+# React Router - wszystkie pozostałe requesty do index.html
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/api/
+RewriteRule . /index.html [L]
+
+# Kompresja i cache (jak w głównym .htaccess)
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/plain
+    AddOutputFilterByType DEFLATE text/html
+    AddOutputFilterByType DEFLATE text/xml
+    AddOutputFilterByType DEFLATE text/css
+    AddOutputFilterByType DEFLATE application/xml
+    AddOutputFilterByType DEFLATE application/xhtml+xml
+    AddOutputFilterByType DEFLATE application/rss+xml
+    AddOutputFilterByType DEFLATE application/javascript
+    AddOutputFilterByType DEFLATE application/x-javascript
+    AddOutputFilterByType DEFLATE application/json
+</IfModule>

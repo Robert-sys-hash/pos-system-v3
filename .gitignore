@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+.venv/
+venv/
+ENV/
+
+# Node modules
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build outputs
+/frontend/build/
+/deployment/
+
+# Database backups
+kupony_backup_*.db*
+
+# Logs
+*.log
+backend_debug.log
+backend.log
+
+# Environment
+.env
+.env.local
+.env.production
+
+# IDE
+.vscode/
+.idea/
+
+# Mac
+.DS_Store
+
+# Test files
+test_*.py
+test_*.pdf
+test_*.xml
+novitus_*.log
+
+# Temporary files
+*.tmp
+*.temp

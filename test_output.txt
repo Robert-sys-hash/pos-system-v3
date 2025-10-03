@@ -1,0 +1,1 @@
+/Library/Developer/CommandLineTools/usr/bin/python3: can't open file '/Users/robson/Downloads/pos-system-v3/test_all_bytes_novitus.py': [Errno 2] No such file or directory

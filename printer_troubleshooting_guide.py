@@ -1,0 +1,130 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Przewodnik rozwiązywania problemów z drukarką Novitus Deon
+Diagnostyka i instrukcje konfiguracji wszystkich 3 trybów protokołów
+"""
+
+def print_diagnostic_summary():
+    """Podsumowanie diagnozy problemu"""
+    
+    print("🔍 DIAGNOZA PROBLEMU NOVITUS DEON")
+    print("=" * 50)
+    print("✅ Status fizycznego połączenia:")
+    print("   • Drukarka wykryta: Novitus virtual serial Port")
+    print("   • Vendor ID: 0x1a28 (Novitus)")
+    print("   • Product ID: 0x2512")
+    print("   • Porty dostępne: /dev/cu.usbmodem101, /dev/cu.usbmodem103")
+    print("   • Połączenie USB: Sprawne")
+    print()
+    print("❌ Status komunikacji:")
+    print("   • Żaden z 3 protokołów nie odpowiada")
+    print("   • Testowane: XML, Novitus, Novitus zgodny")
+    print("   • Prędkości: 9600, 115200 baud")
+    print("   • Kodowania: UTF-8, Windows-1250")
+    print()
+
+def print_protocol_menu_guide():
+    """Szczegółowy przewodnik po menu drukarki"""
+    
+    print("🔧 PRZEWODNIK PO MENU DRUKARKI NOVITUS DEON")
+    print("=" * 50)
+    print("Na drukarce Novitus Deon:")
+    print()
+    print("1️⃣  WŁĄCZENIE MENU:")
+    print("   • Naciśnij i przytrzymaj przycisk [MENU] lub [SET]")
+    print("   • Przytrzymaj ~3 sekundy aż pojawi się menu")
+    print("   • Użyj klawiszy [↑] [↓] do nawigacji")
+    print()
+    print("2️⃣  NAWIGACJA DO USTAWIEŃ KOMUNIKACJI:")
+    print("   📋 Opcja A: USTAWIENIA → KOMUNIKACJA → PROTOKÓŁ")
+    print("   📋 Opcja B: SYSTEM → INTERFACE → PROTOCOL") 
+    print("   📋 Opcja C: CONFIG → COMMUNICATION → MODE")
+    print("   📋 Opcja D: SETUP → PORT → TYPE")
+    print()
+    print("3️⃣  DOSTĘPNE PROTOKOŁY (3 tryby):")
+    print("   🔸 XML NOVITUS:")
+    print("     - Protokół XML v1.08 PL")
+    print("     - Prędkość: 115200 baud")
+    print("     - Kodowanie: UTF-8")
+    print("     - Dla nowoczesnych aplikacji POS")
+    print()
+    print("   🔸 NOVITUS:")
+    print("     - Protokół własnościowy Novitus")
+    print("     - Prędkość: 9600 baud")
+    print("     - Kodowanie: Windows-1250")
+    print("     - Dla starszych aplikacji")
+    print()
+    print("   🔸 NOVITUS ZGODNY (ESC/P):")
+    print("     - Protokół zgodny z ESC/P")
+    print("     - Prędkość: 9600 baud")
+    print("     - Kodowanie: Windows-1250")
+    print("     - Najlepsza kompatybilność")
+    print()
+    print("4️⃣  ZMIANA PROTOKOŁU:")
+    print("   • Wybierz jeden z protokołów")
+    print("   • Naciśnij [ENTER] lub [OK] aby zatwierdzić")
+    print("   • Zapisz ustawienia [SAVE] lub [EXIT]")
+    print("   • Zrestartuj drukarkę (wyłącz/włącz)")
+    print()
+
+def print_troubleshooting_steps():
+    """Kroki rozwiązywania problemów"""
+    
+    print("🔧 KROKI ROZWIĄZYWANIA PROBLEMÓW")
+    print("=" * 50)
+    print("Wypróbuj kolejno:")
+    print()
+    print("1️⃣  SPRAWDŹ STAN DRUKARKI:")
+    print("   • Czy drukarka jest włączona?")
+    print("   • Czy ma papier?")
+    print("   • Czy pokrywa jest zamknięta?")
+    print("   • Czy nie ma błędów na wyświetlaczu?")
+    print()
+    print("2️⃣  ZMIEŃ PROTOKÓŁ W MENU:")
+    print("   • Spróbuj kolejno wszystkich 3 protokołów")
+    print("   • Zrestartuj drukarkę po każdej zmianie")
+    print("   • Testuj komunikację po każdej zmianie")
+    print()
+    print("3️⃣  SPRAWDŹ USTAWIENIA PORTU:")
+    print("   • Prędkość transmisji (baudrate)")
+    print("   • Kontrola przepływu (flow control)")
+    print("   • Bity danych, stop, parzystość")
+    print()
+    print("4️⃣  TEST FUNKCJI DRUKARKI:")
+    print("   • Wydrukuj raport testu z menu drukarki")
+    print("   • Sprawdź czy mechanizm drukowania działa")
+    print("   • Sprawdź czy fiskalizacja jest aktywna")
+    print()
+
+def print_next_steps():
+    """Następne kroki do wykonania"""
+    
+    print("📋 NASTĘPNE KROKI")
+    print("=" * 30)
+    print("1. Sprawdź aktualne ustawienia protokołu w menu drukarki")
+    print("2. Zmień na 'XML NOVITUS' i zrestartuj drukarkę")
+    print("3. Uruchom ponownie test: python3 test_protocol_detection.py")
+    print("4. Jeśli nie działa, spróbuj 'NOVITUS ZGODNY'")
+    print("5. Jeśli wciąż nie działa, sprawdź instrukcję obsługi")
+    print()
+    print("💡 WSKAZÓWKI:")
+    print("• Menu może być w języku polskim lub angielskim")
+    print("• Różne modele mogą mieć inne nazwy opcji")
+    print("• Niektóre drukarki wymagają kodu PIN do ustawień")
+    print("• Sprawdź czy fiskalizacja jest poprawnie skonfigurowana")
+    print()
+
+if __name__ == "__main__":
+    print_diagnostic_summary()
+    print()
+    print_protocol_menu_guide()
+    print()
+    print_troubleshooting_steps()
+    print()
+    print_next_steps()
+    
+    print("🎯 PODSUMOWANIE:")
+    print("Drukarka jest fizycznie dostępna, ale nie odpowiada na żaden protokół.")
+    print("Najprawdopodobniej wymaga zmiany trybu komunikacji w menu drukarki.")
+    print("Sprawdź ustawienia protokołu i spróbuj ponownie.")
