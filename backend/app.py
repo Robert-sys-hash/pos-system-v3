@@ -406,8 +406,8 @@ def create_app():
             }
         })
     
-    # Główna strona API - informacje dla deweloperów
-    @app.route('/')
+    # API info endpoint - przeniesiony z głównej strony
+    @app.route('/api')
     def api_home():
         return jsonify({
             'name': 'POS System V3 API',
