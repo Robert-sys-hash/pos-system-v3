@@ -24,10 +24,10 @@ def create_app():
     # Konfiguracja ścieżek dla frontendu
     frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'frontend', 'build'))
     
-    # Lista błędów blueprintów do debugowania
-    blueprint_errors = []
-    
     app = Flask(__name__, static_folder=None)
+    
+    # Lista błędów blueprintów do debugowania  
+    app.blueprint_errors = []
     
     # Określ środowisko
     env = os.environ.get('FLASK_ENV', 'development')
@@ -68,7 +68,7 @@ def create_app():
     except Exception as e:
         error_msg = f"❌ Błąd coupons blueprint: {e}"
         print(error_msg)
-        blueprint_errors.append(error_msg)
+        app.blueprint_errors.append(error_msg)
 
         # Potem reszta
         from api.customers import customers_bp
@@ -445,8 +445,8 @@ def create_app():
     def debug_blueprint_errors():
         """Debug błędów podczas ładowania blueprintów"""
         return jsonify({
-            'blueprint_errors': blueprint_errors,
-            'error_count': len(blueprint_errors),
+            'blueprint_errors': app.blueprint_errors,
+            'error_count': len(app.blueprint_errors),
             'working_directory': os.getcwd(),
             'backend_directory': os.path.dirname(__file__),
             'python_path': sys.path
