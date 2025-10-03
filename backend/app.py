@@ -7,6 +7,7 @@ from flask import Flask, jsonify, request, send_from_directory, send_file, rende
 from flask_cors import CORS
 import os
 import sys
+from datetime import datetime
 
 # Załaduj zmienne środowiskowe - opcjonalnie
 try:
@@ -507,6 +508,15 @@ def create_app():
             'api_available': '/api'
         })
     
+    @app.route('/api/test')
+    def test_endpoint():
+        """Prosty test endpoint bez blueprintów"""
+        return jsonify({
+            'status': 'working',
+            'message': 'Direct endpoint works',
+            'time': datetime.now().isoformat()
+        })
+
     @app.route('/api/debug/database')
     def debug_database():
         """Debug info o bazie danych"""
