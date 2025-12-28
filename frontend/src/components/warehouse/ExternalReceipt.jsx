@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { warehouseService } from '../../services/warehouseService';
+import { useLocation } from '../../contexts/LocationContext';
 
 const ExternalReceipt = () => {
+  const { locationId } = useLocation();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -21,16 +23,24 @@ const ExternalReceipt = () => {
   useEffect(() => {
     if (activeTab === 'new') {
       loadInvoices();
-    } else if (activeTab === 'history') {
+    } else if (activeTab === 'history' && locationId) {
       loadReceipts();
     }
   }, [activeTab]);
+  
+  // Osobny useEffect dla zmiany lokalizacji
+  useEffect(() => {
+    if (locationId && activeTab === 'history') {
+      loadReceipts();
+    }
+  }, [locationId]);
 
   const loadReceipts = async () => {
     try {
       const result = await warehouseService.getExternalReceipts({
         date: dateFilter,
-        status: statusFilter
+        status: statusFilter,
+        location_id: locationId
       });
       if (result.success) {
         setReceipts(result.data || []);
@@ -66,7 +76,7 @@ const ExternalReceipt = () => {
   const generatePZ = async (invoiceId) => {
     setLoading(true);
     try {
-      const result = await warehouseService.generateExternalReceipt(invoiceId);
+      const result = await warehouseService.generateExternalReceipt(invoiceId, { location_id: locationId });
       if (result.success) {
         setSuccess('PZ został wygenerowany pomyślnie');
         setTimeout(() => setSuccess(''), 3000);

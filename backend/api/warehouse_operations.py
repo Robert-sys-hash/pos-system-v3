@@ -56,9 +56,10 @@ def generate_external_receipt(invoice_id):
         
     conn = None
     try:
-        # Pobierz warehouse_id z request lub użyj domyślnego
+        # Pobierz warehouse_id i location_id z request lub użyj domyślnego
         data = request.get_json() or {}
         warehouse_id = data.get('warehouse_id', 5)  # Domyślnie magazyn KALISZ
+        location_id = data.get('location_id')  # Location ID do filtrowania
         
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -85,11 +86,11 @@ def generate_external_receipt(invoice_id):
         # Utwórz wpis PZ
         cursor.execute("""
             INSERT INTO warehouse_receipts 
-            (type, source_invoice_id, document_number, supplier_name, receipt_date, total_amount, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (type, source_invoice_id, document_number, supplier_name, receipt_date, total_amount, status, created_at, location_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, ('external', invoice_id, f"PZ-{invoice_id}-{datetime.now().strftime('%Y%m%d')}", 
               invoice['dostawca_nazwa'], datetime.now().isoformat(), 
-              invoice['suma_brutto'], 'completed', datetime.now().isoformat()))
+              invoice['suma_brutto'], 'completed', datetime.now().isoformat(), location_id))
         
         receipt_id = cursor.lastrowid
         if not receipt_id:
@@ -184,6 +185,7 @@ def create_internal_receipt():
     try:
         data = request.get_json()
         products = data.get('products', [])
+        location_id = data.get('location_id')  # Location ID do filtrowania
         
         if not products:
             return error_response("Brak produktów do przyjęcia")
@@ -195,10 +197,10 @@ def create_internal_receipt():
         document_number = f"PW-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         receipt_id = execute_insert("""
             INSERT INTO warehouse_receipts 
-            (type, document_number, receipt_date, status, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            (type, document_number, receipt_date, status, created_at, location_id)
+            VALUES (?, ?, ?, ?, ?, ?)
         """, ('internal', document_number, datetime.now().isoformat(), 
-              'completed', datetime.now().isoformat()))
+              'completed', datetime.now().isoformat(), location_id))
         
         if not receipt_id:
             return error_response("Błąd tworzenia dokumentu PW")
@@ -255,6 +257,7 @@ def get_internal_receipts():
     try:
         date_filter = request.args.get('date', '')
         status_filter = request.args.get('status', 'all')
+        location_id = request.args.get('location_id', '')
         
         query = """
         SELECT 
@@ -264,6 +267,7 @@ def get_internal_receipts():
             wr.status,
             wr.created_by,
             wr.created_at,
+            wr.location_id,
             COUNT(wri.id) as items_count
         FROM warehouse_receipts wr
         LEFT JOIN warehouse_receipt_items wri ON wr.id = wri.receipt_id
@@ -271,6 +275,10 @@ def get_internal_receipts():
         """
         
         params = []
+        
+        if location_id:
+            query += " AND wr.location_id = ?"
+            params.append(location_id)
         
         if date_filter:
             query += " AND DATE(wr.receipt_date) = ?"
@@ -367,6 +375,7 @@ def get_external_receipts():
     try:
         date_filter = request.args.get('date', '')
         status_filter = request.args.get('status', 'all')
+        location_id = request.args.get('location_id', '')
         
         query = """
         SELECT 
@@ -378,6 +387,7 @@ def get_external_receipts():
             wr.total_amount,
             wr.created_by,
             wr.created_at,
+            wr.location_id,
             pi.invoice_number as source_invoice_number,
             COUNT(wri.id) as items_count
         FROM warehouse_receipts wr
@@ -387,6 +397,10 @@ def get_external_receipts():
         """
         
         params = []
+        
+        if location_id:
+            query += " AND wr.location_id = ?"
+            params.append(location_id)
         
         if date_filter:
             query += " AND DATE(wr.receipt_date) = ?"
@@ -704,6 +718,7 @@ def get_internal_issues():
     try:
         date_filter = request.args.get('date', '')
         status_filter = request.args.get('status', 'all')
+        location_id = request.args.get('location_id', '')
         
         query = """
         SELECT 
@@ -713,6 +728,7 @@ def get_internal_issues():
             wi.status,
             wi.created_by,
             wi.created_at,
+            wi.location_id,
             COUNT(wii.id) as items_count
         FROM warehouse_issues wi
         LEFT JOIN warehouse_issue_items wii ON wi.id = wii.issue_id
@@ -720,6 +736,10 @@ def get_internal_issues():
         """
         
         params = []
+        
+        if location_id:
+            query += " AND wi.location_id = ?"
+            params.append(location_id)
         
         if date_filter:
             query += " AND DATE(wi.issue_date) = ?"
@@ -752,6 +772,7 @@ def create_internal_issue():
     try:
         data = request.get_json()
         products = data.get('products', [])
+        location_id = data.get('location_id')  # Location ID do filtrowania
         
         if not products:
             return error_response("Brak produktów do wydania")
@@ -778,10 +799,10 @@ def create_internal_issue():
         document_number = f"RW-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
         issue_id = execute_insert("""
             INSERT INTO warehouse_issues 
-            (type, document_number, issue_date, status, created_at)
-            VALUES (?, ?, ?, ?, ?)
+            (type, document_number, issue_date, status, created_at, location_id)
+            VALUES (?, ?, ?, ?, ?, ?)
         """, ('internal', document_number, datetime.now().isoformat(), 
-              'completed', datetime.now().isoformat()))
+              'completed', datetime.now().isoformat(), location_id))
         
         if not issue_id:
             return error_response("Błąd tworzenia dokumentu RW")

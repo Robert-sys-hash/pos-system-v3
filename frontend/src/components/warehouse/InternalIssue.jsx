@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { warehouseService } from '../../services/warehouseService';
 import { productService } from '../../services/productService';
+import { useLocation } from '../../contexts/LocationContext';
 
 const InternalIssue = () => {
+  const { locationId } = useLocation();
   const [products, setProducts] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -20,16 +22,24 @@ const InternalIssue = () => {
   useEffect(() => {
     if (activeTab === 'new') {
       loadProducts();
-    } else if (activeTab === 'history') {
+    } else if (activeTab === 'history' && locationId) {
       loadIssues();
     }
   }, [activeTab]);
+  
+  // Osobny useEffect dla zmiany lokalizacji
+  useEffect(() => {
+    if (locationId && activeTab === 'history') {
+      loadIssues();
+    }
+  }, [locationId]);
 
   const loadIssues = async () => {
     try {
       const result = await warehouseService.getInternalIssues({
         date: dateFilter,
-        status: statusFilter
+        status: statusFilter,
+        location_id: locationId
       });
       if (result.success) {
         setIssues(result.data || []);
@@ -147,7 +157,8 @@ const InternalIssue = () => {
           product_id: p.id,
           quantity: p.quantity,
           reason: p.reason
-        }))
+        })),
+        location_id: locationId
       });
 
       if (result.success) {

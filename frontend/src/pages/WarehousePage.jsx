@@ -18,8 +18,13 @@ const WarehousePage = () => {
   // Używamy tylko location-based filtering dla spójności
   const currentLocationId = locationId;
   
-  // DEBUG: log każdej zmiany w currentLocationId
-  console.log('🔍 RENDER: currentLocationId =', currentLocationId, 'selectedLocation =', selectedLocation);
+  // Ref do śledzenia poprzedniej lokalizacji (żeby wykryć rzeczywistą zmianę)
+  const prevLocationIdRef = useRef(null);
+  const locationIdRef = useRef(currentLocationId);
+  const isLoadingRef = useRef(false); // Zapobiegaj równoległym ładowaniom
+  
+  // DEBUG: log każdej zmiany w currentLocationId (usuń w produkcji)
+  // console.log('🔍 RENDER: currentLocationId =', currentLocationId, 'selectedLocation =', selectedLocation);
   
   const [inventory, setInventory] = useState({
     products: [],
@@ -37,9 +42,6 @@ const WarehousePage = () => {
   // State dla filtrowania magazynów
   const [availableWarehouses, setAvailableWarehouses] = useState([]);
   const [selectedWarehouse, setSelectedWarehouse] = useState('all'); // 'all' = wszystkie magazyny w lokalizacji
-  
-  // Debug: log zmian w availableWarehouses
-  console.log('🏭 Dostępne magazyny:', availableWarehouses.length, availableWarehouses.map(w => ({id: w.id, nazwa: w.nazwa})));
   
   // Ref aby uniknąć dependency issues
   const filtersRef = useRef(currentFilters);
@@ -71,20 +73,28 @@ const WarehousePage = () => {
     }
   }, [isInitialized]);
 
-  // Ładuj dane po zmianie lokalizacji
+  // Ładuj dane po zmianie lokalizacji - tylko gdy rzeczywiście się zmieni
   useEffect(() => {
-    if (isInitialized && currentLocationId) {
-      console.log('🔄 Location changed, reloading inventory for location:', currentLocationId);
-      // loadInventoryData zostanie wywołane bezpośrednio
-      const loadData = async () => {
+    // Sprawdź czy lokalizacja rzeczywiście się zmieniła (nie tylko pierwszy render)
+    const locationChanged = prevLocationIdRef.current !== null && 
+                            prevLocationIdRef.current !== currentLocationId;
+    
+    // Aktualizuj refy
+    locationIdRef.current = currentLocationId;
+    prevLocationIdRef.current = currentLocationId;
+    
+    // Tylko jeśli zainicjalizowano i lokalizacja się zmieniła
+    if (isInitialized && currentLocationId && locationChanged) {
+      // Opóźnij wywołanie żeby uniknąć wielokrotnych requestów
+      const timeoutId = setTimeout(async () => {
         await loadInventoryData();
-      };
-      loadData();
+      }, 150);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [currentLocationId, isInitialized]);
 
   const loadInitialData = async () => {
-    console.log('🔄 Ładowanie danych magazynu...');
     if (isInitialized) return; // Zapobiegaj wielokrotnemu ładowaniu
     
     setLoading(true);
@@ -139,57 +149,75 @@ const WarehousePage = () => {
 
   // Ładowanie magazynów dla wybranej lokalizacji
   const loadWarehouses = useCallback(async () => {
-    console.log('🏭 loadWarehouses wywołane dla lokalizacji:', currentLocationId);
-    
-    if (!currentLocationId) {
-      console.log('🏭 Brak lokalizacji, czyszczę magazyny');
+    const locId = locationIdRef.current;
+    if (!locId) {
       setAvailableWarehouses([]);
-      setSelectedWarehouse('all');
       return;
     }
 
+    // Zapobiegaj równoległym wywołaniom
+    if (isLoadingRef.current) return;
+    
     try {
-      const response = await fetch('https://panelv3.pl/api/warehouses');
+      const response = await fetch('http://localhost:8000/api/warehouses');
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          console.log('🏭 Wszystkie magazyny z API:', data.data);
-          
           // Filtruj magazyny dla wybranej lokalizacji
           const locationWarehouses = data.data.filter(warehouse => 
-            warehouse.location_id === currentLocationId
+            warehouse.location_id === locId
           );
-          console.log('🏭 Magazyny dla lokalizacji', currentLocationId, ':', locationWarehouses);
           
           setAvailableWarehouses(locationWarehouses);
           
-          // Resetuj wybór magazynu gdy zmienia się lokalizacja
-          setSelectedWarehouse('all');
-          console.log('🏭 Ustawiono selectedWarehouse na "all"');
+          // Resetuj wybór magazynu gdy zmienia się lokalizacja - ale użyj funkcji setter
+          // Sprawdź czy poprzednio wybrany magazyn istnieje w nowej lokalizacji
+          setSelectedWarehouse(prev => {
+            if (prev !== 'all') {
+              const warehouseStillExists = locationWarehouses.some(w => w.id.toString() === prev);
+              return warehouseStillExists ? prev : 'all';
+            }
+            return 'all';
+          });
         }
       }
     } catch (error) {
       console.error('Błąd ładowania magazynów:', error);
     }
+  }, []); // Usunięto currentLocationId - używamy ref
+
+  // Ładuj magazyny gdy zmienia się lokalizacja - ale tylko gdy rzeczywiście się zmieni
+  const prevLocForWarehousesRef = useRef(null);
+  useEffect(() => {
+    if (currentLocationId && prevLocForWarehousesRef.current !== currentLocationId) {
+      prevLocForWarehousesRef.current = currentLocationId;
+      loadWarehouses();
+    }
   }, [currentLocationId]);
 
-  // Ładuj magazyny gdy zmienia się lokalizacja
+  // Odśwież dane gdy zmienia się wybrany magazyn (ale NIE 'all' - to obsługuje loadInventoryData)
+  const prevSelectedWarehouseRef = useRef('all');
   useEffect(() => {
-    loadWarehouses();
-  }, [currentLocationId]); // Używaj bezpośrednio currentLocationId zamiast loadWarehouses
-
-  // Odśwież dane gdy zmienia się wybrany magazyn
-  useEffect(() => {
-    console.log('🏪 useEffect selectedWarehouse triggered - selectedWarehouse:', selectedWarehouse, 'currentLocationId:', currentLocationId);
-    if (currentLocationId && availableWarehouses.length >= 0) { // >= 0 zamiast > 0, bo może być 0 magazynów
-      console.log('🏪 Wywołuję handleFilter dla magazynu:', selectedWarehouse);
+    // Wywołaj tylko gdy selectedWarehouse się zmienił na konkretny magazyn (nie 'all')
+    if (selectedWarehouse !== 'all' && 
+        prevSelectedWarehouseRef.current !== selectedWarehouse &&
+        currentLocationId) {
+      prevSelectedWarehouseRef.current = selectedWarehouse;
       handleFilter(filtersRef.current, 1);
+    } else {
+      prevSelectedWarehouseRef.current = selectedWarehouse;
     }
-  }, [selectedWarehouse, currentLocationId]); // Usuń availableWarehouses z dependencies
+  }, [selectedWarehouse]);
 
   // Funkcja do przeładowania danych inwentarza dla wybranego magazynu/lokalizacji
   const loadInventoryData = useCallback(async () => {
-    console.log('🔄 Przeładowanie danych magazynu..., wybrany:', currentLocationId, selectedLocation);
+    // Zapobiegaj równoległym wywołaniom
+    if (isLoadingRef.current) {
+      return;
+    }
+    
+    const locationToUse = locationIdRef.current;
+    isLoadingRef.current = true;
     setLoading(true);
     setError('');
     
@@ -203,11 +231,9 @@ const WarehousePage = () => {
       };
       
       // Dodaj location_id tylko jeśli jest ustawiony
-      if (currentLocationId) {
-        inventoryParams.location_id = currentLocationId; // Używamy location_id dla filtrowania
+      if (locationToUse) {
+        inventoryParams.location_id = locationToUse;
       }
-      
-      console.log('📦 Parametry zapytania inventory:', inventoryParams);
       
       const result = await warehouseService.getInventory(inventoryParams);
 
@@ -216,31 +242,29 @@ const WarehousePage = () => {
           products: result.data?.products || [],
           pagination: result.data?.pagination || { page: 1, limit: ITEMS_PER_PAGE, total: 0, pages: 0 }
         });
-        setCurrentPage(1); // Reset strony
+        setCurrentPage(1);
       } else {
-        console.warn('⚠️ Błąd ładowania produktów:', result.error);
         setError('Nie udało się załadować produktów');
       }
 
       // Ładowanie statystyk
-      const statsResult = await warehouseService.getStats(currentLocationId);
+      const statsResult = await warehouseService.getStats(locationToUse);
       if (statsResult.success) {
         setStats(statsResult.data || {});
-      } else {
-        console.warn('⚠️ Błąd ładowania statystyk:', statsResult.error);
       }
 
     } catch (error) {
-      console.error('❌ Błąd ładowania danych magazynu:', error);
+      console.error('Błąd ładowania danych magazynu:', error);
       setError('Nie udało się załadować danych magazynu');
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  }, [currentLocationId]);
+  }, []); // Usuń currentLocationId z dependencies - używamy ref
 
   // Funkcja filtrowania produktów - używa useCallback aby uniknąć re-renderów
   const handleFilter = useCallback(async (filters, page = 1) => {
-    console.log('🔍 Filtrowanie produktów:', filters, 'strona:', page, 'lokalizacja/magazyn:', currentLocationId);
+    const locationToUse = locationIdRef.current;
     setLoading(true);
     setError('');
 
@@ -254,25 +278,16 @@ const WarehousePage = () => {
       };
       
       // Dodaj location_id lub warehouse_id w zależności od wyboru
-      if (selectedWarehouse === 'all' && currentLocationId) {
-        // Wszystkie magazyny w lokalizacji
-        inventoryParams.location_id = currentLocationId;
+      if (selectedWarehouse === 'all' && locationToUse) {
+        inventoryParams.location_id = locationToUse;
       } else if (selectedWarehouse !== 'all') {
-        // Konkretny magazyn - konwertuj string na number
         inventoryParams.warehouse_id = parseInt(selectedWarehouse, 10);
       }
       
-      console.log('📦 Parametry zapytania handleFilter:', inventoryParams, 'selectedWarehouse:', selectedWarehouse);
-      console.log('🌐 Będę wysyłać zapytanie z parametrami:', inventoryParams);
-      
       const result = await warehouseService.getInventory(inventoryParams);
-
-      console.log('🔍 Wynik getInventory:', result);
 
       if (result.success) {
         const newProducts = result.data?.products || [];
-        console.log('🔍 Nowe produkty:', newProducts.length, 'produktów');
-        console.log('🔍 Pierwszy produkt:', newProducts[0]);
         
         setInventory({
           products: newProducts,
@@ -281,31 +296,29 @@ const WarehousePage = () => {
         setCurrentPage(page);
         setCurrentFilters(filters);
         
-        console.log('✅ Odświeżanie listy zakończone pomyślnie');
         return { success: true };
       } else {
-        console.error('❌ Błąd filtrowania:', result.error);
         setError(result.error || 'Błąd podczas filtrowania produktów');
         return { success: false, error: result.error };
       }
     } catch (error) {
       const errorMsg = 'Błąd podczas ładowania produktów';
-      console.error('❌ Błąd filtrowania:', error);
+      console.error('Błąd filtrowania:', error);
       setError(errorMsg);
       return { success: false, error: errorMsg };
     } finally {
       setLoading(false);
     }
-  }, [ITEMS_PER_PAGE, currentLocationId, selectedWarehouse]);
+  }, [ITEMS_PER_PAGE, selectedWarehouse]);
 
   // Funkcja ładowania produktów z niskim stanem
   const loadLowStockProducts = useCallback(async () => {
-    console.log('🔍 Ładowanie produktów z niskim stanem...');
+    const locationToUse = locationIdRef.current;
     setLoading(true);
     setError('');
 
     try {
-      const result = await warehouseService.getLowStockProducts(currentLocationId);
+      const result = await warehouseService.getLowStockProducts(locationToUse);
       if (result.success) {
         // Backend zwraca tablicę produktów bezpośrednio w result.data
         const products = Array.isArray(result.data) ? result.data : [];
@@ -325,7 +338,7 @@ const WarehousePage = () => {
     } finally {
       setLoading(false);
     }
-  }, [inventory.pagination, currentLocationId]);
+  }, [inventory.pagination]); // Usuń currentLocationId - używamy ref
 
   const handleShowHistory = (product) => {
     console.log('🔍 WarehousePage handleShowHistory wywołane:', product);

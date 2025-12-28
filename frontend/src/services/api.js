@@ -3,9 +3,13 @@ import axios from 'axios';
 // Konfiguracja axios - API endpointy z routing przez .htaccess  
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
-console.log('🔗 API Base URL:', API_BASE_URL);
-console.log('🔗 Environment API URL:', process.env.REACT_APP_API_URL);
-console.log('🔗 Build timestamp:', new Date().toISOString());
+// Flaga debug - ustaw na false aby wyłączyć logi
+const DEBUG_API = false;
+const debugLog = (...args) => { if (DEBUG_API) console.log(...args); };
+
+debugLog('🔗 API Base URL:', API_BASE_URL);
+debugLog('🔗 Environment API URL:', process.env.REACT_APP_API_URL);
+debugLog('🔗 Build timestamp:', new Date().toISOString());
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -20,12 +24,14 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     // Oblicz poprawny finalURL tak jak to robi axios
-    const finalURL = config.baseURL + (config.url.startsWith('/') ? config.url : '/' + config.url);
-    console.log('🔍 DEBUG Axios Request:', {
-      baseURL: config.baseURL,
-      url: config.url,
-      finalURL: finalURL
-    });
+    if (DEBUG_API) {
+      const finalURL = config.baseURL + (config.url.startsWith('/') ? config.url : '/' + config.url);
+      console.log('🔍 DEBUG Axios Request:', {
+        baseURL: config.baseURL,
+        url: config.url,
+        finalURL: finalURL
+      });
+    }
     return config;
   }
 );

@@ -7,6 +7,14 @@ from flask import Blueprint, request, jsonify
 from utils.database import execute_query, execute_insert, success_response, error_response, not_found_response
 from api.margin_service import margin_service
 
+# Flaga debug - ustaw na False aby wyłączyć logowanie
+DEBUG_PRODUCTS = False
+
+def debug_print(*args, **kwargs):
+    """Warunkowe printowanie - tylko gdy DEBUG_PRODUCTS=True"""
+    if DEBUG_PRODUCTS:
+        print(*args, **kwargs)
+
 products_bp = Blueprint('products', __name__)
 
 @products_bp.route('/products', methods=['GET'])
@@ -15,11 +23,11 @@ def get_all_products():
     Pobierz wszystkie produkty (endpoint bazowy)
     Parametry: limit (int, opcjonalny), search (string, opcjonalny)
     """
-    print(f"🟢 WYWOŁANA FUNKCJA get_all_products z parametrami: {request.args}")
+    debug_print(f"🟢 WYWOŁANA FUNKCJA get_all_products z parametrami: {request.args}")
     try:
         # Safely parse limit parameter
         limit_param = request.args.get('limit', '100')
-        print(f"🔍 DEBUG limit_param: '{limit_param}'")
+        debug_print(f"🔍 DEBUG limit_param: '{limit_param}'")
         if not limit_param or limit_param in ['undefined', 'null', '']:
             limit = 100
         else:
@@ -27,7 +35,7 @@ def get_all_products():
                 limit = int(limit_param)
             except ValueError:
                 limit = 100
-        print(f"🔍 DEBUG final limit: {limit}")
+        debug_print(f"🔍 DEBUG final limit: {limit}")
         
         search = request.args.get('search', '').strip()
         
@@ -81,8 +89,8 @@ def get_all_products():
         params.append(limit)
         
         # DEBUG: Log SQL query and parameters
-        print(f"🔍 SQL Query: {sql_query}")
-        print(f"🔍 Params: {params}")
+        debug_print(f"🔍 SQL Query: {sql_query}")
+        debug_print(f"🔍 Params: {params}")
         
         results = execute_query(sql_query, params)
         
@@ -100,9 +108,9 @@ def get_all_products():
                 # Zastąp cenę z tabeli produkty na cenę z margin_service
                 product['purchase_price'] = purchase_price
                 product['purchase_price_method'] = method
-                print(f"🔍 DEBUG /products - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+                debug_print(f"🔍 DEBUG /products - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
             except Exception as e:
-                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                debug_print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
                 # Zostaw oryginalną cenę w przypadku błędu
             
         return success_response(results, f"Znaleziono {len(results)} produktów")
@@ -110,7 +118,7 @@ def get_all_products():
     except ValueError:
         return error_response("Parametr 'limit' musi być liczbą", 400)
     except Exception as e:
-        print(f"Błąd pobierania produktów: {e}")
+        debug_print(f"Błąd pobierania produktów: {e}")
         return error_response("Wystąpił błąd podczas pobierania produktów", 500)
 
 @products_bp.route('/products/search', methods=['GET'])
@@ -227,9 +235,9 @@ def search_products():
                 # Zastąp starą cenę na najnowszą z faktury
                 product['current_purchase_price'] = purchase_price
                 product['purchase_price_method'] = method
-                print(f"🔍 DEBUG search - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+                debug_print(f"🔍 DEBUG search - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
             except Exception as e:
-                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                debug_print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
                 # Zostaw oryginalną cenę w przypadku błędu
             
         return success_response({
@@ -243,7 +251,7 @@ def search_products():
     except ValueError:
         return error_response("Parametr 'limit' musi być liczbą", 400)
     except Exception as e:
-        print(f"Błąd wyszukiwania produktów: {e}")
+        debug_print(f"Błąd wyszukiwania produktów: {e}")
         return error_response("Wystąpił błąd podczas wyszukiwania", 500)
 
 @products_bp.route('/products/<int:product_id>', methods=['GET'])
@@ -308,9 +316,9 @@ def get_product(product_id):
             # Jeśli ma pole cost_price, też je zaktualizuj
             if 'cost_price' in product:
                 product['cost_price'] = purchase_price
-            print(f"🔍 DEBUG /products/{product_id} - cena zakupu {purchase_price} ({method})")
+            debug_print(f"🔍 DEBUG /products/{product_id} - cena zakupu {purchase_price} ({method})")
         except Exception as e:
-            print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product_id}: {e}")
+            debug_print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product_id}: {e}")
             # Zostaw oryginalną cenę w przypadku błędu
         
         return success_response(product, "Szczegóły produktu")
@@ -497,7 +505,7 @@ def get_products_stats():
     GET /api/products/stats
     """
     try:
-        print("🔍 DEBUG: Starting products stats")
+        debug_print("🔍 DEBUG: Starting products stats")
         
         # Lista tabel do sprawdzenia
         tables_to_check = [
@@ -530,14 +538,14 @@ def get_products_stats():
             table_name = table_config['name']
             
             try:
-                print(f"🔍 DEBUG: Trying table {table_name}")
+                debug_print(f"🔍 DEBUG: Trying table {table_name}")
                 
                 # Sprawdź czy tabela istnieje
                 check_sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
                 table_exists = execute_query(check_sql, ())
                 
                 if not table_exists:
-                    print(f"❌ Table {table_name} does not exist")
+                    debug_print(f"❌ Table {table_name} does not exist")
                     continue
                 
                 # Podstawowe statystyki (COUNT zawsze działa)
@@ -554,7 +562,7 @@ def get_products_stats():
                         'table_used': table_name
                     }
                     table_used = table_name
-                    print(f"✅ Basic stats from {table_name}: {stats['total_products']} products")
+                    debug_print(f"✅ Basic stats from {table_name}: {stats['total_products']} products")
                     
                     # Spróbuj dodać więcej statystyk bezpiecznie
                     cols = table_config['columns']
@@ -566,7 +574,7 @@ def get_products_stats():
                         if price_result and price_result[0]['avg_price']:
                             stats['avg_price'] = float(price_result[0]['avg_price'])
                     except Exception as e:
-                        print(f"⚠️ Could not get avg price: {e}")
+                        debug_print(f"⚠️ Could not get avg price: {e}")
                     
                     # Kategorie
                     try:
@@ -575,7 +583,7 @@ def get_products_stats():
                         if cat_result:
                             stats['categories_count'] = cat_result[0]['categories_count']
                     except Exception as e:
-                        print(f"⚠️ Could not get categories: {e}")
+                        debug_print(f"⚠️ Could not get categories: {e}")
                     
                     # Stan magazynowy (jeśli istnieje kolumna)
                     if cols['stock'] is not None:
@@ -591,19 +599,19 @@ def get_products_stats():
                                 stats['in_stock'] = stock_result[0]['in_stock'] or 0
                                 stats['out_of_stock'] = stock_result[0]['out_of_stock'] or 0
                         except Exception as e:
-                            print(f"⚠️ Could not get stock info: {e}")
+                            debug_print(f"⚠️ Could not get stock info: {e}")
                     else:
-                        print(f"⚠️ No stock column for table {table_name}, skipping stock stats")
+                        debug_print(f"⚠️ No stock column for table {table_name}, skipping stock stats")
                     
                     break  # Udało się pobrać dane, przerwij pętlę
                     
             except Exception as e:
-                print(f"❌ Error with table {table_name}: {e}")
+                debug_print(f"❌ Error with table {table_name}: {e}")
                 continue
         
         # Jeśli nie udało się pobrać z żadnej tabeli, zwróć domyślne wartości
         if not stats:
-            print("⚠️ No product tables found, returning default stats")
+            debug_print("⚠️ No product tables found, returning default stats")
             stats = {
                 'total_products': 0,
                 'in_stock': 0,
@@ -613,11 +621,11 @@ def get_products_stats():
                 'table_used': 'none_found'
             }
         
-        print(f"✅ DEBUG: Final stats: {stats}")
+        debug_print(f"✅ DEBUG: Final stats: {stats}")
         return success_response(stats, "Statystyki produktów")
         
     except Exception as e:
-        print(f"❌ CRITICAL ERROR in products stats: {e}")
+        debug_print(f"❌ CRITICAL ERROR in products stats: {e}")
         import traceback
         traceback.print_exc()
         
@@ -653,7 +661,7 @@ def get_inventory():
         params = []
         conditions = []
         
-        print(f"🔍 DEBUG inventory - używam pos_magazyn, available_only: {available_only}, location_id: {location_id}, warehouse_id: {warehouse_id}")
+        debug_print(f"🔍 DEBUG inventory - używam pos_magazyn, available_only: {available_only}, location_id: {location_id}, warehouse_id: {warehouse_id}")
         
         # Dodaj location_id jako pierwszy parametr dla warehouse join
         if location_id:
@@ -662,7 +670,10 @@ def get_inventory():
             params.append(5)  # Domyślna lokalizacja (Kalisz)
         
         # Główne zapytanie używające tabeli pos_magazyn z obsługą cen specjalnych
-        base_sql = """
+        # Dodajemy location_id do JOIN z pos_magazyn żeby pobrać stan dla konkretnej lokalizacji
+        location_for_join = location_id if location_id else 5  # Domyślna lokalizacja (Kalisz)
+        
+        base_sql = f"""
         SELECT DISTINCT
             p.id,
             p.nazwa as name,
@@ -692,7 +703,7 @@ def get_inventory():
             p.cena_sprzedazy_brutto as default_price_brutto
         FROM produkty p
         LEFT JOIN kategorie_produktow k ON p.category_id = k.id
-        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id AND pm.lokalizacja = '{location_for_join}'
         LEFT JOIN (SELECT MIN(id) as id, location_id FROM warehouses WHERE location_id = ? GROUP BY location_id) w ON 1=1
         LEFT JOIN warehouse_product_prices wpp ON p.id = wpp.product_id AND w.id = wpp.warehouse_id AND wpp.aktywny = 1
         WHERE 1=1
@@ -711,11 +722,10 @@ def get_inventory():
         if available_only:
             conditions.append("COALESCE(pm.stan_aktualny, 0) > 0")
             
-        # Filtrowanie według lokalizacji w pos_magazyn
+        # Lokalizacja jest już obsługiwana w JOIN - nie potrzebujemy dodatkowego warunku WHERE
+        # Produkty bez wpisu w pos_magazyn dla danej lokalizacji pokażą stan=0
         if location_id:
-            conditions.append("pm.lokalizacja = ?")
-            params.append(str(location_id))
-            print(f"🔍 DEBUG dodaję filtr lokalizacji: {location_id}")
+            debug_print(f"🔍 DEBUG używam lokalizacji w JOIN: {location_id}")
             
         # TODO: W przyszłości można dodać filtrowanie według konkretnego magazynu
         # jeśli warehouse_id zostanie zmapowane na pos_magazyn
@@ -730,15 +740,15 @@ def get_inventory():
         sql_query = base_sql + " ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
         
-        print(f"🔍 DEBUG SQL: {sql_query}")
-        print(f"🔍 DEBUG params: {params}")
+        debug_print(f"🔍 DEBUG SQL: {sql_query}")
+        debug_print(f"🔍 DEBUG params: {params}")
         
         products = execute_query(sql_query, params)
         
         if products is None:
             return error_response("Błąd połączenia z bazą danych", 500)
         
-        print(f"🔍 DEBUG znaleziono {len(products)} produktów")
+        debug_print(f"🔍 DEBUG znaleziono {len(products)} produktów")
         
         # Aktualizuj ceny zakupu używając margin_service
         for product in products:
@@ -751,17 +761,18 @@ def get_inventory():
                 # Zastąp cenę z tabeli produkty na cenę z margin_service
                 product['purchase_price'] = purchase_price
                 product['purchase_price_method'] = method
-                print(f"🔍 DEBUG Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+                debug_print(f"🔍 DEBUG Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
             except Exception as e:
-                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                debug_print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
                 # Zostaw oryginalną cenę w przypadku błędu
         
         # Policz wszystkie produkty dla paginacji
-        count_sql = """
+        # Używamy tego samego podejścia co w głównym zapytaniu - lokalizacja w JOIN
+        count_sql = f"""
         SELECT COUNT(DISTINCT p.id) as total 
         FROM produkty p  
         LEFT JOIN kategorie_produktow k ON p.category_id = k.id
-        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id AND pm.lokalizacja = '{location_for_join}'
         WHERE 1=1
         """
         count_params = []
@@ -779,10 +790,7 @@ def get_inventory():
         if available_only:
             count_sql += " AND COALESCE(pm.stan_aktualny, 0) > 0"
             
-        # Filtrowanie według lokalizacji w count query
-        if location_id:
-            count_sql += " AND pm.lokalizacja = ?"
-            count_params.append(str(location_id))
+        # Lokalizacja jest już w JOIN - nie potrzebujemy dodatkowego warunku WHERE
             
         total_result = execute_query(count_sql, count_params)
         if total_result is None:
@@ -1018,7 +1026,7 @@ def update_product(product_id):
         if not data:
             return error_response("Brak danych JSON", 400)
         
-        print(f"🔍 UPDATE PRODUCT {product_id}: {data}")
+        debug_print(f"🔍 UPDATE PRODUCT {product_id}: {data}")
         
         # Walidacja wymaganych pól - sprawdź 'name' lub 'nazwa'
         product_name = data.get('name') or data.get('nazwa')
@@ -1069,9 +1077,9 @@ def update_product(product_id):
             cat_result = execute_query(cat_check_sql, (category_id,))
             if cat_result:
                 category = cat_result[0]['nazwa']  # Ustaw nazwę kategorii dla kompatybilności
-                print(f"🔍 Ustawiono category='{category}' dla category_id={category_id}")
+                debug_print(f"🔍 Ustawiono category='{category}' dla category_id={category_id}")
             else:
-                print(f"⚠️ Nie znaleziono kategorii o ID {category_id}")
+                debug_print(f"⚠️ Nie znaleziono kategorii o ID {category_id}")
                 category_id = None  # ID nie istnieje, resetuj
             
         unit = safe_get_string(data, 'unit', 'szt') or safe_get_string(data, 'jednostka', 'szt')
@@ -1213,8 +1221,8 @@ def update_product(product_id):
         update_sql = f"UPDATE produkty SET {', '.join(update_fields)} WHERE id = ?"
         update_params.append(product_id)
         
-        print(f"🔍 SQL UPDATE: {update_sql}")
-        print(f"🔍 Parametry: {update_params}")
+        debug_print(f"🔍 SQL UPDATE: {update_sql}")
+        debug_print(f"🔍 Parametry: {update_params}")
         
         success = execute_insert(update_sql, update_params)
         
@@ -1251,7 +1259,7 @@ def update_product(product_id):
     except ValueError as e:
         return error_response(f"Błąd walidacji danych: {str(e)}", 400)
     except Exception as e:
-        print(f"Błąd aktualizacji produktu: {e}")
+        debug_print(f"Błąd aktualizacji produktu: {e}")
         return error_response("Wystąpił błąd podczas aktualizacji produktu", 500)
 
 @products_bp.route('/products', methods=['POST'])
@@ -1346,7 +1354,7 @@ def create_product():
     except ValueError as e:
         return error_response(f"Błąd walidacji danych: {str(e)}", 400)
     except Exception as e:
-        print(f"Błąd tworzenia produktu: {e}")
+        debug_print(f"Błąd tworzenia produktu: {e}")
         return error_response("Wystąpił błąd podczas tworzenia produktu", 500)
 
 @products_bp.route('/products/<int:product_id>', methods=['DELETE'])
@@ -1397,7 +1405,7 @@ def delete_product(product_id):
             return error_response("Błąd usuwania produktu", 500)
         
     except Exception as e:
-        print(f"Błąd usuwania produktu: {e}")
+        debug_print(f"Błąd usuwania produktu: {e}")
         return error_response("Wystąpił błąd podczas usuwania produktu", 500)
 
 @products_bp.route('/products/<int:product_id>/manufacturer', methods=['PUT'])
@@ -1431,7 +1439,7 @@ def update_product_manufacturer(product_id):
             return error_response("Błąd podczas aktualizacji producenta", 500)
             
     except Exception as e:
-        print(f"Błąd aktualizacji producenta produktu: {e}")
+        debug_print(f"Błąd aktualizacji producenta produktu: {e}")
         return error_response("Wystąpił błąd podczas aktualizacji producenta", 500)
 
 @products_bp.route('/products/<int:product_id>/simplified-name', methods=['PUT'])
@@ -1459,7 +1467,7 @@ def update_product_simplified_name(product_id):
             return error_response("Błąd podczas aktualizacji uproszczonej nazwy", 500)
             
     except Exception as e:
-        print(f"Błąd aktualizacji uproszczonej nazwy: {e}")
+        debug_print(f"Błąd aktualizacji uproszczonej nazwy: {e}")
         return error_response("Wystąpił błąd podczas aktualizacji uproszczonej nazwy", 500)
 
 @products_bp.route('/products/bulk-update-manufacturer', methods=['POST'])
@@ -1495,7 +1503,7 @@ def bulk_update_manufacturer():
             return error_response("Błąd podczas masowej aktualizacji producenta", 500)
             
     except Exception as e:
-        print(f"Błąd masowej aktualizacji producenta: {e}")
+        debug_print(f"Błąd masowej aktualizacji producenta: {e}")
         return error_response("Wystąpił błąd podczas masowej aktualizacji producenta", 500)
 
 @products_bp.route('/products/<int:product_id>/history', methods=['GET'])
@@ -1510,22 +1518,22 @@ def get_product_history(product_id):
         warehouse_id = request.args.get('warehouse_id')
         
         # Sprawdź czy produkt istnieje
-        print(f"🔍 PRODUCT CHECK SQL: SELECT nazwa FROM produkty WHERE id = {product_id}")
+        debug_print(f"🔍 PRODUCT CHECK SQL: SELECT nazwa FROM produkty WHERE id = {product_id}")
         product_check = execute_query("SELECT nazwa FROM produkty WHERE id = ?", [product_id])
-        print(f"🔍 PRODUCT CHECK RESULT: {product_check}")
+        debug_print(f"🔍 PRODUCT CHECK RESULT: {product_check}")
         if not product_check:
             return not_found_response("Produkt nie został znaleziony")
         
         product_name = product_check[0]['nazwa']
-        print(f"🔍 PRODUCT NAME: {product_name}")
+        debug_print(f"🔍 PRODUCT NAME: {product_name}")
         
         # Sprawdź strukturę tabel
         tables_check = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('pos_transakcje', 'pos_transakcje_pozycje')")
-        print(f"🔍 TABLES CHECK: {tables_check}")
+        debug_print(f"🔍 TABLES CHECK: {tables_check}")
         
         # Sprawdź kolumny w pos_transakcje_pozycje
         columns_check = execute_query("PRAGMA table_info(pos_transakcje_pozycje)")
-        print(f"🔍 COLUMNS in pos_transakcje_pozycje: {columns_check}")
+        debug_print(f"🔍 COLUMNS in pos_transakcje_pozycje: {columns_check}")
         
         # 1. Historia sprzedaży z transakcji
         sales_sql = """
@@ -1559,10 +1567,10 @@ def get_product_history(product_id):
         sales_sql += " ORDER BY t.data_transakcji DESC, t.czas_transakcji DESC LIMIT ?"
         params_sales.append(limit)
         
-        print(f"🔍 SALES SQL: {sales_sql}")
-        print(f"🔍 SALES PARAMS: {params_sales}")
+        debug_print(f"🔍 SALES SQL: {sales_sql}")
+        debug_print(f"🔍 SALES PARAMS: {params_sales}")
         sales_history = execute_query(sales_sql, params_sales) or []
-        print(f"🔍 SALES RESULTS: {len(sales_history)} rows")
+        debug_print(f"🔍 SALES RESULTS: {len(sales_history)} rows")
         
         # 2. Historia zmian magazynowych z warehouse_history
         inventory_sql = """
@@ -1591,12 +1599,12 @@ def get_product_history(product_id):
         
         # Sprawdź czy tabela warehouse_history istnieje
         try:
-            print(f"🔍 INVENTORY SQL: {inventory_sql}")
-            print(f"🔍 INVENTORY PARAMS: {params_inventory}")
+            debug_print(f"🔍 INVENTORY SQL: {inventory_sql}")
+            debug_print(f"🔍 INVENTORY PARAMS: {params_inventory}")
             inventory_history = execute_query(inventory_sql, params_inventory) or []
-            print(f"🔍 INVENTORY RESULTS: {len(inventory_history)} rows")
+            debug_print(f"🔍 INVENTORY RESULTS: {len(inventory_history)} rows")
         except Exception as e:
-            print(f"❌ INVENTORY ERROR: {e}")
+            debug_print(f"❌ INVENTORY ERROR: {e}")
             inventory_history = []
         
         # 3. Historia zmian cen z v_location_prices_history
@@ -1634,12 +1642,12 @@ def get_product_history(product_id):
         
         # Sprawdź czy view v_location_prices_history istnieje
         try:
-            print(f"🔍 PRICE SQL: {price_sql}")
-            print(f"🔍 PRICE PARAMS: {params_price}")
+            debug_print(f"🔍 PRICE SQL: {price_sql}")
+            debug_print(f"🔍 PRICE PARAMS: {params_price}")
             price_history = execute_query(price_sql, params_price) or []
-            print(f"🔍 PRICE RESULTS: {len(price_history)} rows")
+            debug_print(f"🔍 PRICE RESULTS: {len(price_history)} rows")
         except Exception as e:
-            print(f"❌ PRICE ERROR: {e}")
+            debug_print(f"❌ PRICE ERROR: {e}")
             price_history = []
         
         # Połącz wszystkie historie i posortuj chronologicznie
@@ -1681,5 +1689,5 @@ def get_product_history(product_id):
     except ValueError:
         return error_response("Parametr 'limit' musi być liczbą", 400)
     except Exception as e:
-        print(f"Błąd pobierania historii produktu {product_id}: {e}")
+        debug_print(f"Błąd pobierania historii produktu {product_id}: {e}")
         return error_response("Wystąpił błąd podczas pobierania historii produktu", 500)

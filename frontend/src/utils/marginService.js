@@ -1,7 +1,14 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 
 // Konfiguracja API
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
+// Flaga debug - ustaw na false aby wyłączyć logi
+const DEBUG_MARGIN = false;
+
+const debugLog = (...args) => {
+    if (DEBUG_MARGIN) console.log(...args);
+};
 
 /**
  * Klasa MarginService - klient JavaScript dla API marży
@@ -10,18 +17,18 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api
 class MarginService {
     constructor(baseURL = API_BASE_URL) {
         this.baseURL = baseURL;
-        console.log('🔗 MarginService initialized with baseURL:', baseURL);
-        console.log('🔗 Will use endpoint: /api/margins/calculate');
+        debugLog('🔗 MarginService initialized with baseURL:', baseURL);
+        debugLog('🔗 Will use endpoint: /api/margins/calculate');
     }
 
     /**
      * Oblicza marżę dla podanych cen
      */
     async calculateMargin(sellPriceNet, buyPriceNet) {
-        console.log('🔍 MarginService.calculateMargin called with:', { sellPriceNet, buyPriceNet });
+        debugLog('🔍 MarginService.calculateMargin called with:', { sellPriceNet, buyPriceNet });
         try {
             const url = `${this.baseURL}/margins/calculate`;
-            console.log('🔗 Making POST request to:', url);
+            debugLog('🔗 Making POST request to:', url);
             
             const response = await fetch(url, {
                 method: 'POST',
@@ -34,7 +41,7 @@ class MarginService {
                 })
             });
 
-            console.log('📡 Response status:', response.status);
+            debugLog('📡 Response status:', response.status);
             
             if (!response.ok) {
                 console.error('❌ HTTP error:', response.status, response.statusText);
@@ -42,7 +49,7 @@ class MarginService {
             }
 
             const result = await response.json();
-            console.log('✅ Margin calculation result:', result);
+            debugLog('✅ Margin calculation result:', result);
             
             if (result.success) {
                 return result.data;
@@ -111,13 +118,14 @@ class MarginService {
  * Hook do obliczania marży w czasie rzeczywistym
  */
 export const useMarginCalculation = () => {
-    const marginService = new MarginService();
+    // Używamy useMemo aby uniknąć tworzenia nowej instancji przy każdym renderze
+    const marginService = useMemo(() => new MarginService(), []);
 
-    const calculateMargin = async (sellPrice, buyPrice) => {
-        console.log('🔄 useMarginCalculation.calculateMargin called:', { sellPrice, buyPrice });
+    const calculateMargin = useCallback(async (sellPrice, buyPrice) => {
+        debugLog('🔄 useMarginCalculation.calculateMargin called:', { sellPrice, buyPrice });
         
         if (!sellPrice || !buyPrice || sellPrice <= 0 || buyPrice <= 0) {
-            console.log('⚠️ Invalid prices, returning zero margin');
+            debugLog('⚠️ Invalid prices, returning zero margin');
             return {
                 margin_percent: 0,
                 margin_amount: 0,
@@ -128,7 +136,7 @@ export const useMarginCalculation = () => {
 
         try {
             const result = await marginService.calculateMargin(parseFloat(sellPrice), parseFloat(buyPrice));
-            console.log('✅ calculateMargin success:', result);
+            debugLog('✅ calculateMargin success:', result);
             return result;
         } catch (error) {
             console.error('❌ Błąd obliczania marży:', error);
@@ -140,9 +148,9 @@ export const useMarginCalculation = () => {
                 error: error.message
             };
         }
-    };
+    }, [marginService]);
 
-    const calculateProductMargin = async (productId, sellPrice, warehouseId = null) => {
+    const calculateProductMargin = useCallback(async (productId, sellPrice, warehouseId = null) => {
         if (!productId || !sellPrice || sellPrice <= 0) {
             return {
                 margin_percent: 0,
@@ -164,7 +172,7 @@ export const useMarginCalculation = () => {
                 error: error.message
             };
         }
-    };
+    }, [marginService]);
 
     return {
         calculateMargin,

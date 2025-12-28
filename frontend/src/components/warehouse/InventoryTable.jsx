@@ -51,9 +51,16 @@ const InventoryTable = ({
   }, [currentLocation]);
 
   // Pobierz marże z centralnego API gdy produkty się zmienią
+  // Używamy ref aby uniknąć wielokrotnych wywołań
+  const lastProductsHashRef = React.useRef('');
   useEffect(() => {
-    loadMarginsForProducts();
-  }, [products, locationPrices]);
+    // Utwórz hash z ID produktów żeby sprawdzić czy lista się zmieniła
+    const productsHash = products.map(p => p.id).join(',');
+    if (productsHash !== lastProductsHashRef.current && products.length > 0) {
+      lastProductsHashRef.current = productsHash;
+      loadMarginsForProducts();
+    }
+  }, [products]);
 
   const loadWarehousePrices = async () => {
     if (!currentLocation) return;

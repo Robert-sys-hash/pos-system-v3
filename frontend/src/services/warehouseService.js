@@ -35,30 +35,10 @@ export const warehouseService = {
       } else if (location_id) {
         queryParams.location_id = location_id;
       }
-
-      console.log('🌐 warehouseService.getInventory - wysyłam zapytanie z queryParams:', queryParams);
-      console.log('🌐 URL będzie: /products/inventory z params:', JSON.stringify(queryParams));
-
-      console.log('🔍 DEBUG: Wysyłam zapytanie GET /products/inventory z params:', queryParams);
-      console.log('🔍 DEBUG: available_only =', queryParams.available_only, 'type:', typeof queryParams.available_only);
       
       const response = await api.get('/products/inventory', {
         params: queryParams
       });
-
-      console.log('🌐 Odpowiedź z API (RAW):', response);
-      console.log('🌐 Odpowiedź z API (DATA):', response.data);
-      console.log('🌐 Odpowiedź SUCCESS:', response.data?.success);
-      console.log('🌐 Odpowiedź MESSAGE:', response.data?.message);
-      console.log('🌐 Liczba produktów:', response.data?.data?.products?.length);
-      
-      // 🚨 DODATKOWE DEBUG - sprawdź stock_quantity w pierwszych produktach
-      if (response.data?.data?.products?.length > 0) {
-        console.log('🔍 STOCK DEBUG: Pierwsze 3 produkty i ich stany:');
-        response.data.data.products.slice(0, 3).forEach((product, index) => {
-          console.log(`  ${index + 1}. ${product.name} - stock_quantity: ${product.stock_quantity} (type: ${typeof product.stock_quantity})`);
-        });
-      }
 
       return {
         success: true,
@@ -368,9 +348,12 @@ export const warehouseService = {
   /**
    * Generuje PZ (przyjęcie zewnętrzne) na podstawie faktury zakupu
    */
-  async generateExternalReceipt(invoiceId) {
+  async generateExternalReceipt(invoiceId, options = {}) {
     try {
-      const response = await api.post(`warehouse/external-receipt/${invoiceId}`);
+      const response = await api.post(`warehouse/external-receipt/${invoiceId}`, {
+        location_id: options.location_id,
+        warehouse_id: options.warehouse_id
+      });
       return {
         success: true,
         data: response.data.data,
@@ -411,6 +394,7 @@ export const warehouseService = {
       const params = new URLSearchParams();
       if (filters.date) params.append('date', filters.date);
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.location_id) params.append('location_id', filters.location_id);
       
       const response = await api.get(`warehouse/internal-receipt/list?${params}`);
       return {
@@ -453,6 +437,7 @@ export const warehouseService = {
       const params = new URLSearchParams();
       if (filters.date) params.append('date', filters.date);
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.location_id) params.append('location_id', filters.location_id);
       
       const response = await api.get(`warehouse/external-receipt/list?${params}`);
       return {
@@ -528,6 +513,7 @@ export const warehouseService = {
       const params = new URLSearchParams();
       if (filters.date) params.append('date', filters.date);
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
+      if (filters.location_id) params.append('location_id', filters.location_id);
       
       const response = await api.get(`warehouse/internal-issue/list?${params}`);
       return {

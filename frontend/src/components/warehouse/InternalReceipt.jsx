@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { warehouseService } from '../../services/warehouseService';
 import { productService } from '../../services/productService';
+import { useLocation } from '../../contexts/LocationContext';
 
 const InternalReceipt = () => {
+  const { locationId } = useLocation();
   const [products, setProducts] = useState([]);
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -25,16 +27,24 @@ const InternalReceipt = () => {
 
   useEffect(() => {
     loadProducts();
-    if (activeTab === 'history') {
+    if (activeTab === 'history' && locationId) {
       loadReceipts();
     }
   }, [activeTab]);
+  
+  // Osobny useEffect dla zmiany lokalizacji
+  useEffect(() => {
+    if (locationId && activeTab === 'history') {
+      loadReceipts();
+    }
+  }, [locationId]);
 
   const loadReceipts = async () => {
     try {
       const result = await warehouseService.getInternalReceipts({
         date: dateFilter,
-        status: statusFilter
+        status: statusFilter,
+        location_id: locationId
       });
       if (result.success) {
         setReceipts(result.data || []);
@@ -203,7 +213,8 @@ const InternalReceipt = () => {
           product_id: p.id,
           quantity: p.quantity,
           reason: p.reason || 'Przyjęcie wewnętrzne'
-        }))
+        })),
+        location_id: locationId
       });
 
       if (result.success) {

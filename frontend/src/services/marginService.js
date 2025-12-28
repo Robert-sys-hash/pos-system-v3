@@ -1,5 +1,9 @@
 import api from './api';
 
+// Flaga debug
+const DEBUG_MARGIN = false;
+const debugLog = (...args) => { if (DEBUG_MARGIN) console.log(...args); };
+
 export const marginService = {
   /**
    * Oblicza marżę dla produktu
@@ -11,7 +15,7 @@ export const marginService = {
    */
   async calculateMargin(params) {
     try {
-      console.log('🔢 MarginService: Obliczanie marży:', params);
+      debugLog('🔢 MarginService: Obliczanie marży:', params);
       
       const response = await api.post('/margins/calculate-pos', {
         product_id: params.product_id,
@@ -20,7 +24,7 @@ export const marginService = {
       });
       
       if (response.data.success) {
-        console.log('✅ MarginService: Marża obliczona:', response.data.data);
+        debugLog('✅ MarginService: Marża obliczona:', response.data.data);
         return {
           success: true,
           ...response.data.data
