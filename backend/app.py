@@ -303,6 +303,14 @@ def create_app():
     except Exception as e:
         print(f"❌ Błąd margins blueprint: {e}")
         print(f"❌ Błąd fiscal printer blueprint: {e}")
+        
+    # Dodaj blueprint szybkich produktów POS
+    try:
+        from api.quick_products import quick_products_bp
+        app.register_blueprint(quick_products_bp, url_prefix='/api')
+        print("✅ Quick Products blueprint OK")
+    except Exception as e:
+        print(f"❌ Błąd quick_products blueprint: {e}")
 
         # Kontynuuj dalej - nie zwracaj app tutaj!
     

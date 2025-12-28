@@ -98,6 +98,20 @@ const AdminPage = () => {
   const [backupList, setBackupList] = useState([]);
   const [backupLoading, setBackupLoading] = useState(false);
   
+  // State dla szybkich produktów POS
+  const [quickProducts, setQuickProducts] = useState([]);
+  const [quickProductsLoading, setQuickProductsLoading] = useState(false);
+  const [showQuickProductModal, setShowQuickProductModal] = useState(false);
+  const [editingQuickProduct, setEditingQuickProduct] = useState(null);
+  const [newQuickProduct, setNewQuickProduct] = useState({
+    nazwa: '',
+    ikona: 'fas fa-shopping-bag',
+    product_id: '',
+    aktywny: true
+  });
+  const [productSearchForQuick, setProductSearchForQuick] = useState('');
+  const [productSearchResults, setProductSearchResults] = useState([]);
+  
   // State dla definicji dokumentów
   const [documentDefinitions, setDocumentDefinitions] = useState([]);
   const [documentDefinitionsLoading, setDocumentDefinitionsLoading] = useState(true);
@@ -269,6 +283,7 @@ const AdminPage = () => {
     loadBackupSchedulerStatus();
     loadBackupList();
     loadDocumentDefinitions();
+    loadQuickProducts();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Przeładuj rabaty gdy zmieni się filtr
@@ -664,6 +679,134 @@ const AdminPage = () => {
     } catch (err) {
       console.error('Błąd podczas aktualizacji kategorii:', err);
       alert('Błąd podczas aktualizacji kategorii');
+    }
+  };
+
+  // =============== FUNKCJE SZYBKICH PRODUKTÓW POS ===============
+  
+  const loadQuickProducts = useCallback(async () => {
+    setQuickProductsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/pos/quick-products/all`);
+      const data = await response.json();
+      if (data.success) {
+        setQuickProducts(data.data || []);
+      }
+    } catch (err) {
+      console.error('Błąd ładowania szybkich produktów:', err);
+    } finally {
+      setQuickProductsLoading(false);
+    }
+  }, []);
+
+  const searchProductsForQuick = async (query) => {
+    if (!query || query.length < 2) {
+      setProductSearchResults([]);
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/products?search=${encodeURIComponent(query)}&limit=10`);
+      const data = await response.json();
+      if (data.success) {
+        setProductSearchResults(data.data || []);
+      }
+    } catch (err) {
+      console.error('Błąd wyszukiwania produktów:', err);
+    }
+  };
+
+  const addQuickProduct = async () => {
+    if (!newQuickProduct.nazwa.trim()) {
+      alert('Nazwa przycisku jest wymagana');
+      return;
+    }
+    if (!newQuickProduct.product_id) {
+      alert('Wybierz produkt');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE}/pos/quick-products`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newQuickProduct)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setNewQuickProduct({ nazwa: '', ikona: 'fas fa-shopping-bag', product_id: '', aktywny: true });
+        setProductSearchForQuick('');
+        setProductSearchResults([]);
+        setShowQuickProductModal(false);
+        loadQuickProducts();
+        alert('Szybki produkt dodany pomyślnie');
+      } else {
+        alert(data.message || 'Błąd dodawania');
+      }
+    } catch (err) {
+      console.error('Błąd dodawania szybkiego produktu:', err);
+      alert('Błąd dodawania szybkiego produktu');
+    }
+  };
+
+  const updateQuickProduct = async () => {
+    if (!editingQuickProduct) return;
+    
+    try {
+      const response = await fetch(`${API_BASE}/pos/quick-products/${editingQuickProduct.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingQuickProduct)
+      });
+      const data = await response.json();
+      if (data.success) {
+        setEditingQuickProduct(null);
+        setShowQuickProductModal(false);
+        loadQuickProducts();
+        alert('Szybki produkt zaktualizowany');
+      } else {
+        alert(data.message || 'Błąd aktualizacji');
+      }
+    } catch (err) {
+      console.error('Błąd aktualizacji szybkiego produktu:', err);
+      alert('Błąd aktualizacji szybkiego produktu');
+    }
+  };
+
+  const deleteQuickProduct = async (id) => {
+    if (!window.confirm('Czy na pewno chcesz usunąć ten przycisk szybkiego produktu?')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${API_BASE}/pos/quick-products/${id}`, {
+        method: 'DELETE'
+      });
+      const data = await response.json();
+      if (data.success) {
+        loadQuickProducts();
+        alert('Szybki produkt usunięty');
+      } else {
+        alert(data.message || 'Błąd usuwania');
+      }
+    } catch (err) {
+      console.error('Błąd usuwania szybkiego produktu:', err);
+      alert('Błąd usuwania szybkiego produktu');
+    }
+  };
+
+  const toggleQuickProductActive = async (qp) => {
+    try {
+      const response = await fetch(`${API_BASE}/pos/quick-products/${qp.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aktywny: !qp.aktywny })
+      });
+      const data = await response.json();
+      if (data.success) {
+        loadQuickProducts();
+      }
+    } catch (err) {
+      console.error('Błąd zmiany statusu:', err);
     }
   };
 
@@ -1310,6 +1453,529 @@ const AdminPage = () => {
       </div>
     ));
   };
+
+  // =============== RENDER TAB: SZYBKIE PRODUKTY POS ===============
+  const renderQuickProductsTab = () => (
+    <div>
+      <div style={{
+        backgroundColor: 'white',
+        border: '1px solid #e9ecef',
+        borderRadius: '0.5rem',
+        boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
+      }}>
+        {/* Header */}
+        <div style={{
+          padding: '1rem 1.5rem',
+          borderBottom: '1px solid #e9ecef',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <div>
+            <h4 style={{ margin: 0, fontWeight: '600' }}>
+              <span style={{ marginRight: '0.5rem' }}>🛒</span>
+              Szybkie Produkty POS
+            </h4>
+            <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: '#6c757d' }}>
+              Konfiguracja przycisków szybkiego dodawania produktów w koszyku POS
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setEditingQuickProduct(null);
+              setNewQuickProduct({ nazwa: '', ikona: 'fas fa-shopping-bag', product_id: '', aktywny: true });
+              setProductSearchForQuick('');
+              setProductSearchResults([]);
+              setShowQuickProductModal(true);
+            }}
+            style={{
+              padding: '0.5rem 1rem',
+              backgroundColor: '#198754',
+              color: 'white',
+              border: 'none',
+              borderRadius: '0.375rem',
+              cursor: 'pointer',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}
+          >
+            <i className="fas fa-plus"></i>
+            Dodaj Przycisk
+          </button>
+        </div>
+
+        {/* Info */}
+        <div style={{
+          padding: '1rem 1.5rem',
+          backgroundColor: '#e7f3ff',
+          borderBottom: '1px solid #b8daff'
+        }}>
+          <i className="fas fa-info-circle" style={{ color: '#0d6efd', marginRight: '0.5rem' }}></i>
+          <span style={{ fontSize: '0.85rem', color: '#0c5460' }}>
+            Przyciski pojawią się w koszyku POS obok opcji "Dostępne" i pozwolą na szybkie dodawanie często używanych produktów (np. torby).
+          </span>
+        </div>
+
+        {/* Lista */}
+        <div style={{ padding: '1rem 1.5rem' }}>
+          {quickProductsLoading ? (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <i className="fas fa-spinner fa-spin fa-2x" style={{ color: '#6c757d' }}></i>
+              <p style={{ marginTop: '0.5rem', color: '#6c757d' }}>Ładowanie...</p>
+            </div>
+          ) : quickProducts.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#6c757d' }}>
+              <i className="fas fa-shopping-bag fa-3x" style={{ marginBottom: '1rem', opacity: 0.5 }}></i>
+              <p style={{ margin: 0 }}>Brak skonfigurowanych szybkich produktów</p>
+              <p style={{ fontSize: '0.85rem' }}>Kliknij "Dodaj Przycisk" aby dodać pierwszy</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              {quickProducts.map((qp, index) => (
+                <div
+                  key={qp.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.75rem 1rem',
+                    backgroundColor: qp.aktywny ? '#f8f9fa' : '#fff3cd',
+                    border: '1px solid #dee2e6',
+                    borderRadius: '0.375rem',
+                    gap: '1rem'
+                  }}
+                >
+                  <span style={{ color: '#6c757d', fontWeight: '500', minWidth: '30px' }}>
+                    #{index + 1}
+                  </span>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    backgroundColor: '#6f42c1',
+                    borderRadius: '0.375rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white'
+                  }}>
+                    <i className={qp.ikona || 'fas fa-shopping-bag'}></i>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '600' }}>{qp.nazwa}</div>
+                    <div style={{ fontSize: '0.8rem', color: '#6c757d' }}>
+                      Produkt: {qp.product_nazwa || `ID: ${qp.product_id}`} 
+                      {qp.product_cena && ` • ${qp.product_cena.toFixed(2)} zł`}
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      onClick={() => toggleQuickProductActive(qp)}
+                      title={qp.aktywny ? 'Dezaktywuj' : 'Aktywuj'}
+                      style={{
+                        padding: '0.4rem 0.6rem',
+                        border: '1px solid',
+                        borderColor: qp.aktywny ? '#198754' : '#ffc107',
+                        backgroundColor: qp.aktywny ? '#d1e7dd' : '#fff3cd',
+                        color: qp.aktywny ? '#198754' : '#856404',
+                        borderRadius: '0.25rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <i className={qp.aktywny ? 'fas fa-check' : 'fas fa-pause'}></i>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingQuickProduct(qp);
+                        setProductSearchForQuick(qp.product_nazwa || '');
+                        setShowQuickProductModal(true);
+                      }}
+                      style={{
+                        padding: '0.4rem 0.6rem',
+                        border: '1px solid #0d6efd',
+                        backgroundColor: '#e7f3ff',
+                        color: '#0d6efd',
+                        borderRadius: '0.25rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <i className="fas fa-edit"></i>
+                    </button>
+                    <button
+                      onClick={() => deleteQuickProduct(qp.id)}
+                      style={{
+                        padding: '0.4rem 0.6rem',
+                        border: '1px solid #dc3545',
+                        backgroundColor: '#f8d7da',
+                        color: '#dc3545',
+                        borderRadius: '0.25rem',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <i className="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Ikony */}
+        <div style={{
+          padding: '1rem 1.5rem',
+          borderTop: '1px solid #e9ecef',
+          backgroundColor: '#f8f9fa'
+        }}>
+          <h6 style={{ margin: '0 0 0.5rem', fontWeight: '600' }}>Dostępne ikony:</h6>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+            {[
+              { icon: 'fas fa-shopping-bag', label: 'Torba' },
+              { icon: 'fas fa-box', label: 'Pudełko' },
+              { icon: 'fas fa-gift', label: 'Prezent' },
+              { icon: 'fas fa-tag', label: 'Tag' },
+              { icon: 'fas fa-star', label: 'Gwiazdka' },
+              { icon: 'fas fa-heart', label: 'Serce' },
+              { icon: 'fas fa-coffee', label: 'Kawa' },
+              { icon: 'fas fa-utensils', label: 'Sztućce' },
+              { icon: 'fas fa-leaf', label: 'Liść' },
+              { icon: 'fas fa-bolt', label: 'Błyskawica' }
+            ].map(item => (
+              <div
+                key={item.icon}
+                style={{
+                  padding: '0.35rem 0.6rem',
+                  backgroundColor: 'white',
+                  border: '1px solid #dee2e6',
+                  borderRadius: '0.25rem',
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <i className={item.icon}></i>
+                <span>{item.label}</span>
+                <code style={{ fontSize: '0.7rem', color: '#6c757d' }}>{item.icon}</code>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Modal dodawania/edycji */}
+      {showQuickProductModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '0.5rem',
+            width: '500px',
+            maxHeight: '80vh',
+            overflow: 'auto',
+            boxShadow: '0 0.5rem 1rem rgba(0,0,0,0.15)'
+          }}>
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderBottom: '1px solid #e9ecef',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <h5 style={{ margin: 0, fontWeight: '600' }}>
+                {editingQuickProduct ? 'Edytuj Szybki Produkt' : 'Dodaj Szybki Produkt'}
+              </h5>
+              <button
+                onClick={() => {
+                  setShowQuickProductModal(false);
+                  setEditingQuickProduct(null);
+                }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.5rem',
+                  cursor: 'pointer',
+                  color: '#6c757d'
+                }}
+              >
+                &times;
+              </button>
+            </div>
+
+            <div style={{ padding: '1.5rem' }}>
+              {/* Nazwa przycisku */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Nazwa przycisku *
+                </label>
+                <input
+                  type="text"
+                  placeholder="np. Torba mała, Torba duża"
+                  value={editingQuickProduct ? editingQuickProduct.nazwa : newQuickProduct.nazwa}
+                  onChange={(e) => {
+                    if (editingQuickProduct) {
+                      setEditingQuickProduct({ ...editingQuickProduct, nazwa: e.target.value });
+                    } else {
+                      setNewQuickProduct({ ...newQuickProduct, nazwa: e.target.value });
+                    }
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.9rem'
+                  }}
+                />
+              </div>
+
+              {/* Ikona */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Ikona (klasa FontAwesome)
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    backgroundColor: '#6f42c1',
+                    borderRadius: '0.375rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'white'
+                  }}>
+                    <i className={(editingQuickProduct ? editingQuickProduct.ikona : newQuickProduct.ikona) || 'fas fa-shopping-bag'}></i>
+                  </div>
+                  <input
+                    type="text"
+                    placeholder="fas fa-shopping-bag"
+                    value={editingQuickProduct ? editingQuickProduct.ikona : newQuickProduct.ikona}
+                    onChange={(e) => {
+                      if (editingQuickProduct) {
+                        setEditingQuickProduct({ ...editingQuickProduct, ikona: e.target.value });
+                      } else {
+                        setNewQuickProduct({ ...newQuickProduct, ikona: e.target.value });
+                      }
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '0.5rem 0.75rem',
+                      border: '1px solid #ced4da',
+                      borderRadius: '0.375rem',
+                      fontSize: '0.9rem'
+                    }}
+                  />
+                </div>
+                <small style={{ color: '#6c757d' }}>
+                  Szybki wybór: 
+                  {['fas fa-shopping-bag', 'fas fa-box', 'fas fa-gift', 'fas fa-tag', 'fas fa-star'].map(icon => (
+                    <button
+                      key={icon}
+                      type="button"
+                      onClick={() => {
+                        if (editingQuickProduct) {
+                          setEditingQuickProduct({ ...editingQuickProduct, ikona: icon });
+                        } else {
+                          setNewQuickProduct({ ...newQuickProduct, ikona: icon });
+                        }
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        cursor: 'pointer',
+                        padding: '0.25rem 0.5rem',
+                        margin: '0 0.1rem'
+                      }}
+                    >
+                      <i className={icon}></i>
+                    </button>
+                  ))}
+                </small>
+              </div>
+
+              {/* Wyszukiwanie produktu */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'block', marginBottom: '0.5rem', fontWeight: '500' }}>
+                  Produkt *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Wyszukaj produkt po nazwie lub kodzie..."
+                  value={productSearchForQuick}
+                  onChange={(e) => {
+                    setProductSearchForQuick(e.target.value);
+                    searchProductsForQuick(e.target.value);
+                  }}
+                  style={{
+                    width: '100%',
+                    padding: '0.5rem 0.75rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '0.375rem',
+                    fontSize: '0.9rem'
+                  }}
+                />
+                
+                {/* Wybrany produkt */}
+                {(editingQuickProduct?.product_id || newQuickProduct.product_id) && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    padding: '0.5rem 0.75rem',
+                    backgroundColor: '#d1e7dd',
+                    border: '1px solid #a3cfbb',
+                    borderRadius: '0.375rem',
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center'
+                  }}>
+                    <span>
+                      <i className="fas fa-check-circle" style={{ color: '#198754', marginRight: '0.5rem' }}></i>
+                      Wybrany: {editingQuickProduct?.product_nazwa || newQuickProduct.product_nazwa || `ID: ${editingQuickProduct?.product_id || newQuickProduct.product_id}`}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (editingQuickProduct) {
+                          setEditingQuickProduct({ ...editingQuickProduct, product_id: '', product_nazwa: '' });
+                        } else {
+                          setNewQuickProduct({ ...newQuickProduct, product_id: '', product_nazwa: '' });
+                        }
+                        setProductSearchForQuick('');
+                      }}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: '#dc3545',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      <i className="fas fa-times"></i>
+                    </button>
+                  </div>
+                )}
+
+                {/* Wyniki wyszukiwania */}
+                {productSearchResults.length > 0 && (
+                  <div style={{
+                    marginTop: '0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '0.375rem',
+                    maxHeight: '200px',
+                    overflowY: 'auto'
+                  }}>
+                    {productSearchResults.map(product => (
+                      <div
+                        key={product.id}
+                        onClick={() => {
+                          const productName = product.name || product.nazwa;
+                          if (editingQuickProduct) {
+                            setEditingQuickProduct({ 
+                              ...editingQuickProduct, 
+                              product_id: product.id,
+                              product_nazwa: productName 
+                            });
+                          } else {
+                            setNewQuickProduct({ 
+                              ...newQuickProduct, 
+                              product_id: product.id,
+                              product_nazwa: productName 
+                            });
+                          }
+                          setProductSearchForQuick(productName);
+                          setProductSearchResults([]);
+                        }}
+                        style={{
+                          padding: '0.5rem 0.75rem',
+                          borderBottom: '1px solid #e9ecef',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          justifyContent: 'space-between'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                      >
+                        <span>{product.name || product.nazwa}</span>
+                        <span style={{ color: '#6c757d' }}>
+                          {(product.cena_sprzedazy_brutto || product.price || product.cena || 0).toFixed(2)} zł
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Aktywny */}
+              <div style={{ marginBottom: '1rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={editingQuickProduct ? editingQuickProduct.aktywny : newQuickProduct.aktywny}
+                    onChange={(e) => {
+                      if (editingQuickProduct) {
+                        setEditingQuickProduct({ ...editingQuickProduct, aktywny: e.target.checked });
+                      } else {
+                        setNewQuickProduct({ ...newQuickProduct, aktywny: e.target.checked });
+                      }
+                    }}
+                  />
+                  <span>Aktywny (widoczny w POS)</span>
+                </label>
+              </div>
+            </div>
+
+            <div style={{
+              padding: '1rem 1.5rem',
+              borderTop: '1px solid #e9ecef',
+              display: 'flex',
+              justifyContent: 'flex-end',
+              gap: '0.5rem'
+            }}>
+              <button
+                onClick={() => {
+                  setShowQuickProductModal(false);
+                  setEditingQuickProduct(null);
+                }}
+                style={{
+                  padding: '0.5rem 1rem',
+                  border: '1px solid #6c757d',
+                  backgroundColor: 'white',
+                  color: '#6c757d',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={editingQuickProduct ? updateQuickProduct : addQuickProduct}
+                style={{
+                  padding: '0.5rem 1rem',
+                  border: 'none',
+                  backgroundColor: '#198754',
+                  color: 'white',
+                  borderRadius: '0.375rem',
+                  cursor: 'pointer',
+                  fontWeight: '500'
+                }}
+              >
+                {editingQuickProduct ? 'Zapisz Zmiany' : 'Dodaj'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 
   const renderSystemTab = () => (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
@@ -5924,6 +6590,7 @@ const AdminPage = () => {
                 { id: 'system', icon: '📊', label: 'Info' },
                 { id: 'settings', icon: '⚙️', label: 'Ustawienia' },
                 { id: 'fiscal-printer', icon: '🖨️', label: 'Drukarka' },
+                { id: 'quick-products', icon: '🛒', label: 'Szybkie Produkty' },
                 { id: 'auto-backup', icon: '💾', label: 'Backup' },
                 { id: 'logs', icon: '📋', label: 'Logi' }
               ].map(tab => (
@@ -6114,6 +6781,7 @@ const AdminPage = () => {
             {activeTab === 'company' && <CompanyTab />}
             {activeTab === 'announcements' && <AnnouncementAdmin />}
             {activeTab === 'fiscal-printer' && <FiscalPrinterTab />}
+            {activeTab === 'quick-products' && renderQuickProductsTab()}
             {activeTab === 'template-editor' && <SimpleTemplateEditor />}
             {activeTab === 'manufacturers' && renderManufacturersTab()}
             {activeTab === 'warehouses' && <WarehouseManagement />}

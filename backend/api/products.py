@@ -256,23 +256,15 @@ def get_product(product_id):
         sql_queries = [
             """
             SELECT 
-                id, name, description, price, category, barcode, 
-                stock_quantity, unit, tax_rate, cost_price,
-                margin_percent, min_stock_level, max_stock_level,
-                supplier_id, supplier_name, location,
-                created_at, updated_at
-            FROM products WHERE id = ?
-            """,
-            """
-            SELECT 
                 id, nazwa as name, opis as description, cena as price, 
-                kategoria as category, kod_kreskowy as barcode,
-                stan_magazynowy as stock_quantity, jednostka as unit, 
+                kategoria as category, ean as barcode,
+                0 as stock_quantity, jednostka as unit, 
                 stawka_vat as tax_rate, cena_zakupu as cost_price,
-                marza_procent as margin_percent, stan_minimalny as min_stock_level,
-                dostawca as supplier_name, lokalizacja as location,
+                marza_procent as margin_percent, 0 as min_stock_level,
+                producent as supplier_name, '' as location,
                 data_utworzenia as created_at, data_modyfikacji as updated_at,
-                gramatura, ilosc_jednostek, jednostka_wagi
+                gramatura, ilosc_jednostek, jednostka_wagi,
+                cena_sprzedazy_brutto, cena_sprzedazy_netto
             FROM produkty WHERE id = ?
             """
         ]

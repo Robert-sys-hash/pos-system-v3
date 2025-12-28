@@ -88,6 +88,9 @@ const PosPage = () => {
   const [onlyAvailable, setOnlyAvailable] = useState(true);
   const [categories, setCategories] = useState([]);
 
+  // Stany dla szybkich produktów (przyciski szybkiego dodawania)
+  const [quickProducts, setQuickProducts] = useState([]);
+
   // Stany dla rozszerzonych modali zmian
   const [showOpenShiftModal, setShowOpenShiftModal] = useState(false);
   const [showCloseShiftModal, setShowCloseShiftModal] = useState(false);
@@ -140,6 +143,9 @@ const PosPage = () => {
 
       // Załaduj kategorie produktów
       await loadCategories();
+      
+      // Załaduj szybkie produkty
+      await loadQuickProducts();
     } catch (err) {
       console.error("Błąd ładowania danych:", err);
     }
@@ -286,6 +292,39 @@ const PosPage = () => {
       }
     } catch (err) {
       console.error("Błąd ładowania kategorii:", err);
+    }
+  };
+
+  // =============== FUNKCJE SZYBKICH PRODUKTÓW ===============
+  
+  const loadQuickProducts = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/api/pos/quick-products');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setQuickProducts(data.data || []);
+          console.log("🛒 Załadowano szybkie produkty:", data.data?.length || 0);
+        }
+      }
+    } catch (err) {
+      console.error("Błąd ładowania szybkich produktów:", err);
+    }
+  };
+
+  const handleQuickProductAdd = async (quickProduct) => {
+    try {
+      // Pobierz pełne dane produktu
+      const response = await productService.getProduct(quickProduct.product_id, currentLocationId);
+      if (response.success && response.data) {
+        addToCart(response.data);
+        console.log(`🛒 Dodano szybki produkt: ${quickProduct.nazwa}`);
+      } else {
+        setError(`Nie można dodać produktu: ${quickProduct.nazwa}`);
+      }
+    } catch (err) {
+      console.error("Błąd dodawania szybkiego produktu:", err);
+      setError(`Błąd dodawania produktu: ${quickProduct.nazwa}`);
     }
   };
 
@@ -1886,6 +1925,54 @@ const PosPage = () => {
                       Dostępne
                     </label>
                   </div>
+
+                  {/* Szybkie produkty - przyciski szybkiego dodawania */}
+                  {quickProducts.length > 0 && (
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "0.5rem",
+                        alignItems: "center",
+                        marginLeft: "0.5rem",
+                        paddingLeft: "0.5rem",
+                        borderLeft: "1px solid #dee2e6",
+                      }}
+                    >
+                      {quickProducts.map((qp) => (
+                        <button
+                          key={qp.id}
+                          onClick={() => handleQuickProductAdd(qp)}
+                          title={`${qp.product_nazwa || qp.nazwa} - ${(qp.product_cena || 0).toFixed(2)} zł`}
+                          style={{
+                            padding: "0.35rem 0.6rem",
+                            fontSize: "0.75rem",
+                            border: "1px solid #6f42c1",
+                            borderRadius: "0.375rem",
+                            backgroundColor: "#f8f5ff",
+                            color: "#6f42c1",
+                            cursor: "pointer",
+                            fontWeight: "500",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "0.3rem",
+                            transition: "all 0.15s ease-in-out",
+                            whiteSpace: "nowrap",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = "#6f42c1";
+                            e.target.style.color = "white";
+                          }}
+                          onMouseLeave={(e) => {
+                            e.target.style.backgroundColor = "#f8f5ff";
+                            e.target.style.color = "#6f42c1";
+                          }}
+                        >
+                          <i className={qp.ikona || "fas fa-shopping-bag"}></i>
+                          {qp.nazwa}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
