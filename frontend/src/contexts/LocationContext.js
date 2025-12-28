@@ -21,7 +21,34 @@ export const LocationProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       console.log('🔄 LocationContext: Fetching locations...');
-      const response = await fetch('http://localhost:8000/api/locations/');
+      
+      // Pobierz dane zalogowanego użytkownika
+      const savedUser = localStorage.getItem('user');
+      let userLogin = null;
+      let userType = null;
+      
+      if (savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          userLogin = userData.login;
+          userType = userData.user_type || userData.typ;
+          console.log('👤 LocationContext: User:', userLogin, 'Type:', userType);
+        } catch (e) {
+          console.error('❌ Error parsing user data:', e);
+        }
+      }
+      
+      let response;
+      
+      // Jeśli użytkownik jest kasjerem/pracownikiem - pobierz tylko jego lokalizacje
+      if (userLogin && userType && !['admin', 'manager', 'kierownik'].includes(userType)) {
+        console.log('📍 LocationContext: Fetching user-specific locations for:', userLogin);
+        response = await fetch(`http://localhost:8000/api/locations/user/${userLogin}`);
+      } else {
+        // Admin/manager - pobierz wszystkie lokalizacje
+        console.log('📍 LocationContext: Fetching all locations (admin/manager)');
+        response = await fetch('http://localhost:8000/api/locations/');
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -30,10 +57,17 @@ export const LocationProvider = ({ children }) => {
       const data = await response.json();
       console.log('📊 LocationContext: Response data:', data);
       
-      // API zwraca {success: true, data: {count: 6, locations: [...]}}
-      const locationsArray = data.data?.locations || data.data || [];
+      // API zwraca {success: true, data: [...]}
+      const locationsArray = data.data || [];
       console.log('📍 LocationContext: Locations array:', locationsArray);
       setAvailableLocations(locationsArray);
+      
+      // Jeśli kasjer ma tylko jedną lokalizację - automatycznie ją wybierz
+      if (locationsArray.length === 1 && userType && !['admin', 'manager', 'kierownik'].includes(userType)) {
+        console.log('✅ LocationContext: Auto-selecting single location for cashier');
+        setSelectedLocation(locationsArray[0]);
+        localStorage.setItem('selectedLocation', JSON.stringify(locationsArray[0]));
+      }
     } catch (error) {
       console.error('❌ Error fetching locations:', error);
       setError('Błąd podczas pobierania lokalizacji');
@@ -69,7 +103,24 @@ export const LocationProvider = ({ children }) => {
     
     // Potem pobierz aktualne dane z API
     fetchLocations();
-  }, []); // Pusty dependency array - tylko przy mount
+    
+    // Nasłuchuj na zmiany w localStorage (np. po zalogowaniu)
+    const handleStorageChange = (e) => {
+      if (e.key === 'user') {
+        console.log('🔄 LocationContext: User changed, refreshing locations');
+        // Wyczyść poprzedni wybór lokalizacji przy zmianie użytkownika
+        setSelectedLocation(null);
+        localStorage.removeItem('selectedLocation');
+        fetchLocations();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, [fetchLocations]);
 
   const value = {
     selectedLocation,

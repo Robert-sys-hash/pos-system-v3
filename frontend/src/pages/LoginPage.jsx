@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from '../contexts/LocationContext';
 
 const LoginPage = () => {
   const navigate = useNavigate();
   const { login, loading, isAuthenticated } = useAuth();
+  const { refreshLocations, setSelectedLocation } = useLocation();
   const [credentials, setCredentials] = useState({
     login: '',
     password: ''
@@ -31,6 +33,10 @@ const LoginPage = () => {
       const result = await login(credentials);
       
       if (result.success) {
+        // Wyczyść poprzednią lokalizację i odśwież dla nowego użytkownika
+        setSelectedLocation(null);
+        localStorage.removeItem('selectedLocation');
+        await refreshLocations();
         // Przekierowanie zostanie obsłużone przez useEffect
         navigate('/');
       } else {

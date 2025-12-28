@@ -216,6 +216,50 @@ class LocationsManager:
         finally:
             conn.close()
     
+    def get_user_locations(self, user_login):
+        """Pobierz lokalizacje przypisane do użytkownika"""
+        conn = self.get_connection()
+        try:
+            cursor = conn.cursor()
+            
+            # Najpierw sprawdź typ użytkownika
+            cursor.execute("SELECT typ FROM users WHERE login = ?", (user_login,))
+            user_row = cursor.fetchone()
+            
+            if not user_row:
+                return []
+            
+            user_type = user_row['typ']
+            
+            # Admin i manager mają dostęp do wszystkich lokalizacji
+            if user_type in ['admin', 'manager', 'kierownik']:
+                cursor.execute("""
+                    SELECT id, kod_lokalizacji, nazwa, typ, adres, miasto, 
+                           kod_pocztowy, telefon, email, aktywny
+                    FROM locations 
+                    WHERE aktywny = 1
+                    ORDER BY nazwa
+                """)
+            else:
+                # Kasjer i pracownik - tylko przypisane lokalizacje (tabela user_locations)
+                cursor.execute("""
+                    SELECT l.id, l.kod_lokalizacji, l.nazwa, l.typ, l.adres, 
+                           l.miasto, l.kod_pocztowy, l.telefon, l.email, l.aktywny
+                    FROM locations l
+                    INNER JOIN user_locations ul ON l.id = ul.location_id
+                    WHERE ul.user_login = ? 
+                      AND ul.aktywny = 1 
+                      AND l.aktywny = 1
+                      AND (ul.data_do IS NULL OR ul.data_do >= date('now'))
+                    ORDER BY l.nazwa
+                """, (user_login,))
+            
+            rows = cursor.fetchall()
+            return [dict(row) for row in rows]
+            
+        finally:
+            conn.close()
+
     def get_location_stats(self, location_id):
         """Pobierz statystyki lokalizacji"""
         conn = self.get_connection()
@@ -416,6 +460,24 @@ def get_locations():
         return jsonify({
             'success': False,
             'error': f'Błąd pobierania lokalizacji: {str(e)}'
+        }), 500
+
+@locations_bp.route('/locations/user/<string:user_login>')
+def get_user_locations(user_login):
+    """Pobierz lokalizacje przypisane do użytkownika"""
+    try:
+        locations = locations_manager.get_user_locations(user_login)
+        
+        return jsonify({
+            'success': True,
+            'data': locations,
+            'count': len(locations)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Błąd pobierania lokalizacji użytkownika: {str(e)}'
         }), 500
 
 @locations_bp.route('/locations/<int:location_id>')
