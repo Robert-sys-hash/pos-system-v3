@@ -51,7 +51,7 @@ def init_announcements_tables():
 # Inicjalizacja tabel przy imporcie
 init_announcements_tables()
 
-@announcements_bp.route('/api/announcements', methods=['GET'])
+@announcements_bp.route('/announcements', methods=['GET'])
 def get_announcements():
     """Pobiera wszystkie aktywne ogłoszenia"""
     try:
@@ -105,7 +105,7 @@ def get_announcements():
             'message': f'Błąd pobierania ogłoszeń: {str(e)}'
         }), 500
 
-@announcements_bp.route('/api/announcements', methods=['POST'])
+@announcements_bp.route('/announcements', methods=['POST'])
 def create_announcement():
     """Tworzy nowe ogłoszenie (tylko admin)"""
     try:
@@ -158,7 +158,7 @@ def create_announcement():
             'message': f'Błąd tworzenia ogłoszenia: {str(e)}'
         }), 500
 
-@announcements_bp.route('/api/announcements/<int:announcement_id>/comments', methods=['GET'])
+@announcements_bp.route('/announcements/<int:announcement_id>/comments', methods=['GET'])
 def get_announcement_comments(announcement_id):
     """Pobiera komentarze do ogłoszenia"""
     try:
@@ -196,7 +196,7 @@ def get_announcement_comments(announcement_id):
             'message': f'Błąd pobierania komentarzy: {str(e)}'
         }), 500
 
-@announcements_bp.route('/api/announcements/<int:announcement_id>/comments', methods=['POST'])
+@announcements_bp.route('/announcements/<int:announcement_id>/comments', methods=['POST'])
 def add_comment(announcement_id):
     """Dodaje komentarz do ogłoszenia"""
     try:
@@ -251,7 +251,7 @@ def add_comment(announcement_id):
             'message': f'Błąd dodawania komentarza: {str(e)}'
         }), 500
 
-@announcements_bp.route('/api/announcements/<int:announcement_id>', methods=['DELETE'])
+@announcements_bp.route('/announcements/<int:announcement_id>', methods=['DELETE'])
 def delete_announcement(announcement_id):
     """Usuwa ogłoszenie (tylko admin)"""
     try:

@@ -123,7 +123,7 @@ const AdminPage = () => {
   // Funkcje ładowania danych
   const loadCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/categories');
+      const response = await fetch('http://localhost:8000/api/categories');
       if (response.ok) {
         const data = await response.json();
         setCategories(buildCategoryTree(data.data || []));
@@ -173,7 +173,7 @@ const AdminPage = () => {
     if (!newCategoryName.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:5002/api/categories', {
+      const response = await fetch('http://localhost:8000/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -197,7 +197,7 @@ const AdminPage = () => {
 
   const loadManufacturers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/manufacturers');
+      const response = await fetch('http://localhost:8000/api/manufacturers');
       if (response.ok) {
         const data = await response.json();
         setManufacturers(data.data || []);
@@ -214,7 +214,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/manufacturers', {
+      const response = await fetch('http://localhost:8000/api/manufacturers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newManufacturer)
@@ -249,7 +249,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/manufacturers/${editingManufacturer.id}`, {
+      const response = await fetch(`http://localhost:8000/api/manufacturers/${editingManufacturer.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingManufacturer)
@@ -273,7 +273,7 @@ const AdminPage = () => {
     if (!window.confirm('Czy na pewno chcesz usunąć tego producenta?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5002/api/manufacturers/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/manufacturers/${id}`, {
         method: 'DELETE'
       });
 
@@ -292,7 +292,7 @@ const AdminPage = () => {
 
   const loadUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/users');
+      const response = await fetch('http://localhost:8000/api/users');
       if (response.ok) {
         const data = await response.json();
         setUsers(data.data || []);
@@ -309,7 +309,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/users', {
+      const response = await fetch('http://localhost:8000/api/users', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newUser)
@@ -344,7 +344,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/users/${editingUser.id}`, {
+      const response = await fetch(`http://localhost:8000/api/users/${editingUser.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingUser)
@@ -368,7 +368,7 @@ const AdminPage = () => {
     if (!window.confirm('Czy na pewno chcesz usunąć tego użytkownika?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5002/api/users/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/users/${id}`, {
         method: 'DELETE'
       });
 
@@ -387,7 +387,7 @@ const AdminPage = () => {
 
   const loadDiscounts = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/discounts');
+      const response = await fetch('http://localhost:8000/api/discounts');
       if (response.ok) {
         const data = await response.json();
         setDiscounts(data.data || []);
@@ -404,7 +404,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/discounts', {
+      const response = await fetch('http://localhost:8000/api/discounts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDiscount)
@@ -446,7 +446,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/discounts/${editingDiscount.id}`, {
+      const response = await fetch(`http://localhost:8000/api/discounts/${editingDiscount.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingDiscount)
@@ -470,7 +470,7 @@ const AdminPage = () => {
     if (!window.confirm('Czy na pewno chcesz usunąć ten rabat?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5002/api/discounts/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/discounts/${id}`, {
         method: 'DELETE'
       });
 
@@ -489,7 +489,7 @@ const AdminPage = () => {
 
   const loadDiscountStats = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/discount-reports/stats');
+      const response = await fetch('http://localhost:8000/api/discount-reports/stats');
       if (response.ok) {
         const data = await response.json();
         setDiscountStats(data.data || {});
@@ -501,7 +501,7 @@ const AdminPage = () => {
 
   const loadDiscountReports = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/discount-reports', {
+      const response = await fetch('http://localhost:8000/api/discount-reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(reportFilters)
@@ -517,7 +517,7 @@ const AdminPage = () => {
 
   const loadDailyClosureReports = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/daily-closure/reports', {
+      const response = await fetch('http://localhost:8000/api/daily-closure/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dailyClosureFilters)
@@ -533,7 +533,7 @@ const AdminPage = () => {
 
   const loadDailyClosureSummary = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/daily-closure/summary', {
+      const response = await fetch('http://localhost:8000/api/daily-closure/summary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(dailyClosureFilters)
@@ -549,7 +549,7 @@ const AdminPage = () => {
 
   const loadBackupSchedulerStatus = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/backup/scheduler/status');
+      const response = await fetch('http://localhost:8000/api/backup/scheduler/status');
       if (response.ok) {
         const data = await response.json();
         setBackupSchedulerStatus(data.data || null);
@@ -562,7 +562,7 @@ const AdminPage = () => {
   const loadBackupList = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/backup/list');
+      const response = await fetch('http://localhost:8000/api/backup/list');
       if (response.ok) {
         const data = await response.json();
         setBackupList(data.data || []);
@@ -576,7 +576,7 @@ const AdminPage = () => {
 
   const loadSettings = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/settings');
+      const response = await fetch('http://localhost:8000/api/settings');
       if (response.ok) {
         const data = await response.json();
         setSettings({ ...settings, ...data.data });
@@ -588,7 +588,7 @@ const AdminPage = () => {
 
   const createBackup = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/backup/create', {
+      const response = await fetch('http://localhost:8000/api/backup/create', {
         method: 'POST'
       });
 
@@ -606,7 +606,7 @@ const AdminPage = () => {
 
   const restoreBackup = async (filename) => {
     try {
-      const response = await fetch('http://localhost:5002/api/backup/restore', {
+      const response = await fetch('http://localhost:8000/api/backup/restore', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename })
@@ -626,7 +626,7 @@ const AdminPage = () => {
 
   const deleteBackup = async (filename) => {
     try {
-      const response = await fetch('http://localhost:5002/api/backup/delete', {
+      const response = await fetch('http://localhost:8000/api/backup/delete', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename })
@@ -646,7 +646,7 @@ const AdminPage = () => {
 
   const toggleBackupScheduler = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/backup/scheduler/toggle', {
+      const response = await fetch('http://localhost:8000/api/backup/scheduler/toggle', {
         method: 'POST'
       });
 
@@ -664,7 +664,7 @@ const AdminPage = () => {
 
   const saveSettings = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/settings', {
+      const response = await fetch('http://localhost:8000/api/settings', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settings)
@@ -686,7 +686,7 @@ const AdminPage = () => {
     if (!window.confirm('Czy na pewno chcesz przywrócić domyślne ustawienia?')) return;
 
     try {
-      const response = await fetch('http://localhost:5002/api/settings/reset', {
+      const response = await fetch('http://localhost:8000/api/settings/reset', {
         method: 'POST'
       });
 

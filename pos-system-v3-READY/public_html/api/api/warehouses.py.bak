@@ -1,0 +1,457 @@
+"""
+API endpoint dla zarządzania magazynami
+Obsługa wielomagazynowej struktury sklepów
+"""
+
+from flask import Blueprint, request, jsonify
+from utils.database import execute_query, execute_insert, success_response, error_response, not_found_response
+
+warehouses_bp = Blueprint('warehouses', __name__)
+
+def init_warehouse_tables():
+    """
+    Inicjalizuje tabele dla systemu wielomagazynowego
+    """
+    tables = [
+        # Tabela magazynów/sklepów - używamy tabeli warehouses
+        """
+        -- Tabela warehouses już istnieje, sprawdzamy tylko czy ma wszystkie kolumny
+        """,
+        
+        # Tabela przypisań pracowników do magazynów
+        """
+        CREATE TABLE IF NOT EXISTS pos_pracownicy_magazyny (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            magazyn_id INTEGER NOT NULL,
+            rola VARCHAR(50) DEFAULT 'pracownik',
+            aktywny BOOLEAN DEFAULT 1,
+            data_przypisania DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_odpisania DATETIME NULL,
+            uprawnienia TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (magazyn_id) REFERENCES pos_magazyny(id),
+            UNIQUE(user_id, magazyn_id)
+        )
+        """,
+        
+        # Tabela stanów magazynowych per magazyn
+        """
+        CREATE TABLE IF NOT EXISTS pos_stany_magazynowe (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            produkt_id INTEGER NOT NULL,
+            magazyn_id INTEGER NOT NULL,
+            stan_aktualny DECIMAL(10,3) DEFAULT 0,
+            stan_minimalny DECIMAL(10,3) DEFAULT 0,
+            stan_maksymalny DECIMAL(10,3) DEFAULT 0,
+            stan_rezerwowany DECIMAL(10,3) DEFAULT 0,
+            lokalizacja VARCHAR(100),
+            data_ostatniej_zmiany DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (produkt_id) REFERENCES produkty(id),
+            FOREIGN KEY (magazyn_id) REFERENCES pos_magazyny(id),
+            UNIQUE(produkt_id, magazyn_id)
+        )
+        """,
+        
+        # Tabela przesunięć międzymagazynowych
+        """
+        CREATE TABLE IF NOT EXISTS pos_przesuniecia (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            numer_dokumentu VARCHAR(50) UNIQUE NOT NULL,
+            magazyn_zrodlowy_id INTEGER NOT NULL,
+            magazyn_docelowy_id INTEGER NOT NULL,
+            status VARCHAR(50) DEFAULT 'utworzone',
+            data_utworzenia DATETIME DEFAULT CURRENT_TIMESTAMP,
+            data_wyslania DATETIME NULL,
+            data_otrzymania DATETIME NULL,
+            utworzyl_user_id INTEGER NOT NULL,
+            wyslal_user_id INTEGER NULL,
+            otrzymal_user_id INTEGER NULL,
+            uwagi TEXT,
+            FOREIGN KEY (magazyn_zrodlowy_id) REFERENCES pos_magazyny(id),
+            FOREIGN KEY (magazyn_docelowy_id) REFERENCES pos_magazyny(id),
+            FOREIGN KEY (utworzyl_user_id) REFERENCES users(id),
+            FOREIGN KEY (wyslal_user_id) REFERENCES users(id),
+            FOREIGN KEY (otrzymal_user_id) REFERENCES users(id)
+        )
+        """,
+        
+        # Tabela pozycji przesunięć
+        """
+        CREATE TABLE IF NOT EXISTS pos_przesuniecia_pozycje (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            przesuniecie_id INTEGER NOT NULL,
+            produkt_id INTEGER NOT NULL,
+            ilosc_wyslana DECIMAL(10,3) NOT NULL,
+            ilosc_otrzymana DECIMAL(10,3) NULL,
+            cena_jednostkowa DECIMAL(10,2) DEFAULT 0,
+            uwagi TEXT,
+            FOREIGN KEY (przesuniecie_id) REFERENCES pos_przesuniecia(id),
+            FOREIGN KEY (produkt_id) REFERENCES produkty(id)
+        )
+        """,
+        
+        # Indeksy dla wydajności
+        "CREATE INDEX IF NOT EXISTS idx_stany_magazyn ON pos_stany_magazynowe(magazyn_id)",
+        "CREATE INDEX IF NOT EXISTS idx_stany_produkt ON pos_stany_magazynowe(produkt_id)",
+        "CREATE INDEX IF NOT EXISTS idx_przesuniecia_zrodlo ON pos_przesuniecia(magazyn_zrodlowy_id)",
+        "CREATE INDEX IF NOT EXISTS idx_przesuniecia_cel ON pos_przesuniecia(magazyn_docelowy_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pracownicy_user ON pos_pracownicy_magazyny(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_pracownicy_magazyn ON pos_pracownicy_magazyny(magazyn_id)"
+    ]
+    
+    for table_sql in tables:
+        try:
+            execute_insert(table_sql, ())
+            print(f"✅ Utworzono/zaktualizowano tabelę wielomagazynową")
+        except Exception as e:
+            print(f"❌ Błąd tworzenia tabeli: {e}")
+
+@warehouses_bp.route('/warehouses', methods=['GET'])
+def get_warehouses():
+    """
+    Pobierz listę wszystkich magazynów
+    GET /api/warehouses
+    """
+    try:
+        sql = """
+        SELECT 
+            m.*,
+            u.login as kierownik_login,
+            (SELECT COUNT(*) FROM pos_pracownicy_magazyny pm WHERE pm.magazyn_id = m.id AND pm.aktywny = 1) as liczba_pracownikow,
+            (SELECT COUNT(DISTINCT sm.produkt_id) FROM pos_stany_magazynowe sm WHERE sm.magazyn_id = m.id) as liczba_produktow
+        FROM pos_magazyny m
+        LEFT JOIN users u ON m.kierownik_id = u.id
+        WHERE m.aktywny = 1
+        ORDER BY m.nazwa
+        """
+        
+        warehouses = execute_query(sql, ())
+        
+        if warehouses is None:
+            return error_response("Błąd pobierania magazynów", 500)
+        
+        return success_response(warehouses, f"Znaleziono {len(warehouses)} magazynów")
+        
+    except Exception as e:
+        print(f"Błąd pobierania magazynów: {e}")
+        return error_response("Wystąpił błąd podczas pobierania magazynów", 500)
+
+@warehouses_bp.route('/warehouses', methods=['POST'])
+def create_warehouse():
+    """
+    Utwórz nowy magazyn
+    POST /api/warehouses
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        # Walidacja wymaganych pól
+        required_fields = ['nazwa', 'kod']
+        for field in required_fields:
+            if field not in data or not str(data[field]).strip():
+                return error_response(f"Pole '{field}' jest wymagane", 400)
+        
+        # Sprawdź unikalność kodu
+        check_sql = "SELECT id FROM pos_magazyny WHERE kod = ?"
+        existing = execute_query(check_sql, (data['kod'],))
+        if existing:
+            return error_response("Magazyn o podanym kodzie już istnieje", 400)
+        
+        # Wstaw nowy magazyn
+        insert_sql = """
+        INSERT INTO pos_magazyny (
+            nazwa, kod, adres, telefon, email, nip, miasto, 
+            kod_pocztowy, wojewodztwo, typ_magazynu, opis, kierownik_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        params = (
+            data['nazwa'],
+            data['kod'],
+            data.get('adres', ''),
+            data.get('telefon', ''),
+            data.get('email', ''),
+            data.get('nip', ''),
+            data.get('miasto', ''),
+            data.get('kod_pocztowy', ''),
+            data.get('wojewodztwo', ''),
+            data.get('typ_magazynu', 'sklep'),
+            data.get('opis', ''),
+            data.get('kierownik_id')
+        )
+        
+        warehouse_id = execute_insert(insert_sql, params)
+        
+        if warehouse_id:
+            # Pobierz utworzony magazyn
+            created_warehouse = execute_query(
+                "SELECT * FROM pos_magazyny WHERE id = ?", 
+                (warehouse_id,)
+            )
+            
+            return success_response({
+                'warehouse': created_warehouse[0] if created_warehouse else None,
+                'id': warehouse_id
+            }, "Magazyn utworzony pomyślnie")
+        else:
+            return error_response("Błąd tworzenia magazynu", 500)
+        
+    except Exception as e:
+        print(f"Błąd tworzenia magazynu: {e}")
+        return error_response("Wystąpił błąd podczas tworzenia magazynu", 500)
+
+@warehouses_bp.route('/warehouses/<int:warehouse_id>', methods=['PUT'])
+def update_warehouse(warehouse_id):
+    """
+    Aktualizuj magazyn
+    PUT /api/warehouses/123
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        # Sprawdź czy magazyn istnieje
+        existing = execute_query("SELECT id FROM pos_magazyny WHERE id = ?", (warehouse_id,))
+        if not existing:
+            return not_found_response(f"Magazyn o ID {warehouse_id} nie został znaleziony")
+        
+        # Przygotuj pola do aktualizacji
+        update_fields = []
+        params = []
+        
+        allowed_fields = [
+            'nazwa', 'kod', 'adres', 'telefon', 'email', 'nip', 
+            'miasto', 'kod_pocztowy', 'wojewodztwo', 'typ_magazynu', 
+            'opis', 'kierownik_id', 'aktywny'
+        ]
+        
+        for field in allowed_fields:
+            if field in data:
+                update_fields.append(f"{field} = ?")
+                params.append(data[field])
+        
+        if not update_fields:
+            return error_response("Brak danych do aktualizacji", 400)
+        
+        # Sprawdź unikalność kodu (jeśli aktualizowany)
+        if 'kod' in data:
+            check_sql = "SELECT id FROM pos_magazyny WHERE kod = ? AND id != ?"
+            existing_code = execute_query(check_sql, (data['kod'], warehouse_id))
+            if existing_code:
+                return error_response("Magazyn o podanym kodzie już istnieje", 400)
+        
+        # Aktualizuj magazyn
+        update_fields.append("data_modyfikacji = CURRENT_TIMESTAMP")
+        params.append(warehouse_id)
+        
+        update_sql = f"UPDATE pos_magazyny SET {', '.join(update_fields)} WHERE id = ?"
+        success = execute_insert(update_sql, params)
+        
+        if success:
+            # Pobierz zaktualizowany magazyn
+            updated_warehouse = execute_query(
+                "SELECT * FROM pos_magazyny WHERE id = ?", 
+                (warehouse_id,)
+            )
+            
+            return success_response({
+                'warehouse': updated_warehouse[0] if updated_warehouse else None
+            }, "Magazyn zaktualizowany pomyślnie")
+        else:
+            return error_response("Błąd aktualizacji magazynu", 500)
+        
+    except Exception as e:
+        print(f"Błąd aktualizacji magazynu: {e}")
+        return error_response("Wystąpił błąd podczas aktualizacji magazynu", 500)
+
+@warehouses_bp.route('/warehouses/<int:warehouse_id>/employees', methods=['GET'])
+def get_warehouse_employees(warehouse_id):
+    """
+    Pobierz pracowników przypisanych do magazynu
+    GET /api/warehouses/123/employees
+    """
+    try:
+        sql = """
+        SELECT 
+            pm.*,
+            u.login,
+            u.typ as user_typ
+        FROM pos_pracownicy_magazyny pm
+        JOIN users u ON pm.user_id = u.id
+        WHERE pm.magazyn_id = ? AND pm.aktywny = 1
+        ORDER BY pm.rola, u.login
+        """
+        
+        employees = execute_query(sql, (warehouse_id,))
+        
+        if employees is None:
+            return error_response("Błąd pobierania pracowników", 500)
+        
+        return success_response(employees, f"Znaleziono {len(employees)} pracowników")
+        
+    except Exception as e:
+        print(f"Błąd pobierania pracowników: {e}")
+        return error_response("Wystąpił błąd podczas pobierania pracowników", 500)
+
+@warehouses_bp.route('/warehouses/<int:warehouse_id>/employees', methods=['POST'])
+def assign_employee_to_warehouse(warehouse_id):
+    """
+    Przypisz pracownika do magazynu
+    POST /api/warehouses/123/employees
+    Body: {"user_id": 456, "rola": "pracownik", "uprawnienia": "..."}
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        user_id = data.get('user_id')
+        if not user_id:
+            return error_response("Pole 'user_id' jest wymagane", 400)
+        
+        # Sprawdź czy magazyn istnieje
+        warehouse_check = execute_query("SELECT id FROM pos_magazyny WHERE id = ?", (warehouse_id,))
+        if not warehouse_check:
+            return not_found_response(f"Magazyn o ID {warehouse_id} nie został znaleziony")
+        
+        # Sprawdź czy użytkownik istnieje
+        user_check = execute_query("SELECT id, login FROM users WHERE id = ?", (user_id,))
+        if not user_check:
+            return not_found_response(f"Użytkownik o ID {user_id} nie został znaleziony")
+        
+        # Sprawdź czy nie jest już przypisany
+        existing = execute_query(
+            "SELECT id FROM pos_pracownicy_magazyny WHERE user_id = ? AND magazyn_id = ? AND aktywny = 1",
+            (user_id, warehouse_id)
+        )
+        if existing:
+            return error_response("Pracownik jest już przypisany do tego magazynu", 400)
+        
+        # Przypisz pracownika
+        insert_sql = """
+        INSERT INTO pos_pracownicy_magazyny (user_id, magazyn_id, rola, uprawnienia)
+        VALUES (?, ?, ?, ?)
+        """
+        
+        params = (
+            user_id,
+            warehouse_id,
+            data.get('rola', 'pracownik'),
+            data.get('uprawnienia', '')
+        )
+        
+        assignment_id = execute_insert(insert_sql, params)
+        
+        if assignment_id:
+            return success_response({
+                'assignment_id': assignment_id,
+                'user_login': user_check[0]['login']
+            }, "Pracownik przypisany do magazynu")
+        else:
+            return error_response("Błąd przypisywania pracownika", 500)
+        
+    except Exception as e:
+        print(f"Błąd przypisywania pracownika: {e}")
+        return error_response("Wystąpił błąd podczas przypisywania pracownika", 500)
+
+@warehouses_bp.route('/warehouses/<int:warehouse_id>/employees/<int:user_id>', methods=['DELETE'])
+def remove_employee_from_warehouse(warehouse_id, user_id):
+    """
+    Usuń pracownika z magazynu
+    DELETE /api/warehouses/123/employees/456
+    """
+    try:
+        # Sprawdź czy przypisanie istnieje
+        existing = execute_query(
+            "SELECT id FROM pos_pracownicy_magazyny WHERE user_id = ? AND magazyn_id = ? AND aktywny = 1",
+            (user_id, warehouse_id)
+        )
+        
+        if not existing:
+            return not_found_response("Nie znaleziono przypisania pracownika do magazynu")
+        
+        # Dezaktywuj przypisanie (nie usuwaj - zachowaj historię)
+        update_sql = """
+        UPDATE pos_pracownicy_magazyny 
+        SET aktywny = 0, data_odpisania = CURRENT_TIMESTAMP 
+        WHERE user_id = ? AND magazyn_id = ? AND aktywny = 1
+        """
+        
+        success = execute_insert(update_sql, (user_id, warehouse_id))
+        
+        if success:
+            return success_response({}, "Pracownik usunięty z magazynu")
+        else:
+            return error_response("Błąd usuwania pracownika", 500)
+        
+    except Exception as e:
+        print(f"Błąd usuwania pracownika: {e}")
+        return error_response("Wystąpił błąd podczas usuwania pracownika", 500)
+
+# Funkcja inicjalizacyjna - należy wywołać przy starcie aplikacji
+def initialize_warehouse_system():
+    """
+    Inicjalizuje system wielomagazynowy
+    """
+    try:
+        print("🏪 Inicjalizacja systemu wielomagazynowego...")
+        init_warehouse_tables()
+        
+        # Sprawdź czy istnieje magazyn domyślny
+        default_warehouse = execute_query("SELECT id FROM pos_magazyny WHERE kod = 'MAIN'", ())
+        
+        if not default_warehouse:
+            # Utwórz magazyn główny
+            insert_sql = """
+            INSERT INTO pos_magazyny (nazwa, kod, typ_magazynu, opis)
+            VALUES ('Magazyn Główny', 'MAIN', 'magazyn', 'Domyślny magazyn główny')
+            """
+            main_warehouse_id = execute_insert(insert_sql, ())
+            
+            if main_warehouse_id:
+                print(f"✅ Utworzono magazyn główny o ID: {main_warehouse_id}")
+                
+                # Migruj istniejące stany magazynowe do nowego systemu
+                migrate_existing_inventory_to_main_warehouse(main_warehouse_id)
+            else:
+                print("❌ Błąd tworzenia magazynu głównego")
+        else:
+            print("✅ Magazyn główny już istnieje")
+            
+    except Exception as e:
+        print(f"❌ Błąd inicjalizacji systemu wielomagazynowego: {e}")
+
+def migrate_existing_inventory_to_main_warehouse(main_warehouse_id):
+    """
+    Migruje istniejące stany magazynowe do nowego systemu wielomagazynowego
+    """
+    try:
+        # Pobierz wszystkie produkty z pos_magazyn
+        existing_inventory = execute_query("""
+            SELECT DISTINCT produkt_id, stan_aktualny, stan_minimalny
+            FROM pos_magazyn
+        """, ())
+        
+        if existing_inventory:
+            for item in existing_inventory:
+                # Wstaw do nowej tabeli stanów magazynowych
+                insert_sql = """
+                INSERT OR IGNORE INTO pos_stany_magazynowe 
+                (produkt_id, magazyn_id, stan_aktualny, stan_minimalny)
+                VALUES (?, ?, ?, ?)
+                """
+                execute_insert(insert_sql, (
+                    item['produkt_id'],
+                    main_warehouse_id,
+                    item['stan_aktualny'] or 0,
+                    item['stan_minimalny'] or 0
+                ))
+            
+            print(f"✅ Zmigrowano {len(existing_inventory)} pozycji magazynowych")
+        
+    except Exception as e:
+        print(f"❌ Błąd migracji stanów magazynowych: {e}")

@@ -1,0 +1,16 @@
+Instrukcje tworzenia pliku testowego Python na panelv3.pl:
+
+1. W File Manager w DirectAdmin stwórz nowy plik: test-python.py
+
+2. Wklej tę zawartość:
+#!/usr/bin/env python3
+print("Content-Type: text/plain\n")
+print("Python działa!")
+import sys
+print("Python version:", sys.version)
+
+3. Ustaw uprawnienia na 755 (executable)
+
+4. Odwiedź: https://panelv3.pl/test-python.py
+
+Alternatywnie przez SSH:

@@ -15,7 +15,7 @@ const WarehouseSelector = ({ onWarehouseChange }) => {
   const fetchAvailableWarehouses = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/warehouses', {
+      const response = await fetch('http://localhost:8000/api/warehouses', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

@@ -28,7 +28,7 @@ const AdminPage = () => {
   const loadDocumentDefinitions = async () => {
     try {
       setDocumentDefinitionsLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions');
+      const response = await fetch('http://localhost:8000/api/admin/document-definitions');
       if (response.ok) {
         const data = await response.json();
         setDocumentDefinitions(data.data || []);
@@ -49,7 +49,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions', {
+      const response = await fetch('http://localhost:8000/api/admin/document-definitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDefinition)
@@ -75,7 +75,7 @@ const AdminPage = () => {
 
   const handleGeneratePreview = async (docType) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/${docType}/preview`);
+      const response = await fetch(`http://localhost:8000/api/admin/document-definitions/${docType}/preview`);
       if (response.ok) {
         const data = await response.json();
         setPreviewNumber(data.preview_number);
@@ -91,7 +91,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/${docType}/reset`, {
+      const response = await fetch(`http://localhost:8000/api/admin/document-definitions/${docType}/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_number: 1 })
@@ -113,7 +113,7 @@ const AdminPage = () => {
   const handleGetSchedulerStatus = async () => {
     try {
       setSchedulerLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/status');
+      const response = await fetch('http://localhost:8000/api/admin/backup/scheduler/status');
       if (response.ok) {
         const data = await response.json();
         setBackupSchedulerStatus(data);
@@ -128,7 +128,7 @@ const AdminPage = () => {
   const handleStartScheduler = async () => {
     try {
       setSchedulerLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/start', {
+      const response = await fetch('http://localhost:8000/api/admin/backup/scheduler/start', {
         method: 'POST'
       });
       if (response.ok) {
@@ -145,7 +145,7 @@ const AdminPage = () => {
   const handleStopScheduler = async () => {
     try {
       setSchedulerLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/stop', {
+      const response = await fetch('http://localhost:8000/api/admin/backup/scheduler/stop', {
         method: 'POST'
       });
       if (response.ok) {
@@ -162,7 +162,7 @@ const AdminPage = () => {
   const handleManualBackup = async () => {
     try {
       setBackupLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup/create', {
+      const response = await fetch('http://localhost:8000/api/admin/backup/create', {
         method: 'POST'
       });
       if (response.ok) {
@@ -179,7 +179,7 @@ const AdminPage = () => {
   const handleLoadBackupList = async () => {
     try {
       setBackupListLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup/list');
+      const response = await fetch('http://localhost:8000/api/admin/backup/list');
       if (response.ok) {
         const data = await response.json();
         setBackupList(data.backups || []);

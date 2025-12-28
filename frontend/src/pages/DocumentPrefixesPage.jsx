@@ -42,7 +42,7 @@ const DocumentPrefixesPage = () => {
             
             // Pobierz prefiksy
             console.log('📡 Pobieranie prefiksów...');
-            const prefixesResponse = await fetch('http://localhost:5002/api/document-prefixes');
+            const prefixesResponse = await fetch('http://localhost:8000/api/document-prefixes');
             console.log('📡 Response status:', prefixesResponse.status, prefixesResponse.statusText);
             
             if (!prefixesResponse.ok) {
@@ -57,7 +57,7 @@ const DocumentPrefixesPage = () => {
             const prefixesArray = prefixesData.data || prefixesData;
             
             // Pobierz lokalizacje
-            const locationsResponse = await fetch('http://localhost:5002/api/locations/');
+            const locationsResponse = await fetch('http://localhost:8000/api/locations');
             if (!locationsResponse.ok) {
                 console.warn('⚠️ Błąd pobierania lokalizacji:', locationsResponse.status);
             }
@@ -65,7 +65,7 @@ const DocumentPrefixesPage = () => {
             const locationsArray = locationsData.data || locationsData;
             
             // Pobierz typy dokumentów
-            const typesResponse = await fetch('http://localhost:5002/api/document-types');
+            const typesResponse = await fetch('http://localhost:8000/api/document-types');
             if (!typesResponse.ok) {
                 console.warn('⚠️ Błąd pobierania typów dokumentów:', typesResponse.status);
             }
@@ -73,7 +73,7 @@ const DocumentPrefixesPage = () => {
             const typesArray = typesData.data || typesData;
             
             // Pobierz lokalizacje bez prefiksów
-            const withoutPrefixesResponse = await fetch('http://localhost:5002/api/locations-without-prefixes');
+            const withoutPrefixesResponse = await fetch('http://localhost:8000/api/locations-without-prefixes');
             if (!withoutPrefixesResponse.ok) {
                 console.warn('⚠️ Błąd pobierania lokalizacji bez prefiksów:', withoutPrefixesResponse.status);
             }
@@ -132,7 +132,7 @@ const DocumentPrefixesPage = () => {
 
     const createDefaultPrefixesForLocation = async (locationId) => {
         try {
-            const response = await fetch(`http://localhost:5002/api/create-default-prefixes/${locationId}`, {
+            const response = await fetch(`http://localhost:8000/api/create-default-prefixes/${locationId}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -154,7 +154,7 @@ const DocumentPrefixesPage = () => {
     // Testowa funkcja dla modal
     const saveEditedPrefix = async () => {
         try {
-            const response = await fetch(`http://localhost:5002/api/document-prefixes/${editingPrefix.id}`, {
+            const response = await fetch(`http://localhost:8000/api/document-prefixes/${editingPrefix.id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
@@ -182,7 +182,7 @@ const DocumentPrefixesPage = () => {
 
     const saveNewPrefix = async () => {
         try {
-            const response = await fetch('http://localhost:5002/api/document-prefixes', {
+            const response = await fetch('http://localhost:8000/api/document-prefixes', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

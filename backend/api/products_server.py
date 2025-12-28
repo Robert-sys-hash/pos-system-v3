@@ -1,0 +1,1712 @@
+"""
+API endpoint dla zarządzania produktami
+Wyszukiwarka produktów, szczegóły, kategorie, statystyki
+"""
+
+from flask import Blueprint, request, jsonify
+from utils.database import execute_query, execute_insert, success_response, error_response, not_found_response
+from api.margin_service import margin_service
+
+products_bp = Blueprint('products', __name__)
+
+@products_bp.route('/products', methods=['GET'])
+def get_all_products():
+    """
+    Pobierz wszystkie produkty (endpoint bazowy)
+    Parametry: limit (int, opcjonalny), search (string, opcjonalny)
+    """
+    print(f"🟢 WYWOŁANA FUNKCJA get_all_products z parametrami: {request.args}")
+    try:
+        # Safely parse limit parameter
+        limit_param = request.args.get('limit', '100')
+        print(f"🔍 DEBUG limit_param: '{limit_param}'")
+        if not limit_param or limit_param in ['undefined', 'null', '']:
+            limit = 100
+        else:
+            try:
+                limit = int(limit_param)
+            except ValueError:
+                limit = 100
+        print(f"🔍 DEBUG final limit: {limit}")
+        
+        search = request.args.get('search', '').strip()
+        
+        # Budowanie warunków WHERE dla wyszukiwania
+        where_conditions = []
+        params = []
+        
+        if search:
+            where_conditions.append("(p.nazwa LIKE ? OR p.ean LIKE ? OR p.kod_produktu LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        sql_query = f"""
+        SELECT 
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.cena as price,
+            p.kategoria as category_old,
+            p.category_id,
+            k.nazwa as category_name,
+            p.kod_produktu as barcode,
+            p.ean,
+            0 as stock_quantity,
+            p.jednostka as unit,
+            p.stawka_vat as tax_rate,
+            COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as purchase_price,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu,
+            COALESCE(p.cena_zakupu_netto, 0) as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, 0) as cena_zakupu_brutto,
+            COALESCE(p.cena_sprzedazy_netto, 0) as cena_sprzedazy_netto,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at,
+            p.producent_id,
+            pr.nazwa as manufacturer_name,
+            p.nazwa_uproszczona,
+            p.producent,
+            p.gramatura,
+            p.ilosc_jednostek,
+            p.jednostka_wagi
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN producenci pr ON p.producent_id = pr.id
+        {where_clause}
+        ORDER BY p.nazwa ASC 
+        LIMIT ?
+        """
+        
+        params.append(limit)
+        
+        # DEBUG: Log SQL query and parameters
+        print(f"🔍 SQL Query: {sql_query}")
+        print(f"🔍 Params: {params}")
+        
+        results = execute_query(sql_query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+        
+        # Aktualizuj ceny zakupu używając margin_service (tak samo jak w /products/inventory)
+        for product in results:
+            try:
+                # Pobierz najnowszą cenę zakupu z faktury
+                purchase_price, method = margin_service.get_product_purchase_price(
+                    product_id=product['id'],
+                    warehouse_id=5  # Domyślny magazyn
+                )
+                # Zastąp cenę z tabeli produkty na cenę z margin_service
+                product['purchase_price'] = purchase_price
+                product['purchase_price_method'] = method
+                print(f"🔍 DEBUG /products - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+            except Exception as e:
+                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                # Zostaw oryginalną cenę w przypadku błędu
+            
+        return success_response(results, f"Znaleziono {len(results)} produktów")
+        
+    except ValueError:
+        return error_response("Parametr 'limit' musi być liczbą", 400)
+    except Exception as e:
+        print(f"Błąd pobierania produktów: {e}")
+        return error_response("Wystąpił błąd podczas pobierania produktów", 500)
+
+@products_bp.route('/products/search', methods=['GET'])
+def search_products():
+    """
+    Wyszukiwarka produktów - kompatybilna z React frontend
+    Parametry: query (string), category (string), limit (int), location_id (int), warehouse_id (int)
+    """
+    try:
+        query = request.args.get('query', '').strip()
+        category = request.args.get('category', '').strip()
+        limit = int(request.args.get('limit', 20))
+        location_id = request.args.get('location_id')
+        warehouse_id = request.args.get('warehouse_id')
+        
+        # Jeśli brak query i category, pokaż wszystkie produkty
+        if not query and not category:
+            query = ''  # Pusty query oznacza wszystkie produkty
+            
+        # Budowanie zapytania SQL z uwzględnieniem stanów magazynowych
+        conditions = []
+        params = []
+        
+        if warehouse_id:
+            # Dla konkretnego magazynu
+            sql_query = """
+            SELECT 
+                p.id,
+                p.nazwa as name,
+                p.opis as description,
+                COALESCE(lpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto, p.cena, 0) as price,
+                p.kategoria as category,
+                p.ean as barcode,
+                COALESCE(il.ilosc_dostepna, 0) as stock_quantity,
+                p.jednostka as unit,
+                COALESCE(p.stawka_vat, 23) as tax_rate,
+                p.data_utworzenia as created_at,
+                p.data_modyfikacji as updated_at,
+                p.gramatura,
+                p.ilosc_jednostek,
+                p.jednostka_wagi,
+                CASE WHEN lpp.id IS NOT NULL THEN 1 ELSE 0 END as has_special_price,
+                lpp.cena_sprzedazy_netto as special_price_netto,
+                lpp.cena_sprzedazy_brutto as special_price_brutto,
+                p.cena_sprzedazy_netto as default_price_netto,
+                p.cena_sprzedazy_brutto as default_price_brutto
+            FROM produkty p
+            LEFT JOIN inventory_locations il ON p.id = il.product_id AND il.warehouse_id = ?
+            LEFT JOIN warehouses w ON il.warehouse_id = w.id
+            LEFT JOIN location_product_prices lpp ON p.id = lpp.product_id AND w.location_id = lpp.location_id 
+                AND lpp.aktywny = 1 AND lpp.data_od <= date('now') 
+                AND (lpp.data_do IS NULL OR lpp.data_do >= date('now'))
+            WHERE 1=1
+            """
+            params.append(warehouse_id)
+        elif location_id:
+            # Dla lokalizacji - suma stanów ze wszystkich magazynów tej lokalizacji
+            sql_query = """
+            SELECT 
+                p.id,
+                p.nazwa as name,
+                p.opis as description,
+                COALESCE(lpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto, p.cena, 0) as price,
+                p.kategoria as category,
+                p.ean as barcode,
+                COALESCE(SUM(il.ilosc_dostepna), 0) as stock_quantity,
+                p.jednostka as unit,
+                COALESCE(p.stawka_vat, 23) as tax_rate,
+                p.data_utworzenia as created_at,
+                p.data_modyfikacji as updated_at,
+                p.gramatura,
+                p.ilosc_jednostek,
+                p.jednostka_wagi,
+                CASE WHEN lpp.id IS NOT NULL THEN 1 ELSE 0 END as has_special_price,
+                lpp.cena_sprzedazy_netto as special_price_netto,
+                lpp.cena_sprzedazy_brutto as special_price_brutto,
+                p.cena_sprzedazy_netto as default_price_netto,
+                p.cena_sprzedazy_brutto as default_price_brutto
+            FROM produkty p
+            LEFT JOIN inventory_locations il ON p.id = il.product_id
+            LEFT JOIN warehouses w ON il.warehouse_id = w.id AND w.location_id = ?
+            LEFT JOIN location_product_prices lpp ON p.id = lpp.product_id AND lpp.location_id = ?
+                AND lpp.aktywny = 1 AND lpp.data_od <= date('now') 
+                AND (lpp.data_do IS NULL OR lpp.data_do >= date('now'))
+            WHERE 1=1
+            """
+            params.append(location_id)
+            params.append(location_id)
+        else:
+            # Bez lokalizacji - stary sposób bez stanów magazynowych
+            sql_query = """
+            SELECT 
+                p.id,
+                p.nazwa as name,
+                p.opis as description,
+                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
+                p.kategoria as category,
+                p.ean as barcode,
+                0 as stock_quantity,
+                p.jednostka as unit,
+                COALESCE(p.stawka_vat, 23) as tax_rate,
+                p.data_utworzenia as created_at,
+                p.data_modyfikacji as updated_at,
+                p.gramatura,
+                p.ilosc_jednostek,
+                p.jednostka_wagi,
+                0 as has_special_price,
+                NULL as special_price_netto,
+                NULL as special_price_brutto,
+                p.cena_sprzedazy_netto as default_price_netto,
+                p.cena_sprzedazy_brutto as default_price_brutto
+            FROM produkty p
+            WHERE 1=1
+            """
+        
+        if query:
+            conditions.append("(p.nazwa LIKE ? OR p.opis LIKE ? OR p.ean LIKE ?)")
+            search_pattern = f"%{query}%"
+            params.extend([search_pattern, search_pattern, search_pattern])
+            
+        if category:
+            conditions.append("p.kategoria LIKE ?")
+            params.append(f"%{category}%")
+            
+        if conditions:
+            sql_query += " AND " + " AND ".join(conditions)
+        
+        # Dodaj GROUP BY dla przypadku location_id (suma stanów z wielu magazynów)
+        if location_id:
+            sql_query += " GROUP BY p.id, lpp.id, lpp.cena_sprzedazy_netto, lpp.cena_sprzedazy_brutto"
+            
+        sql_query += " ORDER BY p.nazwa ASC LIMIT ?"
+        params.append(limit)
+        
+        results = execute_query(sql_query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        return success_response({
+            'products': results,
+            'total': len(results),
+            'query': query,
+            'category': category,
+            'limit': limit
+        }, f"Znaleziono {len(results)} produktów")
+        
+    except ValueError:
+        return error_response("Parametr 'limit' musi być liczbą", 400)
+    except Exception as e:
+        print(f"Błąd wyszukiwania produktów: {e}")
+        return error_response("Wystąpił błąd podczas wyszukiwania", 500)
+
+@products_bp.route('/products/<int:product_id>', methods=['GET'])
+def get_product(product_id):
+    """
+    Pobierz szczegóły konkretnego produktu
+    GET /api/products/123
+    """
+    try:
+        sql_queries = [
+            """
+            SELECT 
+                id, name, description, price, category, barcode, 
+                stock_quantity, unit, tax_rate, cost_price,
+                margin_percent, min_stock_level, max_stock_level,
+                supplier_id, supplier_name, location,
+                created_at, updated_at
+            FROM products WHERE id = ?
+            """,
+            """
+            SELECT 
+                id, nazwa as name, opis as description, cena as price, 
+                kategoria as category, kod_kreskowy as barcode,
+                stan_magazynowy as stock_quantity, jednostka as unit, 
+                stawka_vat as tax_rate, cena_zakupu as cost_price,
+                marza_procent as margin_percent, stan_minimalny as min_stock_level,
+                dostawca as supplier_name, lokalizacja as location,
+                data_utworzenia as created_at, data_modyfikacji as updated_at,
+                gramatura, ilosc_jednostek, jednostka_wagi
+            FROM produkty WHERE id = ?
+            """
+        ]
+        
+        result = None
+        for sql in sql_queries:
+            result = execute_query(sql, (product_id,))
+            if result:
+                break
+        
+        if not result:
+            return not_found_response(f"Produkt o ID {product_id} nie został znaleziony")
+        
+        product = result[0]
+        
+        # Dodaj informacje o historii sprzedaży (ostatnie 30 dni)
+        sales_sql = """
+        SELECT COUNT(*) as sales_count, SUM(ilosc) as total_quantity
+        FROM transakcje_produkty tp
+        JOIN transakcje t ON tp.transakcja_id = t.id
+        WHERE tp.produkt_id = ? AND t.data_transakcji >= date('now', '-30 days')
+        """
+        
+        sales_data = execute_query(sales_sql, (product_id,))
+        if sales_data:
+            product.update({
+                'sales_last_30_days': sales_data[0]['sales_count'] or 0,
+                'quantity_sold_last_30_days': sales_data[0]['total_quantity'] or 0
+            })
+        
+        # Aktualizuj ceny zakupu używając margin_service (tak samo jak w /products/inventory)
+        try:
+            # Pobierz najnowszą cenę zakupu z faktury
+            purchase_price, method = margin_service.get_product_purchase_price(
+                product_id=product['id'],
+                warehouse_id=5  # Domyślny magazyn
+            )
+            # Zastąp/dodaj cenę z margin_service
+            product['purchase_price'] = purchase_price
+            product['purchase_price_method'] = method
+            # Jeśli ma pole cost_price, też je zaktualizuj
+            if 'cost_price' in product:
+                product['cost_price'] = purchase_price
+            print(f"🔍 DEBUG /products/{product_id} - cena zakupu {purchase_price} ({method})")
+        except Exception as e:
+            print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product_id}: {e}")
+            # Zostaw oryginalną cenę w przypadku błędu
+        
+        return success_response(product, "Szczegóły produktu")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania produktu: {str(e)}", 500)
+
+@products_bp.route('/products/barcode/<barcode>', methods=['GET'])
+def get_product_by_barcode(barcode):
+    """
+    Wyszukiwanie produktu po kodzie kreskowym
+    GET /api/products/barcode/1234567890
+    """
+    try:
+        sql_queries = [
+            """
+            SELECT 
+                id, name, description, price, category, barcode, 
+                stock_quantity, unit, tax_rate,
+                created_at, updated_at
+            FROM products WHERE barcode = ?
+            """,
+            """
+            SELECT 
+                id, nazwa as name, opis as description, cena as price, 
+                kategoria as category, kod_kreskowy as barcode,
+                stan_magazynowy as stock_quantity, jednostka as unit, 
+                stawka_vat as tax_rate,
+                data_utworzenia as created_at, data_modyfikacji as updated_at
+            FROM produkty WHERE kod_kreskowy = ?
+            """
+        ]
+        
+        result = None
+        for sql in sql_queries:
+            result = execute_query(sql, (barcode,))
+            if result:
+                break
+        
+        if not result:
+            return not_found_response(f"Produkt o kodzie kreskowym {barcode} nie został znaleziony")
+        
+        return success_response(result[0], "Produkt znaleziony")
+        
+    except Exception as e:
+        return error_response(f"Błąd wyszukiwania po kodzie kreskowym: {str(e)}", 500)
+
+@products_bp.route('/products/categories', methods=['GET'])
+def get_categories():
+    """
+    Pobierz wszystkie kategorie produktów
+    GET /api/products/categories
+    """
+    try:
+        sql_queries = [
+            "SELECT DISTINCT category as name, COUNT(*) as product_count FROM products WHERE category IS NOT NULL AND category != '' GROUP BY category ORDER BY category",
+            "SELECT DISTINCT kategoria as name, COUNT(*) as product_count FROM produkty WHERE kategoria IS NOT NULL AND kategoria != '' GROUP BY kategoria ORDER BY kategoria"
+        ]
+        
+        result = None
+        for sql in sql_queries:
+            result = execute_query(sql)
+            if result:
+                break
+        
+        if not result:
+            # Mock categories jeśli baza jest pusta
+            result = [
+                {'name': 'Elektronika', 'product_count': 25},
+                {'name': 'Odzież', 'product_count': 45},
+                {'name': 'Dom i Ogród', 'product_count': 30},
+                {'name': 'Sport', 'product_count': 20},
+                {'name': 'Książki', 'product_count': 15}
+            ]
+        
+        return success_response(result, f"Znaleziono {len(result)} kategorii")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania kategorii: {str(e)}", 500)
+
+@products_bp.route('/products/low-stock', methods=['GET'])
+def get_low_stock_products():
+    """
+    Produkty o niskim stanie magazynowym
+    GET /api/products/low-stock?limit=10
+    """
+    try:
+        limit = int(request.args.get('limit', 20))
+        
+        sql_queries = [
+            """
+            SELECT 
+                id, name, stock_quantity, min_stock_level, unit
+            FROM products 
+            WHERE stock_quantity <= min_stock_level 
+            ORDER BY (stock_quantity - min_stock_level) ASC
+            LIMIT ?
+            """,
+            """
+            SELECT 
+                id, nazwa as name, stan_magazynowy as stock_quantity, 
+                stan_minimalny as min_stock_level, jednostka as unit
+            FROM produkty 
+            WHERE stan_magazynowy <= stan_minimalny 
+            ORDER BY (stan_magazynowy - stan_minimalny) ASC
+            LIMIT ?
+            """
+        ]
+        
+        result = None
+        for sql in sql_queries:
+            result = execute_query(sql, (limit,))
+            if result is not None:
+                break
+        
+        if not result:
+            result = []
+        
+        return success_response(result, f"Znaleziono {len(result)} produktów o niskim stanie")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania produktów o niskim stanie: {str(e)}", 500)
+
+@products_bp.route('/products/<int:product_id>/inventory', methods=['PUT'])
+def update_inventory(product_id):
+    """
+    Aktualizacja stanu magazynowego produktu
+    PUT /api/products/123/inventory
+    Body: {"stock_quantity": 50, "operation": "set|add|subtract"}
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        operation = data.get('operation', 'set')  # set, add, subtract
+        quantity = data.get('stock_quantity', 0)
+        
+        if operation not in ['set', 'add', 'subtract']:
+            return error_response("Nieprawidłowa operacja. Dozwolone: set, add, subtract", 400)
+        
+        # Pobierz aktualny stan
+        current_stock_sql = "SELECT stan_magazynowy FROM produkty WHERE id = ?"
+        current_result = execute_query(current_stock_sql, (product_id,))
+        
+        if not current_result:
+            return not_found_response(f"Produkt o ID {product_id} nie został znaleziony")
+        
+        current_stock = current_result[0]['stan_magazynowy'] or 0
+        
+        # Oblicz nowy stan
+        if operation == 'set':
+            new_stock = quantity
+        elif operation == 'add':
+            new_stock = current_stock + quantity
+        else:  # subtract
+            new_stock = current_stock - quantity
+            if new_stock < 0:
+                return error_response("Stan magazynowy nie może być ujemny", 400)
+        
+        # Aktualizuj stan
+        from utils.database import execute_insert
+        update_sql = "UPDATE produkty SET stan_magazynowy = ?, data_modyfikacji = datetime('now') WHERE id = ?"
+        success = execute_insert(update_sql, (new_stock, product_id))
+        
+        if success:
+            return success_response({
+                'product_id': product_id,
+                'old_stock': current_stock,
+                'new_stock': new_stock,
+                'operation': operation,
+                'quantity': quantity
+            }, "Stan magazynowy zaktualizowany")
+        else:
+            return error_response("Błąd aktualizacji stanu magazynowego", 500)
+        
+    except Exception as e:
+        return error_response(f"Błąd aktualizacji stanu: {str(e)}", 500)
+
+@products_bp.route('/products/stats', methods=['GET'])
+def get_products_stats():
+    """
+    Statystyki produktów - bezpieczna wersja
+    GET /api/products/stats
+    """
+    try:
+        print("🔍 DEBUG: Starting products stats")
+        
+        # Lista tabel do sprawdzenia
+        tables_to_check = [
+            {
+                'name': 'produkty',
+                'columns': {
+                    'id': 'id',
+                    'name': 'nazwa',
+                    'price': 'cena_sprzedazy_brutto',
+                    'category': 'kategoria',
+                    'stock': None  # tabela produkty nie ma kolumny stock
+                }
+            },
+            {
+                'name': 'products',
+                'columns': {
+                    'id': 'id',
+                    'name': 'name',
+                    'price': 'price',
+                    'category': 'category',
+                    'stock': 'stock_quantity'
+                }
+            }
+        ]
+        
+        stats = None
+        table_used = None
+        
+        for table_config in tables_to_check:
+            table_name = table_config['name']
+            
+            try:
+                print(f"🔍 DEBUG: Trying table {table_name}")
+                
+                # Sprawdź czy tabela istnieje
+                check_sql = f"SELECT name FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+                table_exists = execute_query(check_sql, ())
+                
+                if not table_exists:
+                    print(f"❌ Table {table_name} does not exist")
+                    continue
+                
+                # Podstawowe statystyki (COUNT zawsze działa)
+                basic_sql = f"SELECT COUNT(*) as total_products FROM {table_name}"
+                result = execute_query(basic_sql, ())
+                
+                if result:
+                    stats = {
+                        'total_products': result[0]['total_products'],
+                        'in_stock': 0,
+                        'out_of_stock': 0,
+                        'avg_price': 0.0,
+                        'categories_count': 0,
+                        'table_used': table_name
+                    }
+                    table_used = table_name
+                    print(f"✅ Basic stats from {table_name}: {stats['total_products']} products")
+                    
+                    # Spróbuj dodać więcej statystyk bezpiecznie
+                    cols = table_config['columns']
+                    
+                    # Średnia cena
+                    try:
+                        price_sql = f"SELECT AVG({cols['price']}) as avg_price FROM {table_name} WHERE {cols['price']} IS NOT NULL"
+                        price_result = execute_query(price_sql, ())
+                        if price_result and price_result[0]['avg_price']:
+                            stats['avg_price'] = float(price_result[0]['avg_price'])
+                    except Exception as e:
+                        print(f"⚠️ Could not get avg price: {e}")
+                    
+                    # Kategorie
+                    try:
+                        cat_sql = f"SELECT COUNT(DISTINCT {cols['category']}) as categories_count FROM {table_name} WHERE {cols['category']} IS NOT NULL AND {cols['category']} != ''"
+                        cat_result = execute_query(cat_sql, ())
+                        if cat_result:
+                            stats['categories_count'] = cat_result[0]['categories_count']
+                    except Exception as e:
+                        print(f"⚠️ Could not get categories: {e}")
+                    
+                    # Stan magazynowy (jeśli istnieje kolumna)
+                    if cols['stock'] is not None:
+                        try:
+                            stock_sql = f"""
+                            SELECT 
+                                COUNT(CASE WHEN {cols['stock']} > 0 THEN 1 END) as in_stock,
+                                COUNT(CASE WHEN {cols['stock']} <= 0 THEN 1 END) as out_of_stock
+                            FROM {table_name} WHERE {cols['stock']} IS NOT NULL
+                            """
+                            stock_result = execute_query(stock_sql, ())
+                            if stock_result:
+                                stats['in_stock'] = stock_result[0]['in_stock'] or 0
+                                stats['out_of_stock'] = stock_result[0]['out_of_stock'] or 0
+                        except Exception as e:
+                            print(f"⚠️ Could not get stock info: {e}")
+                    else:
+                        print(f"⚠️ No stock column for table {table_name}, skipping stock stats")
+                    
+                    break  # Udało się pobrać dane, przerwij pętlę
+                    
+            except Exception as e:
+                print(f"❌ Error with table {table_name}: {e}")
+                continue
+        
+        # Jeśli nie udało się pobrać z żadnej tabeli, zwróć domyślne wartości
+        if not stats:
+            print("⚠️ No product tables found, returning default stats")
+            stats = {
+                'total_products': 0,
+                'in_stock': 0,
+                'out_of_stock': 0,
+                'avg_price': 0.0,
+                'categories_count': 0,
+                'table_used': 'none_found'
+            }
+        
+        print(f"✅ DEBUG: Final stats: {stats}")
+        return success_response(stats, "Statystyki produktów")
+        
+    except Exception as e:
+        print(f"❌ CRITICAL ERROR in products stats: {e}")
+        import traceback
+        traceback.print_exc()
+        
+        # Zwróć podstawowe statystyki jako fallback
+        fallback_stats = {
+            'total_products': 0,
+            'in_stock': 0,
+            'out_of_stock': 0,
+            'avg_price': 0.0,
+            'categories_count': 0,
+            'table_used': 'error_fallback',
+            'error': str(e)
+        }
+        return success_response(fallback_stats, "Statystyki produktów (tryb awaryjny)")
+
+@products_bp.route('/products/inventory', methods=['GET'])
+def get_inventory():
+    """
+    Pobiera produkty z informacją o stanach magazynowych z tabeli pos_magazyn
+    GET /api/products/inventory?page=1&limit=20&search=&category=&available_only=1
+    """
+    try:
+        # Pobierz parametry zapytania
+        page = int(request.args.get('page', 1))
+        limit = int(request.args.get('limit', 20))
+        search = request.args.get('search', '').strip()
+        category = request.args.get('category', '').strip()
+        available_only = request.args.get('available_only', '0') == '1'
+        location_id = request.args.get('location_id', type=int)
+        warehouse_id = request.args.get('warehouse_id', type=int)
+        
+        offset = (page - 1) * limit
+        params = []
+        conditions = []
+        
+        print(f"🔍 DEBUG inventory - używam pos_magazyn, available_only: {available_only}, location_id: {location_id}, warehouse_id: {warehouse_id}")
+        
+        # Główne zapytanie używające tabeli pos_magazyn z JOIN do warehouse_product_prices (cenówki)
+        base_sql = """
+        SELECT 
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.kategoria as category,
+            p.category_id,
+            k.nazwa as category_name,
+            COALESCE(wpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto, p.cena, 0) as price,
+            COALESCE(wpp.cena_sprzedazy_netto, p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as price_net,
+            p.cena_sprzedazy_netto as cena_sprzedazy_netto,
+            p.cena_sprzedazy_brutto as cena_sprzedazy_brutto,
+            COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as purchase_price,
+            p.cena_zakupu_netto as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
+            p.ean as barcode,
+            p.kod_produktu as product_code,
+            COALESCE(p.stawka_vat, 23) as tax_rate,
+            COALESCE(pm.stan_aktualny, 0) as stock_quantity,
+            COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+            p.jednostka as unit,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at,
+            CASE WHEN wpp.id IS NOT NULL THEN 1 ELSE 0 END as has_special_price,
+            wpp.cena_sprzedazy_netto as special_price_netto,
+            wpp.cena_sprzedazy_brutto as special_price_brutto,
+            p.cena_sprzedazy_netto as default_price_netto,
+            p.cena_sprzedazy_brutto as default_price_brutto
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        LEFT JOIN warehouses w ON pm.lokalizacja = w.location_id AND w.aktywny = 1
+        LEFT JOIN warehouse_product_prices wpp ON p.id = wpp.product_id 
+            AND w.id = wpp.warehouse_id
+            AND wpp.aktywny = 1 
+            AND wpp.data_od <= date('now')
+            AND (wpp.data_do IS NULL OR wpp.data_do >= date('now'))
+        WHERE 1=1
+        """
+        
+        if search:
+            conditions.append("(p.nazwa LIKE ? OR p.opis LIKE ? OR p.ean LIKE ?)")
+            search_pattern = f"%{search}%"
+            params.extend([search_pattern, search_pattern, search_pattern])
+            
+        if category:
+            conditions.append("(p.kategoria LIKE ? OR k.nazwa LIKE ?)")
+            category_pattern = f"%{category}%"
+            params.extend([category_pattern, category_pattern])
+            
+        if available_only:
+            conditions.append("COALESCE(pm.stan_aktualny, 0) > 0")
+            
+        # Filtrowanie według lokalizacji w pos_magazyn
+        if location_id:
+            conditions.append("pm.lokalizacja = ?")
+            params.append(str(location_id))
+            print(f"🔍 DEBUG dodaję filtr lokalizacji: {location_id}")
+            
+        # TODO: W przyszłości można dodać filtrowanie według konkretnego magazynu
+        # jeśli warehouse_id zostanie zmapowane na pos_magazyn
+        
+        if conditions:
+            base_sql += " AND " + " AND ".join(conditions)
+            
+        # Sortowanie: najpierw dostępne, potem alfabetycznie
+        sql_query = base_sql + " ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        print(f"🔍 DEBUG SQL: {sql_query}")
+        print(f"🔍 DEBUG params: {params}")
+        
+        products = execute_query(sql_query, params)
+        
+        if products is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+        
+        print(f"🔍 DEBUG znaleziono {len(products)} produktów")
+        
+        # Aktualizuj ceny zakupu używając margin_service
+        for product in products:
+            try:
+                # Pobierz najnowszą cenę zakupu z faktury
+                purchase_price, method = margin_service.get_product_purchase_price(
+                    product_id=product['id'],
+                    warehouse_id=location_id
+                )
+                # Zastąp cenę z tabeli produkty na cenę z margin_service
+                product['purchase_price'] = purchase_price
+                product['purchase_price_method'] = method
+                print(f"🔍 DEBUG Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+            except Exception as e:
+                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                # Zostaw oryginalną cenę w przypadku błędu
+        
+        # Policz wszystkie produkty dla paginacji (z tymi samymi JOINami co główne zapytanie)
+        count_sql = """
+        SELECT COUNT(p.id) as total 
+        FROM produkty p  
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        LEFT JOIN warehouses w ON pm.lokalizacja = w.location_id AND w.aktywny = 1
+        LEFT JOIN warehouse_product_prices wpp ON p.id = wpp.product_id 
+            AND w.id = wpp.warehouse_id
+            AND wpp.aktywny = 1 
+            AND wpp.data_od <= date('now')
+            AND (wpp.data_do IS NULL OR wpp.data_do >= date('now'))
+        WHERE 1=1
+        """
+        count_params = []
+        
+        if search:
+            count_sql += " AND (p.nazwa LIKE ? OR p.opis LIKE ? OR p.ean LIKE ?)"
+            search_pattern = f"%{search}%"
+            count_params.extend([search_pattern, search_pattern, search_pattern])
+            
+        if category:
+            count_sql += " AND (p.kategoria LIKE ? OR k.nazwa LIKE ?)"
+            category_pattern = f"%{category}%"
+            count_params.extend([category_pattern, category_pattern])
+            
+        if available_only:
+            count_sql += " AND COALESCE(pm.stan_aktualny, 0) > 0"
+            
+        # Filtrowanie według lokalizacji w count query
+        if location_id:
+            count_sql += " AND pm.lokalizacja = ?"
+            count_params.append(str(location_id))
+            
+        total_result = execute_query(count_sql, count_params)
+        if total_result is None:
+            return error_response("Błąd zliczania produktów", 500)
+            
+        total = total_result[0]['total'] if total_result else 0
+        
+        # Dodaj status do każdego produktu
+        for product in products:
+            stock = product['stock_quantity']
+            min_level = product['min_stock_level']
+            
+            if stock <= 0:
+                product['status'] = 'out_of_stock'
+                product['status_text'] = 'Brak'
+                product['status_class'] = 'danger'
+            elif min_level > 0 and stock <= min_level:
+                product['status'] = 'low_stock'
+                product['status_text'] = 'Niski'
+                product['status_class'] = 'warning'
+            elif min_level > 0 and stock <= min_level * 2:
+                product['status'] = 'watch'
+                product['status_text'] = 'Uwaga'
+                product['status_class'] = 'info'
+            else:
+                product['status'] = 'in_stock'
+                product['status_text'] = 'OK'
+                product['status_class'] = 'success'
+        
+        return success_response({
+            'products': products or [],
+            'pagination': {
+                'page': page,
+                'limit': limit,
+                'total': total,
+                'pages': (total + limit - 1) // limit
+            },
+            'filters': {
+                'search': search,
+                'category': category,
+                'available_only': available_only
+            }
+        }, f"Znaleziono {len(products)} produktów")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania stanów magazynowych: {str(e)}", 500)
+
+@products_bp.route('/products/<int:product_id>/inventory/history', methods=['GET'])
+def get_inventory_history(product_id):
+    """
+    Historia ruchów magazynowych dla produktu
+    GET /api/products/123/inventory/history?limit=50
+    """
+    try:
+        limit = int(request.args.get('limit', 50))
+        
+        # Sprawdź czy produkt istnieje
+        product_sql = "SELECT id, nazwa FROM produkty WHERE id = ?"
+        product_result = execute_query(product_sql, (product_id,))
+        
+        if not product_result:
+            return not_found_response(f"Produkt o ID {product_id} nie został znaleziony")
+        
+        # Pobierz historię ruchów - może być w różnych tabelach
+        history_queries = [
+            """
+            SELECT 
+                id,
+                'manual' as type,
+                ilosc as quantity,
+                stan_przed as stock_before,
+                stan_po as stock_after,
+                powod as reason,
+                uzytkownik as user,
+                data_utworzenia as created_at
+            FROM pos_ruchy_magazynowe 
+            WHERE produkt_id = ?
+            ORDER BY data_utworzenia DESC
+            LIMIT ?
+            """,
+            """
+            SELECT 
+                tp.id,
+                'sale' as type,
+                -tp.ilosc as quantity,
+                NULL as stock_before,
+                NULL as stock_after,
+                'Sprzedaż' as reason,
+                t.kasjer as user,
+                t.data_transakcji as created_at
+            FROM transakcje_produkty tp
+            JOIN transakcje t ON tp.transakcja_id = t.id
+            WHERE tp.produkt_id = ?
+            ORDER BY t.data_transakcji DESC
+            LIMIT ?
+            """
+        ]
+        
+        history = []
+        for sql in history_queries:
+            try:
+                result = execute_query(sql, (product_id, limit))
+                if result:
+                    history.extend(result)
+            except:
+                continue
+        
+        # Sortuj według daty
+        history.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+        history = history[:limit]  # Ogranicz do limitu
+        
+        return success_response({
+            'product': product_result[0],
+            'history': history,
+            'total': len(history)
+        }, f"Historia ruchów dla produktu {product_result[0]['nazwa']}")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania historii: {str(e)}", 500)
+
+@products_bp.route('/products/inventory/batch-update', methods=['POST'])
+def batch_update_inventory():
+    """
+    Masowa aktualizacja stanów magazynowych
+    POST /api/products/inventory/batch-update
+    Body: {"updates": [{"product_id": 1, "stock_quantity": 50, "operation": "set"}]}
+    """
+    try:
+        data = request.get_json()
+        if not data or 'updates' not in data:
+            return error_response("Brak danych updates w żądaniu", 400)
+        
+        updates = data['updates']
+        if not isinstance(updates, list):
+            return error_response("Updates musi być listą", 400)
+        
+        results = []
+        errors = []
+        
+        for update in updates:
+            try:
+                product_id = update.get('product_id')
+                operation = update.get('operation', 'set')
+                quantity = update.get('stock_quantity', 0)
+                
+                if not product_id:
+                    errors.append({"error": "Brak product_id", "update": update})
+                    continue
+                
+                # Pobierz aktualny stan
+                current_stock_sql = "SELECT stan_magazynowy FROM produkty WHERE id = ?"
+                current_result = execute_query(current_stock_sql, (product_id,))
+                
+                if not current_result:
+                    errors.append({"error": f"Produkt {product_id} nie istnieje", "update": update})
+                    continue
+                
+                current_stock = current_result[0]['stan_magazynowy'] or 0
+                
+                # Oblicz nowy stan
+                if operation == 'set':
+                    new_stock = quantity
+                elif operation == 'add':
+                    new_stock = current_stock + quantity
+                elif operation == 'subtract':
+                    new_stock = current_stock - quantity
+                    if new_stock < 0:
+                        errors.append({"error": f"Stan nie może być ujemny dla produktu {product_id}", "update": update})
+                        continue
+                else:
+                    errors.append({"error": f"Nieprawidłowa operacja: {operation}", "update": update})
+                    continue
+                
+                # Aktualizuj stan
+                from utils.database import execute_insert
+                update_sql = "UPDATE produkty SET stan_magazynowy = ?, data_modyfikacji = datetime('now') WHERE id = ?"
+                success = execute_insert(update_sql, (new_stock, product_id))
+                
+                if success:
+                    results.append({
+                        'product_id': product_id,
+                        'old_stock': current_stock,
+                        'new_stock': new_stock,
+                        'operation': operation,
+                        'quantity': quantity
+                    })
+                else:
+                    errors.append({"error": f"Błąd aktualizacji produktu {product_id}", "update": update})
+                    
+            except Exception as e:
+                errors.append({"error": str(e), "update": update})
+        
+        response_data = {
+            'successful_updates': len(results),
+            'failed_updates': len(errors),
+            'results': results,
+            'errors': errors
+        }
+        
+        if errors:
+            return jsonify({
+                'success': len(results) > 0,
+                'data': response_data,
+                'message': f"Zaktualizowano {len(results)} produktów, {len(errors)} błędów"
+            }), 207  # Multi-Status
+        else:
+            return success_response(response_data, f"Pomyślnie zaktualizowano {len(results)} produktów")
+            
+    except Exception as e:
+        return error_response(f"Błąd masowej aktualizacji: {str(e)}", 500)
+
+@products_bp.route('/products/<int:product_id>', methods=['PUT'])
+def update_product(product_id):
+    """
+    Aktualizacja danych produktu
+    PUT /api/products/123
+    Body: {
+        "name": "Nowa nazwa",
+        "barcode": "1234567890123",
+        "product_code": "ABC123",
+        "description": "Opis produktu",
+        "cena_sprzedazy_netto": 16.26,
+        "cena_sprzedazy_brutto": 19.99,
+        "cena_zakupu_netto": 12.20,
+        "cena_zakupu_brutto": 15.00,
+        "category": "Kategoria",
+        "unit": "szt",
+        "tax_rate": 23
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        print(f"🔍 UPDATE PRODUCT {product_id}: {data}")
+        
+        # Walidacja wymaganych pól - sprawdź 'name' lub 'nazwa'
+        product_name = data.get('name') or data.get('nazwa')
+        if not product_name or not str(product_name).strip():
+            return error_response("Pole 'name' lub 'nazwa' jest wymagane", 400)
+        
+        # Sprawdź czy produkt istnieje
+        check_sql = "SELECT id, stawka_vat FROM produkty WHERE id = ?"
+        existing_product = execute_query(check_sql, (product_id,))
+        
+        if not existing_product:
+            return not_found_response(f"Produkt o ID {product_id} nie został znaleziony")
+        
+        current_tax_rate = existing_product[0]['stawka_vat'] or 23
+        
+        # Przygotuj dane do aktualizacji - bezpieczne pobieranie stringów
+        def safe_get_string(data, key, default=''):
+            value = data.get(key, default)
+            return str(value).strip() if value is not None else default
+        
+        # Obsłuż zarówno 'name' jak i 'nazwa'
+        name = safe_get_string(data, 'name') or safe_get_string(data, 'nazwa')
+        barcode = safe_get_string(data, 'barcode') or safe_get_string(data, 'ean')
+        product_code = safe_get_string(data, 'product_code') or safe_get_string(data, 'kod_produktu')
+        description = safe_get_string(data, 'description') or safe_get_string(data, 'opis')
+        category = safe_get_string(data, 'category') or safe_get_string(data, 'kategoria')
+        category_id = data.get('category_id')
+        
+        # Obsługa kategorii - mapowanie starego systemu na nowy
+        # Jeśli category zawiera tylko cyfry, to prawdopodobnie to ID kategorii
+        if category and category.isdigit():
+            category_id = int(category)
+            # Sprawdź czy taka kategoria istnieje
+            cat_check_sql = "SELECT nazwa FROM kategorie_produktow WHERE id = ?"
+            cat_result = execute_query(cat_check_sql, (category_id,))
+            if cat_result:
+                category = cat_result[0]['nazwa']  # Ustaw nazwę kategorii
+            else:
+                category_id = None  # ID nie istnieje, resetuj
+        
+        # Pusty string dla category_id traktuj jako NULL
+        if category_id == '' or category_id == 'null' or category_id == 'undefined':
+            category_id = None
+        
+        # Jeśli podano category_id, pobierz nazwę kategorii dla starej kolumny
+        if category_id is not None:
+            cat_check_sql = "SELECT nazwa FROM kategorie_produktow WHERE id = ?"
+            cat_result = execute_query(cat_check_sql, (category_id,))
+            if cat_result:
+                category = cat_result[0]['nazwa']  # Ustaw nazwę kategorii dla kompatybilności
+                print(f"🔍 Ustawiono category='{category}' dla category_id={category_id}")
+            else:
+                print(f"⚠️ Nie znaleziono kategorii o ID {category_id}")
+                category_id = None  # ID nie istnieje, resetuj
+            
+        unit = safe_get_string(data, 'unit', 'szt') or safe_get_string(data, 'jednostka', 'szt')
+        
+        # Obsługa stawki VAT - właściwie obsługuj wartość 0
+        if 'tax_rate' in data:
+            tax_rate = float(data['tax_rate'])
+        elif 'stawka_vat' in data:
+            tax_rate = float(data['stawka_vat'])
+        else:
+            tax_rate = current_tax_rate
+        
+        # Obsługa cen - sprawdzaj czy podane są netto czy brutto i oblicz brakujące
+        cena_sprzedazy_netto = data.get('cena_sprzedazy_netto')
+        cena_sprzedazy_brutto = data.get('cena_sprzedazy_brutto')
+        cena_zakupu_netto = data.get('cena_zakupu_netto')
+        cena_zakupu_brutto = data.get('cena_zakupu_brutto')
+        
+        # Dla kompatybilności wstecznej - mapuj stare pola
+        if 'price' in data and data['price'] and not cena_sprzedazy_brutto:
+            try:
+                cena_sprzedazy_brutto = float(data['price'])
+            except (ValueError, TypeError):
+                pass
+        if 'cena' in data and data['cena'] and not cena_sprzedazy_brutto:
+            try:
+                cena_sprzedazy_brutto = float(data['cena'])
+            except (ValueError, TypeError):
+                pass
+        if 'purchase_price' in data and data['purchase_price'] and not cena_zakupu_brutto:
+            try:
+                cena_zakupu_brutto = float(data['purchase_price'])
+            except (ValueError, TypeError):
+                pass
+        
+        # Oblicz brakujące ceny na podstawie VAT
+        vat_multiplier = 1 + (tax_rate / 100)
+        
+        # Ceny sprzedaży
+        if cena_sprzedazy_brutto is not None and float(cena_sprzedazy_brutto) > 0:
+            cena_sprzedazy_brutto = float(cena_sprzedazy_brutto)
+            if cena_sprzedazy_netto is None:
+                cena_sprzedazy_netto = round(cena_sprzedazy_brutto / vat_multiplier, 2)
+        elif cena_sprzedazy_netto is not None and float(cena_sprzedazy_netto) > 0:
+            cena_sprzedazy_netto = float(cena_sprzedazy_netto)
+            if cena_sprzedazy_brutto is None:
+                cena_sprzedazy_brutto = round(cena_sprzedazy_netto * vat_multiplier, 2)
+        
+        # Ceny zakupu
+        if cena_zakupu_brutto is not None and float(cena_zakupu_brutto) > 0:
+            cena_zakupu_brutto = float(cena_zakupu_brutto)
+            if cena_zakupu_netto is None:
+                cena_zakupu_netto = round(cena_zakupu_brutto / vat_multiplier, 2)
+        elif cena_zakupu_netto is not None and float(cena_zakupu_netto) > 0:
+            cena_zakupu_netto = float(cena_zakupu_netto)
+            if cena_zakupu_brutto is None:
+                cena_zakupu_brutto = round(cena_zakupu_netto * vat_multiplier, 2)
+        
+        # Walidacja cen i stawki VAT
+        if cena_sprzedazy_brutto is not None and cena_sprzedazy_brutto < 0:
+            return error_response("Cena sprzedaży brutto nie może być ujemna", 400)
+        if cena_sprzedazy_netto is not None and cena_sprzedazy_netto < 0:
+            return error_response("Cena sprzedaży netto nie może być ujemna", 400)
+        if cena_zakupu_brutto is not None and cena_zakupu_brutto < 0:
+            return error_response("Cena zakupu brutto nie może być ujemna", 400)
+        if cena_zakupu_netto is not None and cena_zakupu_netto < 0:
+            return error_response("Cena zakupu netto nie może być ujemna", 400)
+        if tax_rate < 0 or tax_rate > 100:
+            return error_response("Stawka VAT musi być w zakresie 0-100%", 400)
+        
+        # Sprawdź unikalność kodu EAN (jeśli podano)
+        if barcode:
+            ean_check_sql = "SELECT id FROM produkty WHERE ean = ? AND id != ?"
+            ean_exists = execute_query(ean_check_sql, (barcode, product_id))
+            if ean_exists:
+                return error_response("Kod EAN już istnieje w bazie danych", 400)
+        
+        # Sprawdź unikalność kodu produktu (jeśli podano)
+        if product_code:
+            code_check_sql = "SELECT id FROM produkty WHERE kod_produktu = ? AND id != ?"
+            code_exists = execute_query(code_check_sql, (product_code, product_id))
+            if code_exists:
+                return error_response("Kod produktu już istnieje w bazie danych", 400)
+        
+        # Przygotuj SQL do aktualizacji tylko pól, które zostały podane
+        update_fields = []
+        update_params = []
+        
+        if name:
+            update_fields.append("nazwa = ?")
+            update_params.append(name)
+        if barcode is not None:
+            update_fields.append("ean = ?")
+            update_params.append(barcode)
+        if product_code is not None:
+            update_fields.append("kod_produktu = ?")
+            update_params.append(product_code)
+        if description is not None:
+            update_fields.append("opis = ?")
+            update_params.append(description)
+        if category is not None:
+            update_fields.append("kategoria = ?")
+            update_params.append(category)
+        if category_id is not None:
+            update_fields.append("category_id = ?")
+            update_params.append(category_id)
+        if unit:
+            update_fields.append("jednostka = ?")
+            update_params.append(unit)
+        if tax_rate is not None:
+            update_fields.append("stawka_vat = ?")
+            update_params.append(tax_rate)
+        if cena_sprzedazy_netto is not None:
+            update_fields.append("cena_sprzedazy_netto = ?")
+            update_params.append(cena_sprzedazy_netto)
+        if cena_sprzedazy_brutto is not None:
+            update_fields.append("cena_sprzedazy_brutto = ?")
+            update_params.append(cena_sprzedazy_brutto)
+            # Dla kompatybilności - aktualizuj też starą kolumnę
+            update_fields.append("cena = ?")
+            update_params.append(cena_sprzedazy_brutto)
+        if cena_zakupu_netto is not None:
+            update_fields.append("cena_zakupu_netto = ?")
+            update_params.append(cena_zakupu_netto)
+        if cena_zakupu_brutto is not None:
+            update_fields.append("cena_zakupu_brutto = ?")
+            update_params.append(cena_zakupu_brutto)
+            # Dla kompatybilności - aktualizuj też starą kolumnę
+            update_fields.append("cena_zakupu = ?")
+            update_params.append(cena_zakupu_brutto)
+        
+        # Zawsze aktualizuj datę modyfikacji
+        update_fields.append("data_modyfikacji = datetime('now')")
+        
+        if not update_fields:
+            return error_response("Brak danych do aktualizacji", 400)
+        
+        # Aktualizuj produkt - dodaj product_id na końcu dla WHERE
+        update_sql = f"UPDATE produkty SET {', '.join(update_fields)} WHERE id = ?"
+        update_params.append(product_id)
+        
+        print(f"🔍 SQL UPDATE: {update_sql}")
+        print(f"🔍 Parametry: {update_params}")
+        
+        success = execute_insert(update_sql, update_params)
+        
+        if success:
+            # Pobierz zaktualizowane dane produktu
+            product_sql = """
+                SELECT 
+                    p.id, p.nazwa as name, p.opis as description,
+                    p.cena_sprzedazy_netto, p.cena_sprzedazy_brutto,
+                    p.cena_zakupu_netto, p.cena_zakupu_brutto,
+                    p.cena_sprzedazy_brutto as price, p.cena_zakupu_brutto as purchase_price,
+                    p.kategoria as category, p.category_id,
+                    COALESCE(k.nazwa, p.kategoria) as category_name,
+                    p.ean as barcode,
+                    p.kod_produktu as product_code, p.jednostka as unit,
+                    p.stawka_vat as tax_rate,
+                    0 as stock_quantity,
+                    p.data_utworzenia as created_at,
+                    p.data_modyfikacji as updated_at
+                FROM produkty p
+                LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+                
+                WHERE p.id = ?
+            """
+            updated_product = execute_query(product_sql, (product_id,))
+            
+            return success_response({
+                'product': updated_product[0] if updated_product else None,
+                'updated_fields': list(data.keys())
+            }, "Produkt zaktualizowany pomyślnie")
+        else:
+            return error_response("Błąd aktualizacji produktu", 500)
+        
+    except ValueError as e:
+        return error_response(f"Błąd walidacji danych: {str(e)}", 400)
+    except Exception as e:
+        print(f"Błąd aktualizacji produktu: {e}")
+        return error_response("Wystąpił błąd podczas aktualizacji produktu", 500)
+
+@products_bp.route('/products', methods=['POST'])
+def create_product():
+    """
+    Tworzenie nowego produktu
+    POST /api/products
+    Body: {
+        "nazwa": "Nazwa produktu",
+        "kod_kreskowy": "1234567890123",
+        "kod_produktu": "ABC123",
+        "opis": "Opis produktu",
+        "cena_sprzedazy": 19.99,
+        "cena_zakupu": 15.00,
+        "kategoria": "Kategoria",
+        "jednostka": "szt",
+        "stawka_vat": 23
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        # Walidacja wymaganych pól
+        required_fields = ['nazwa']
+        for field in required_fields:
+            if field not in data or not str(data[field]).strip():
+                return error_response(f"Pole '{field}' jest wymagane", 400)
+        
+        # Przygotuj dane
+        nazwa = str(data.get('nazwa', '')).strip()
+        kod_kreskowy = str(data.get('kod_kreskowy', '')).strip()
+        kod_produktu = str(data.get('kod_produktu', '')).strip() or kod_kreskowy
+        opis = str(data.get('opis', '')).strip()
+        kategoria = str(data.get('kategoria', '')).strip()
+        jednostka = str(data.get('jednostka', 'szt')).strip()
+        
+        # Ceny
+        cena_sprzedazy = float(data.get('cena_sprzedazy', 0))
+        cena_zakupu = float(data.get('cena_zakupu', 0))
+        stawka_vat = float(data.get('stawka_vat', 23))
+        
+        if cena_sprzedazy <= 0:
+            return error_response("Cena sprzedaży musi być większa od 0", 400)
+        
+        # Sprawdź unikalność kodu kreskowego
+        if kod_kreskowy:
+            check_sql = "SELECT id FROM produkty WHERE ean = ? OR kod_produktu = ?"
+            existing = execute_query(check_sql, (kod_kreskowy, kod_kreskowy))
+            if existing:
+                return error_response(f"Produkt z kodem '{kod_kreskowy}' już istnieje", 400)
+        
+        # Dodaj produkt
+        from utils.database import execute_insert
+        insert_sql = """
+            INSERT INTO produkty (
+                nazwa, opis, kod_produktu, ean, kategoria, jednostka,
+                cena, cena_sprzedazy_brutto, cena_zakupu, cena_zakupu_brutto,
+                stawka_vat, aktywny, data_utworzenia, user_utworzyl
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'), 'admin')
+        """
+        
+        product_id = execute_insert(insert_sql, (
+            nazwa, opis, kod_produktu, kod_kreskowy, kategoria, jednostka,
+            cena_sprzedazy, cena_sprzedazy, cena_zakupu, cena_zakupu,
+            stawka_vat
+        ))
+        
+        if product_id:
+            # Pobierz utworzony produkt
+            product_sql = """
+                SELECT 
+                    p.id, p.nazwa as name, p.opis as description,
+                    p.cena_sprzedazy_brutto as price, p.cena_zakupu_brutto as purchase_price,
+                    p.kategoria as category, p.ean as barcode,
+                    p.kod_produktu as product_code, p.jednostka as unit,
+                    p.stawka_vat as tax_rate,
+                    p.data_utworzenia as created_at
+                FROM produkty p
+                WHERE p.id = ?
+            """
+            new_product = execute_query(product_sql, (product_id,))
+            
+            return success_response({
+                'product': new_product[0] if new_product else None,
+                'id': product_id
+            }, "Produkt utworzony pomyślnie")
+        else:
+            return error_response("Błąd tworzenia produktu", 500)
+        
+    except ValueError as e:
+        return error_response(f"Błąd walidacji danych: {str(e)}", 400)
+    except Exception as e:
+        print(f"Błąd tworzenia produktu: {e}")
+        return error_response("Wystąpił błąd podczas tworzenia produktu", 500)
+
+@products_bp.route('/products/<int:product_id>', methods=['DELETE'])
+def delete_product(product_id):
+    """
+    Usuwanie produktu
+    DELETE /api/products/123
+    """
+    try:
+        # Sprawdź czy produkt istnieje
+        check_sql = "SELECT id, nazwa FROM produkty WHERE id = ?"
+        existing_product = execute_query(check_sql, (product_id,))
+        
+        if not existing_product:
+            return not_found_response(f"Produkt o ID {product_id} nie został znaleziony")
+        
+        product_name = existing_product[0]['nazwa']
+        
+        # Sprawdź czy produkt nie jest używany w transakcjach
+        usage_check_sql = """
+            SELECT COUNT(*) as usage_count FROM (
+                SELECT 1 FROM pos_pozycje WHERE produkt_id = ?
+                UNION ALL
+                SELECT 1 FROM faktury_zakupowe_pozycje WHERE product_id = ?
+                UNION ALL
+                SELECT 0
+            )
+        """
+        usage_result = execute_query(usage_check_sql, (product_id, product_id, product_id))
+        
+        if usage_result and usage_result[0]['usage_count'] > 0:
+            return error_response(
+                "Nie można usunąć produktu który jest używany w transakcjach. Możesz go dezaktywować.", 
+                400
+            )
+        
+        # Usuń produkt
+        from utils.database import execute_insert
+        delete_sql = "DELETE FROM produkty WHERE id = ?"
+        success = execute_insert(delete_sql, (product_id,))
+        
+        if success:
+            return success_response({
+                'deleted_product_id': product_id,
+                'deleted_product_name': product_name
+            }, "Produkt usunięty pomyślnie")
+        else:
+            return error_response("Błąd usuwania produktu", 500)
+        
+    except Exception as e:
+        print(f"Błąd usuwania produktu: {e}")
+        return error_response("Wystąpił błąd podczas usuwania produktu", 500)
+
+@products_bp.route('/products/<int:product_id>/manufacturer', methods=['PUT'])
+def update_product_manufacturer(product_id):
+    """Aktualizuj producenta dla pojedynczego produktu"""
+    try:
+        data = request.json
+        manufacturer_id = data.get('manufacturer_id')
+        
+        # Sprawdź czy produkt istnieje
+        product_check = execute_query("SELECT id, nazwa FROM produkty WHERE id = ?", [product_id])
+        if not product_check:
+            return not_found_response("Produkt nie został znaleziony")
+        
+        # Sprawdź czy producent istnieje (jeśli nie jest NULL)
+        if manufacturer_id is not None:
+            manufacturer_check = execute_query("SELECT id FROM producenci WHERE id = ?", [manufacturer_id])
+            if not manufacturer_check:
+                return error_response("Producent nie został znaleziony", 400)
+        
+        # Aktualizuj producenta
+        sql_update = "UPDATE produkty SET producent_id = ? WHERE id = ?"
+        success = execute_insert(sql_update, [manufacturer_id, product_id])
+        
+        if success:
+            return success_response({
+                'product_id': product_id,
+                'manufacturer_id': manufacturer_id
+            }, "Producent produktu został zaktualizowany")
+        else:
+            return error_response("Błąd podczas aktualizacji producenta", 500)
+            
+    except Exception as e:
+        print(f"Błąd aktualizacji producenta produktu: {e}")
+        return error_response("Wystąpił błąd podczas aktualizacji producenta", 500)
+
+@products_bp.route('/products/<int:product_id>/simplified-name', methods=['PUT'])
+def update_product_simplified_name(product_id):
+    """Aktualizuj uproszczoną nazwę produktu"""
+    try:
+        data = request.json
+        simplified_name = data.get('simplified_name', '').strip()
+        
+        # Sprawdź czy produkt istnieje
+        product_check = execute_query("SELECT id, nazwa FROM produkty WHERE id = ?", [product_id])
+        if not product_check:
+            return not_found_response("Produkt nie został znaleziony")
+        
+        # Aktualizuj uproszczoną nazwę
+        sql_update = "UPDATE produkty SET nazwa_uproszczona = ? WHERE id = ?"
+        success = execute_insert(sql_update, [simplified_name, product_id])
+        
+        if success:
+            return success_response({
+                'product_id': product_id,
+                'simplified_name': simplified_name
+            }, "Uproszczona nazwa produktu została zaktualizowana")
+        else:
+            return error_response("Błąd podczas aktualizacji uproszczonej nazwy", 500)
+            
+    except Exception as e:
+        print(f"Błąd aktualizacji uproszczonej nazwy: {e}")
+        return error_response("Wystąpił błąd podczas aktualizacji uproszczonej nazwy", 500)
+
+@products_bp.route('/products/bulk-update-manufacturer', methods=['POST'])
+def bulk_update_manufacturer():
+    """Masowa aktualizacja producenta dla wielu produktów"""
+    try:
+        data = request.json
+        product_ids = data.get('product_ids', [])
+        manufacturer_id = data.get('manufacturer_id')
+        
+        if not product_ids:
+            return error_response("Lista produktów jest wymagana", 400)
+        
+        # Sprawdź czy producent istnieje (jeśli nie jest NULL)
+        if manufacturer_id is not None:
+            manufacturer_check = execute_query("SELECT id FROM producenci WHERE id = ?", [manufacturer_id])
+            if not manufacturer_check:
+                return error_response("Producent nie został znaleziony", 400)
+        
+        # Przygotuj zapytanie SQL dla masowej aktualizacji
+        placeholders = ','.join(['?' for _ in product_ids])
+        sql_update = f"UPDATE produkty SET producent_id = ? WHERE id IN ({placeholders})"
+        params = [manufacturer_id] + product_ids
+        
+        success = execute_insert(sql_update, params)
+        
+        if success:
+            return success_response({
+                'updated_products': len(product_ids),
+                'manufacturer_id': manufacturer_id
+            }, f"Zaktualizowano producenta dla {len(product_ids)} produktów")
+        else:
+            return error_response("Błąd podczas masowej aktualizacji producenta", 500)
+            
+    except Exception as e:
+        print(f"Błąd masowej aktualizacji producenta: {e}")
+        return error_response("Wystąpił błąd podczas masowej aktualizacji producenta", 500)
+
+@products_bp.route('/products/<int:product_id>/history', methods=['GET'])
+def get_product_history(product_id):
+    """
+    Pobierz pełną historię operacji dla danego produktu
+    Historia obejmuje: sprzedaże, zmiany cen, ruchy magazynowe
+    """
+    try:
+        limit = int(request.args.get('limit', 100))
+        location_id = request.args.get('location_id')
+        warehouse_id = request.args.get('warehouse_id')
+        
+        # Sprawdź czy produkt istnieje
+        print(f"🔍 PRODUCT CHECK SQL: SELECT nazwa FROM produkty WHERE id = {product_id}")
+        product_check = execute_query("SELECT nazwa FROM produkty WHERE id = ?", [product_id])
+        print(f"🔍 PRODUCT CHECK RESULT: {product_check}")
+        if not product_check:
+            return not_found_response("Produkt nie został znaleziony")
+        
+        product_name = product_check[0]['nazwa']
+        print(f"🔍 PRODUCT NAME: {product_name}")
+        
+        # Sprawdź strukturę tabel
+        tables_check = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('pos_transakcje', 'pos_transakcje_pozycje')")
+        print(f"🔍 TABLES CHECK: {tables_check}")
+        
+        # Sprawdź kolumny w pos_transakcje_pozycje
+        columns_check = execute_query("PRAGMA table_info(pos_transakcje_pozycje)")
+        print(f"🔍 COLUMNS in pos_transakcje_pozycje: {columns_check}")
+        
+        # 1. Historia sprzedaży z transakcji
+        sales_sql = """
+        SELECT 
+            'sprzedaz' as operation_type,
+            t.data_transakcji as operation_date,
+            t.czas_transakcji as operation_time,
+            pp.ilosc as quantity,
+            pp.cena_jednostkowa as unit_price,
+            pp.wartosc_brutto as total_value,
+            t.suma_brutto as transaction_total,
+            t.forma_platnosci as payment_method,
+            l.nazwa as location_name,
+            NULL as warehouse_name,
+            t.id as transaction_id,
+            t.kasjer_login as operator_name,
+            t.numer_paragonu as customer_info
+        FROM pos_pozycje pp
+        JOIN pos_transakcje t ON pp.transakcja_id = t.id
+        LEFT JOIN locations l ON t.location_id = l.id
+        WHERE pp.produkt_id = ?
+        """
+        
+        params_sales = [product_id]
+        
+        # Filtrowanie po lokalizacji
+        if location_id:
+            sales_sql += " AND t.location_id = ?"
+            params_sales.append(location_id)
+        
+        sales_sql += " ORDER BY t.data_transakcji DESC, t.czas_transakcji DESC LIMIT ?"
+        params_sales.append(limit)
+        
+        print(f"🔍 SALES SQL: {sales_sql}")
+        print(f"🔍 SALES PARAMS: {params_sales}")
+        sales_history = execute_query(sales_sql, params_sales) or []
+        print(f"🔍 SALES RESULTS: {len(sales_history)} rows")
+        
+        # 2. Historia zmian magazynowych z warehouse_history
+        inventory_sql = """
+        SELECT 
+            'ruch_magazynowy' as operation_type,
+            DATE(wh.created_at) as operation_date,
+            TIME(wh.created_at) as operation_time,
+            wh.quantity_change as quantity,
+            NULL as unit_price,
+            NULL as total_value,
+            NULL as transaction_total,
+            wh.operation_type as payment_method,
+            NULL as location_name,
+            NULL as warehouse_name,
+            wh.reference_id as transaction_id,
+            wh.created_by as operator_name,
+            COALESCE(wh.reason, wh.document_number) as customer_info
+        FROM warehouse_history wh
+        WHERE wh.product_id = ?
+        """
+        
+        params_inventory = [product_id]
+        
+        inventory_sql += " ORDER BY wh.created_at DESC LIMIT ?"
+        params_inventory.append(limit)
+        
+        # Sprawdź czy tabela warehouse_history istnieje
+        try:
+            print(f"🔍 INVENTORY SQL: {inventory_sql}")
+            print(f"🔍 INVENTORY PARAMS: {params_inventory}")
+            inventory_history = execute_query(inventory_sql, params_inventory) or []
+            print(f"🔍 INVENTORY RESULTS: {len(inventory_history)} rows")
+        except Exception as e:
+            print(f"❌ INVENTORY ERROR: {e}")
+            inventory_history = []
+        
+        # 3. Historia zmian cen z v_location_prices_history
+        price_sql = """
+        SELECT 
+            'zmiana_ceny' as operation_type,
+            DATE(vh.created_at) as operation_date,
+            TIME(vh.created_at) as operation_time,
+            1 as quantity,
+            vh.cena_sprzedazy_brutto as unit_price,
+            vh.cena_sprzedazy_brutto as total_value,
+            NULL as transaction_total,
+            CASE 
+                WHEN vh.status_okresu = 'Zakończony' THEN 'Cena zakończona'
+                WHEN vh.status_okresu = 'Aktywny' THEN 'Cena aktywna'
+                ELSE 'Cena bezterminowa'
+            END as payment_method,
+            vh.location_name as location_name,
+            NULL as warehouse_name,
+            NULL as transaction_id,
+            vh.created_by as operator_name,
+            COALESCE(vh.uwagi, 'Okres: ' || vh.data_od || ' - ' || COALESCE(vh.data_do, 'bezterminowo')) as customer_info
+        FROM v_location_prices_history vh
+        WHERE vh.product_id = ?
+        """
+        
+        params_price = [product_id]
+        
+        if location_id:
+            price_sql += " AND vh.location_id = ?"
+            params_price.append(location_id)
+        
+        price_sql += " ORDER BY vh.created_at DESC LIMIT ?"
+        params_price.append(limit)
+        
+        # Sprawdź czy view v_location_prices_history istnieje
+        try:
+            print(f"🔍 PRICE SQL: {price_sql}")
+            print(f"🔍 PRICE PARAMS: {params_price}")
+            price_history = execute_query(price_sql, params_price) or []
+            print(f"🔍 PRICE RESULTS: {len(price_history)} rows")
+        except Exception as e:
+            print(f"❌ PRICE ERROR: {e}")
+            price_history = []
+        
+        # Połącz wszystkie historie i posortuj chronologicznie
+        all_history = sales_history + inventory_history + price_history
+        
+        # Sortowanie po dacie i czasie (najnowsze na górze)
+        all_history.sort(key=lambda x: (x['operation_date'] or '', x['operation_time'] or ''), reverse=True)
+        
+        # Ograniczenie do limit wyników
+        all_history = all_history[:limit]
+        
+        # Statystyki
+        total_sold = sum(item['quantity'] for item in sales_history)
+        total_revenue = sum(item['total_value'] for item in sales_history if item['total_value'])
+        avg_price = total_revenue / total_sold if total_sold > 0 else 0
+        
+        stats = {
+            'total_operations': len(all_history),
+            'total_sales': len(sales_history),
+            'total_sold_quantity': total_sold,
+            'total_revenue': total_revenue,
+            'average_sale_price': avg_price,
+            'inventory_operations': len(inventory_history),
+            'price_changes': len(price_history)
+        }
+        
+        return success_response({
+            'product_id': product_id,
+            'product_name': product_name,
+            'history': all_history,
+            'stats': stats,
+            'filters': {
+                'location_id': location_id,
+                'warehouse_id': warehouse_id,
+                'limit': limit
+            }
+        }, f"Znaleziono {len(all_history)} operacji dla produktu: {product_name}")
+        
+    except ValueError:
+        return error_response("Parametr 'limit' musi być liczbą", 400)
+    except Exception as e:
+        print(f"Błąd pobierania historii produktu {product_id}: {e}")
+        return error_response("Wystąpił błąd podczas pobierania historii produktu", 500)

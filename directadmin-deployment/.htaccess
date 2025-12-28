@@ -1,0 +1,19 @@
+# DirectAdmin Minimal Configuration - Only Frontend
+RewriteEngine On
+
+# Test PHP API
+RewriteRule ^api/test$ /backend/api_test.php [L]
+RewriteRule ^api/health$ /backend/api_test.php [L]
+
+# Frontend static files
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^static/(.*)$ /static/$1 [L]
+
+# Everything else to frontend
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteCond %{REQUEST_URI} !^/backend/
+RewriteRule ^(.*)$ /index.html [L]
+
+# Error handling
+ErrorDocument 404 /index.html

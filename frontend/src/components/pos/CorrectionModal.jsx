@@ -31,7 +31,7 @@ const CorrectionModal = ({ isOpen, onClose, transaction, onCorrectionSubmit }) =
     setError('');
     
     try {
-      const response = await fetch(`http://localhost:5002/api/transactions/${transaction.id}/details`);
+      const response = await fetch(`http://localhost:8000/api/transactions/${transaction.id}/details`);
       const data = await response.json();
       
       if (data.success) {
@@ -134,7 +134,7 @@ const CorrectionModal = ({ isOpen, onClose, transaction, onCorrectionSubmit }) =
         }))
       };
 
-      const response = await fetch(`http://localhost:5002/api/transactions/${transaction.id}/correction`, {
+      const response = await fetch(`http://localhost:8000/api/transactions/${transaction.id}/correction`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

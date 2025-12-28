@@ -47,7 +47,7 @@ const MessengerModal = forwardRef(({ isOpen, onClose, onMessageSent }, ref) => {
   const loadMessages = async () => {
     try {
       console.log('🔍 MessengerModal: Ładowanie wiadomości...');
-      const response = await fetch('http://localhost:5002/api/messenger/messages?limit=50&debug=modal');
+      const response = await fetch('http://localhost:8000/api/messenger/messages?limit=50&debug=modal');
       console.log('📡 MessengerModal: Response status:', response.status);
       console.log('📡 MessengerModal: Response headers:', Object.fromEntries(response.headers.entries()));
       
@@ -82,7 +82,7 @@ const MessengerModal = forwardRef(({ isOpen, onClose, onMessageSent }, ref) => {
 
   const loadOnlineUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/messenger/users/online');
+      const response = await fetch('http://localhost:8000/api/messenger/users/online');
       const data = await response.json();
       
       if (data.success) {
@@ -95,7 +95,7 @@ const MessengerModal = forwardRef(({ isOpen, onClose, onMessageSent }, ref) => {
 
   const updateUserStatus = async () => {
     try {
-      await fetch('http://localhost:5002/api/messenger/users/online', {
+      await fetch('http://localhost:8000/api/messenger/users/online', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -117,7 +117,7 @@ const MessengerModal = forwardRef(({ isOpen, onClose, onMessageSent }, ref) => {
     
     try {
       console.log('📤 MessengerModal: Wysyłam wiadomość:', newMessage.trim());
-      const response = await fetch('http://localhost:5002/api/messenger/messages', {
+      const response = await fetch('http://localhost:8000/api/messenger/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

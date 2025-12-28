@@ -1,11 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { kasaBankService } from '../services/kasaBankService';
+import { useLocation } from '../contexts/LocationContext';
 import AddOperationModal from '../components/kasabank/AddOperationModal';
 import EditOperationModal from '../components/kasabank/EditOperationModal';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
 const KasaBankPage = () => {
+  const { selectedLocation, locationId } = useLocation();
+  console.log('🔧 KasaBankPage render - selectedLocation:', selectedLocation);
+  console.log('🔧 KasaBankPage render - locationId:', locationId);
+  
   const [saldo, setSaldo] = useState(null);
   const [operacje, setOperacje] = useState([]);
   const [dailySummary, setDailySummary] = useState(null);
@@ -38,20 +43,36 @@ const KasaBankPage = () => {
   const [selectedOperation, setSelectedOperation] = useState(null);
 
   useEffect(() => {
-    loadData();
-  }, []);
+    console.log('🔧 useEffect triggered - selectedLocation:', selectedLocation);
+    if (selectedLocation) {
+      console.log('🔧 Calling loadData()');
+      loadData();
+    } else {
+      console.log('🔧 No selectedLocation, skipping loadData');
+    }
+  }, [selectedLocation?.id]); // Używamy tylko id zamiast całego obiektu
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
+    console.log('🔧 loadData called - selectedLocation:', selectedLocation);
+    if (!selectedLocation) {
+      console.log('🔧 loadData - no selectedLocation, returning');
+      return;
+    }
+    
+    console.log('🔧 loadData - setting loading to true');
     setLoading(true);
     try {
+      const currentLocationId = selectedLocation.id || selectedLocation.location_id;
+      console.log('🏢 Ładowanie danych Kasa-Bank dla lokalizacji:', currentLocationId);
+      
       const [saldoRes, operacjeRes, dailyRes, monthlyRes, paymentsRes, kpRes, kwRes] = await Promise.all([
-        kasaBankService.getSaldo(),
-        kasaBankService.getOperacje(20),
-        kasaBankService.getDailySummary(),
-        kasaBankService.getMonthlyStats(),
-        kasaBankService.getPaymentsByType(),
-        kasaBankService.getKPDocuments(20),
-        kasaBankService.getKWDocuments(20)
+        kasaBankService.getSaldo(currentLocationId),
+        kasaBankService.getOperacje(20, currentLocationId),
+        kasaBankService.getDailySummary(null, currentLocationId),
+        kasaBankService.getMonthlyStats(null, null, currentLocationId),
+        kasaBankService.getPaymentsByType(null, null, currentLocationId),
+        kasaBankService.getKPDocuments(20, 0, null, null, currentLocationId),
+        kasaBankService.getKWDocuments(20, 0, null, null, currentLocationId)
       ]);
 
       console.log('📊 Dane z API:', { saldoRes, operacjeRes, dailyRes, monthlyRes, paymentsRes, kpRes, kwRes });
@@ -72,12 +93,13 @@ const KasaBankPage = () => {
       }
       if (monthlyRes.success) {
         // Mapuj dane z backendu na format oczekiwany przez frontend
+        const totalTransactions = monthlyRes.data.total_transactions || 0;
+        const totalIncome = monthlyRes.data.total_income || 0;
+        
         setMonthlyStats({
-          total_transactions: Object.keys(monthlyRes.data.daily_data || {}).length,
-          total_amount: (monthlyRes.data.total_income || 0) + (monthlyRes.data.total_expense || 0),
-          avg_transaction: Object.keys(monthlyRes.data.daily_data || {}).length > 0 
-            ? ((monthlyRes.data.total_income || 0) + (monthlyRes.data.total_expense || 0)) / Object.keys(monthlyRes.data.daily_data || {}).length
-            : 0
+          total_transactions: totalTransactions,
+          total_amount: totalIncome, // Pokazujemy tylko przychody (income)
+          avg_transaction: totalTransactions > 0 ? totalIncome / totalTransactions : 0
         });
       }
 
@@ -87,7 +109,7 @@ const KasaBankPage = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedLocation]);
 
   // Funkcja do filtrowania operacji
   const filterOperations = () => {
@@ -346,6 +368,36 @@ const KasaBankPage = () => {
     }
   };
 
+  // Komunikat gdy nie wybrano lokalizacji - sprawdzamy PRZED loading
+  if (!selectedLocation) {
+    return (
+      <div style={{ 
+        width: '100%', 
+        minHeight: '100vh',
+        backgroundColor: '#f8f9fa',
+        padding: '1.5rem',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{ 
+          textAlign: 'center',
+          backgroundColor: 'white',
+          padding: '3rem',
+          borderRadius: '1rem',
+          boxShadow: '0 0.5rem 1rem rgba(0, 0, 0, 0.1)',
+          border: '1px solid #e9ecef'
+        }}>
+          <div style={{ marginBottom: '1rem' }}>
+            <i className="fas fa-map-marker-alt" style={{ fontSize: '3rem', color: '#ffc107' }}></i>
+          </div>
+          <h4 style={{ color: '#343a40', marginBottom: '0.5rem' }}>Wybierz lokalizację</h4>
+          <p style={{ color: '#6c757d', margin: 0 }}>Aby wyświetlić dane Kasa-Bank, wybierz lokalizację z menu powyżej.</p>
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div className="container-fluid py-4">
@@ -432,7 +484,7 @@ const KasaBankPage = () => {
             }}>
               <i className="fas fa-money-bill-wave" style={{ 
                 color: '#28a745', 
-                fontSize: '1.25rem' 
+                fontSize: '0.85rem' 
               }}></i>
             </div>
             <div>
@@ -454,7 +506,14 @@ const KasaBankPage = () => {
                 gap: '0.375rem'
               }}>
                 <i className="fas fa-info-circle" style={{ fontSize: '0.8rem' }}></i>
-                System zarządzania operacjami finansowymi i saldami
+                System zarządzania operacjami finansowymi
+                {selectedLocation && (
+                  <>
+                    {' • '}
+                    <i className="fas fa-map-marker-alt" style={{ fontSize: '0.8rem' }}></i>
+                    <strong>{selectedLocation.name || selectedLocation.nazwa}</strong>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -501,7 +560,7 @@ const KasaBankPage = () => {
         {error && (
           <div style={{
             padding: '0.75rem 1rem',
-            marginBottom: '1rem',
+            marginBottom: '0.6rem',
             backgroundColor: '#f8d7da',
             border: '1px solid #f5c6cb',
             borderRadius: '0.375rem',
@@ -520,7 +579,7 @@ const KasaBankPage = () => {
                 border: 'none',
                 color: '#721c24',
                 cursor: 'pointer',
-                fontSize: '1.25rem'
+                fontSize: '0.85rem'
               }}
             >
               ×
@@ -533,7 +592,7 @@ const KasaBankPage = () => {
           <div style={{ 
             display: 'flex', 
             gap: '1rem', 
-            marginBottom: '1rem',
+            marginBottom: '0.6rem',
             flexWrap: 'wrap'
           }}>
             <div style={{ 
@@ -550,7 +609,7 @@ const KasaBankPage = () => {
                 <div>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#28a745'
                   }}>
@@ -582,7 +641,7 @@ const KasaBankPage = () => {
                 <div>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#0d6efd'
                   }}>
@@ -614,7 +673,7 @@ const KasaBankPage = () => {
                 <div>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#17a2b8'
                   }}>
@@ -646,7 +705,7 @@ const KasaBankPage = () => {
                 <div>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#ffc107'
                   }}>
@@ -669,48 +728,48 @@ const KasaBankPage = () => {
         {/* Podsumowanie dzienne i miesięczne - nowoczesny styl */}
         <div style={{ 
           display: 'flex', 
-          gap: '1rem', 
-          marginBottom: '1rem',
+          gap: '0.5rem', 
+          marginBottom: '0.75rem',
           flexWrap: 'wrap'
         }}>
           {dailySummary && (
             <div style={{ 
               flex: '1', 
-              minWidth: '300px',
-              padding: '1.5rem',
+              minWidth: '200px',
+              padding: '0.75rem',
               backgroundColor: 'white',
               border: '1px solid #e9ecef',
-              borderRadius: '0.5rem',
+              borderRadius: '0.375rem',
               boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
             }}>
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                marginBottom: '1rem',
-                paddingBottom: '0.75rem',
+                marginBottom: '0.5rem',
+                paddingBottom: '0.4rem',
                 borderBottom: '1px solid #e9ecef'
               }}>
                 <div style={{
-                  width: '2.5rem',
-                  height: '2.5rem',
+                  width: '1.8rem',
+                  height: '1.8rem',
                   backgroundColor: '#e7f1ff',
-                  borderRadius: '0.5rem',
+                  borderRadius: '0.3rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginRight: '0.75rem'
                 }}>
-                  <i className="fas fa-calendar-day" style={{ color: '#0d6efd', fontSize: '1rem' }}></i>
+                  <i className="fas fa-calendar-day" style={{ color: '#0d6efd', fontSize: '0.85rem' }}></i>
                 </div>
                 <h5 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>
                   Podsumowanie Dzienne
                 </h5>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <div style={{ textAlign: 'center', flex: 1 }}>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#28a745'
                   }}>
@@ -727,7 +786,7 @@ const KasaBankPage = () => {
                 <div style={{ textAlign: 'center', flex: 1 }}>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#dc3545'
                   }}>
@@ -749,7 +808,7 @@ const KasaBankPage = () => {
               }}>
                 <h4 style={{ 
                   margin: 0, 
-                  fontSize: '1.25rem', 
+                  fontSize: '0.85rem', 
                   fontWeight: '700',
                   color: (dailySummary.balance || 0) >= 0 ? '#28a745' : '#dc3545'
                 }}>
@@ -769,41 +828,41 @@ const KasaBankPage = () => {
           {monthlyStats && (
             <div style={{ 
               flex: '1', 
-              minWidth: '300px',
-              padding: '1.5rem',
+              minWidth: '200px',
+              padding: '0.75rem',
               backgroundColor: 'white',
               border: '1px solid #e9ecef',
-              borderRadius: '0.5rem',
+              borderRadius: '0.375rem',
               boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
             }}>
               <div style={{ 
                 display: 'flex', 
                 alignItems: 'center', 
-                marginBottom: '1rem',
-                paddingBottom: '0.75rem',
+                marginBottom: '0.5rem',
+                paddingBottom: '0.4rem',
                 borderBottom: '1px solid #e9ecef'
               }}>
                 <div style={{
-                  width: '2.5rem',
-                  height: '2.5rem',
+                  width: '1.8rem',
+                  height: '1.8rem',
                   backgroundColor: '#fff3cd',
-                  borderRadius: '0.5rem',
+                  borderRadius: '0.3rem',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   marginRight: '0.75rem'
                 }}>
-                  <i className="fas fa-calendar-alt" style={{ color: '#ffc107', fontSize: '1rem' }}></i>
+                  <i className="fas fa-calendar-alt" style={{ color: '#ffc107', fontSize: '0.85rem' }}></i>
                 </div>
                 <h5 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>
                   Statystyki Miesięczne
                 </h5>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <div style={{ textAlign: 'center', flex: 1 }}>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#0d6efd'
                   }}>
@@ -820,7 +879,7 @@ const KasaBankPage = () => {
                 <div style={{ textAlign: 'center', flex: 1 }}>
                   <h3 style={{ 
                     margin: 0, 
-                    fontSize: '1.5rem', 
+                    fontSize: '0.9rem', 
                     fontWeight: '700',
                     color: '#28a745'
                   }}>
@@ -842,7 +901,7 @@ const KasaBankPage = () => {
               }}>
                 <h4 style={{ 
                   margin: 0, 
-                  fontSize: '1.25rem', 
+                  fontSize: '0.85rem', 
                   fontWeight: '700',
                   color: '#17a2b8'
                 }}>
@@ -925,43 +984,49 @@ const KasaBankPage = () => {
                   Ostatnie Operacje
                 </h5>
                 {operacje.length > 0 ? (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                     <table style={{ 
                       width: '100%', 
                       borderCollapse: 'collapse',
-                      fontSize: '0.875rem'
+                      fontSize: '0.75rem',
+                      minWidth: '500px'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: '2px solid #e9ecef' }}>
+                        <tr style={{ borderBottom: '1px solid #dee2e6' }}>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.4rem 0.3rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.7rem'
                           }}>Data</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.4rem 0.3rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.7rem'
                           }}>Typ</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.4rem 0.3rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.7rem'
                           }}>Płatność</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.4rem 0.3rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.7rem'
                           }}>Opis</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.4rem 0.3rem', 
                             textAlign: 'right', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.7rem'
                           }}>Kwota</th>
                         </tr>
                       </thead>
@@ -970,14 +1035,14 @@ const KasaBankPage = () => {
                           const badge = getOperationTypeBadge(operacja.typ_operacji);
                           return (
                             <tr key={index} style={{ borderBottom: '1px solid #f8f9fa' }}>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.4rem 0.3rem', fontSize: '0.7rem' }}>
                                 {operacja.data_operacji}
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.4rem 0.3rem', fontSize: '0.7rem' }}>
                                 <span style={{
-                                  padding: '0.25rem 0.5rem',
-                                  borderRadius: '0.25rem',
-                                  fontSize: '0.75rem',
+                                  padding: '0.15rem 0.3rem',
+                                  borderRadius: '0.2rem',
+                                  fontSize: '0.65rem',
                                   fontWeight: '600',
                                   color: badge.color,
                                   backgroundColor: badge.bg
@@ -985,22 +1050,23 @@ const KasaBankPage = () => {
                                   {badge.text}
                                 </span>
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <td style={{ padding: '0.4rem 0.3rem', fontSize: '0.7rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
                                   <i className={getPaymentTypeIcon(operacja.typ_platnosci)} 
-                                     style={{ color: getPaymentTypeColor(operacja.typ_platnosci) }}></i>
+                                     style={{ color: getPaymentTypeColor(operacja.typ_platnosci), fontSize: '0.7rem' }}></i>
                                   <span style={{ textTransform: 'capitalize' }}>
                                     {operacja.typ_platnosci}
                                   </span>
                                 </div>
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
-                                {operacja.opis || '-'}
+                              <td style={{ padding: '0.4rem 0.3rem', fontSize: '0.7rem' }}>
+                                {(operacja.opis || '-').substring(0, 25)}{operacja.opis && operacja.opis.length > 25 ? '...' : ''}
                               </td>
                               <td style={{ 
-                                padding: '0.75rem 0.5rem', 
+                                padding: '0.4rem 0.3rem', 
                                 textAlign: 'right',
                                 fontWeight: '600',
+                                fontSize: '0.7rem',
                                 color: operacja.typ_operacji === 'KP' ? '#28a745' : '#dc3545'
                               }}>
                                 {operacja.typ_operacji === 'KP' ? '+' : '-'}{formatCurrency(operacja.kwota)}
@@ -1017,7 +1083,7 @@ const KasaBankPage = () => {
                     padding: '2rem',
                     color: '#6c757d'
                   }}>
-                    <i className="fas fa-inbox fa-3x" style={{ marginBottom: '1rem', opacity: 0.3 }}></i>
+                    <i className="fas fa-inbox fa-3x" style={{ marginBottom: '0.6rem', opacity: 0.3 }}></i>
                     <p style={{ margin: 0 }}>Brak operacji do wyświetlenia</p>
                   </div>
                 )}
@@ -1038,7 +1104,7 @@ const KasaBankPage = () => {
                       borderRadius: '0.375rem',
                       backgroundColor: 'white'
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '1rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', marginBottom: '0.6rem' }}>
                         <div style={{
                           width: '2.5rem',
                           height: '2.5rem',
@@ -1050,7 +1116,7 @@ const KasaBankPage = () => {
                           marginRight: '0.75rem'
                         }}>
                           <i className={getPaymentTypeIcon(typ)} 
-                             style={{ color: getPaymentTypeColor(typ), fontSize: '1.1rem' }}></i>
+                             style={{ color: getPaymentTypeColor(typ), fontSize: '0.9rem' }}></i>
                         </div>
                         <div>
                           <h6 style={{ margin: 0, fontWeight: '600', textTransform: 'capitalize' }}>
@@ -1064,7 +1130,7 @@ const KasaBankPage = () => {
                       
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                         <div style={{ textAlign: 'center', padding: '0.75rem', backgroundColor: '#d4edda', borderRadius: '0.25rem' }}>
-                          <div style={{ fontSize: '1.1rem', fontWeight: '600', color: '#28a745' }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#28a745' }}>
                             {formatCurrency(dane.kp.suma)}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
@@ -1072,7 +1138,7 @@ const KasaBankPage = () => {
                           </div>
                         </div>
                         <div style={{ textAlign: 'center', padding: '0.75rem', backgroundColor: '#f8d7da', borderRadius: '0.25rem' }}>
-                          <div style={{ fontSize: '1.1rem', fontWeight: '600', color: '#dc3545' }}>
+                          <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#dc3545' }}>
                             {formatCurrency(dane.kw.suma)}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
@@ -1190,7 +1256,7 @@ const KasaBankPage = () => {
 
                 {/* Filtry dat */}
                 <div style={{ 
-                  marginBottom: '1rem',
+                  marginBottom: '0.6rem',
                   padding: '1rem',
                   backgroundColor: '#f8f9fa',
                   borderRadius: '0.5rem',
@@ -1339,20 +1405,22 @@ const KasaBankPage = () => {
 
                 {/* Tabela z filtrowanymi operacjami */}
                 {filteredOperations.length > 0 ? (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto', maxHeight: '350px', overflowY: 'auto' }}>
                     <table style={{ 
                       width: '100%', 
                       borderCollapse: 'collapse',
-                      fontSize: '0.875rem'
+                      fontSize: '0.7rem',
+                      minWidth: '650px'
                     }}>
                       <thead>
                         <tr style={{ borderBottom: '2px solid #e9ecef' }}>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'center', 
                             fontWeight: '600',
                             color: '#495057',
-                            width: '50px'
+                            width: '40px',
+                            fontSize: '0.65rem'
                           }}>
                             <input
                               type="checkbox"
@@ -1360,58 +1428,66 @@ const KasaBankPage = () => {
                               onChange={toggleSelectAll}
                               style={{ 
                                 cursor: 'pointer',
-                                transform: 'scale(1.2)'
+                                transform: 'scale(1.0)'
                               }}
                             />
                           </th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Data</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Typ</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Płatność</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Nr dok.</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Kontrahent</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'left', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Opis</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'right', 
                             fontWeight: '600',
-                            color: '#495057'
+                            color: '#495057',
+                            fontSize: '0.65rem'
                           }}>Kwota</th>
                           <th style={{ 
-                            padding: '0.75rem 0.5rem', 
+                            padding: '0.3rem 0.2rem', 
                             textAlign: 'center', 
                             fontWeight: '600',
                             color: '#495057',
-                            width: '100px'
+                            width: '80px',
+                            fontSize: '0.65rem'
                           }}>Akcje</th>
                         </tr>
                       </thead>
@@ -1420,7 +1496,7 @@ const KasaBankPage = () => {
                           const badge = getOperationTypeBadge(operacja.typ_operacji);
                           return (
                             <tr key={operacja.id || index} style={{ borderBottom: '1px solid #f8f9fa' }}>
-                              <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                              <td style={{ padding: '0.35rem 0.25rem', textAlign: 'center' }}>
                                 <input
                                   type="checkbox"
                                   checked={selectedOperations.has(operacja.id || index)}
@@ -1431,10 +1507,10 @@ const KasaBankPage = () => {
                                   }}
                                 />
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.35rem 0.25rem' }}>
                                 {operacja.data_operacji}
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.35rem 0.25rem' }}>
                                 <span style={{
                                   padding: '0.25rem 0.5rem',
                                   borderRadius: '0.25rem',
@@ -1446,7 +1522,7 @@ const KasaBankPage = () => {
                                   {badge.text}
                                 </span>
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.35rem 0.25rem' }}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                   <i className={getPaymentTypeIcon(operacja.typ_platnosci)} 
                                      style={{ color: getPaymentTypeColor(operacja.typ_platnosci) }}></i>
@@ -1455,7 +1531,7 @@ const KasaBankPage = () => {
                                   </span>
                                 </div>
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.35rem 0.25rem' }}>
                                 <span style={{ 
                                   fontFamily: 'monospace', 
                                   fontSize: '0.8rem',
@@ -1466,14 +1542,14 @@ const KasaBankPage = () => {
                                   {operacja.numer_dokumentu || '-'}
                                 </span>
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.35rem 0.25rem' }}>
                                 {operacja.kontrahent || '-'}
                               </td>
-                              <td style={{ padding: '0.75rem 0.5rem' }}>
+                              <td style={{ padding: '0.35rem 0.25rem' }}>
                                 {operacja.opis || '-'}
                               </td>
                               <td style={{ 
-                                padding: '0.75rem 0.5rem', 
+                                padding: '0.35rem 0.25rem', 
                                 textAlign: 'right',
                                 fontWeight: '600',
                                 color: operacja.typ_operacji === 'KP' ? '#28a745' : '#dc3545'
@@ -1481,7 +1557,7 @@ const KasaBankPage = () => {
                                 {operacja.typ_operacji === 'KP' ? '+' : '-'}{formatCurrency(operacja.kwota)}
                               </td>
                               <td style={{ 
-                                padding: '0.75rem 0.5rem', 
+                                padding: '0.35rem 0.25rem', 
                                 textAlign: 'center'
                               }}>
                                 <button
@@ -1529,8 +1605,8 @@ const KasaBankPage = () => {
                     padding: '2rem',
                     color: '#6c757d'
                   }}>
-                    <i className="fas fa-filter fa-3x" style={{ marginBottom: '1rem', opacity: 0.3 }}></i>
-                    <p style={{ margin: 0, fontSize: '1rem', fontWeight: '500' }}>
+                    <i className="fas fa-filter fa-3x" style={{ marginBottom: '0.6rem', opacity: 0.3 }}></i>
+                    <p style={{ margin: 0, fontSize: '0.85rem', fontWeight: '500' }}>
                       {Object.values(paymentFilters).every(v => !v) 
                         ? 'Zaznacz co najmniej jeden typ płatności' 
                         : 'Brak operacji pasujących do wybranych filtrów'
@@ -1547,7 +1623,7 @@ const KasaBankPage = () => {
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'center', 
-                  marginBottom: '1rem' 
+                  marginBottom: '0.6rem' 
                 }}>
                   <h5 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>
                     <i className="fas fa-plus-circle" style={{ color: '#28a745', marginRight: '0.5rem' }}></i>
@@ -1584,30 +1660,31 @@ const KasaBankPage = () => {
                   </button>
                 </div>
                 {kpDocuments.length > 0 ? (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                     <table style={{ 
                       width: '100%', 
                       borderCollapse: 'collapse',
-                      fontSize: '0.875rem'
+                      fontSize: '0.7rem',
+                      minWidth: '550px'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: '2px solid #e9ecef' }}>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                        <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Data
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
-                            Nr dokumentu
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
+                            Nr dok.
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Płatność
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Kontrahent
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Opis
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'right', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Kwota
                           </th>
                         </tr>
@@ -1615,10 +1692,10 @@ const KasaBankPage = () => {
                       <tbody>
                         {kpDocuments.map((doc, index) => (
                           <tr key={index} style={{ borderBottom: '1px solid #f8f9fa' }}>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               {doc.data_operacji}
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               <span style={{ 
                                 fontFamily: 'monospace', 
                                 fontSize: '0.8rem',
@@ -1629,7 +1706,7 @@ const KasaBankPage = () => {
                                 {doc.numer_dokumentu || '-'}
                               </span>
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <i className={getPaymentTypeIcon(doc.typ_platnosci)} 
                                    style={{ color: getPaymentTypeColor(doc.typ_platnosci) }}></i>
@@ -1638,14 +1715,14 @@ const KasaBankPage = () => {
                                 </span>
                               </div>
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               {doc.kontrahent || '-'}
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               {doc.opis || '-'}
                             </td>
                             <td style={{ 
-                              padding: '0.75rem 0.5rem', 
+                              padding: '0.35rem 0.25rem', 
                               textAlign: 'right',
                               fontWeight: '600',
                               color: '#28a745'
@@ -1663,7 +1740,7 @@ const KasaBankPage = () => {
                     padding: '2rem',
                     color: '#6c757d'
                   }}>
-                    <i className="fas fa-plus-circle fa-3x" style={{ marginBottom: '1rem', opacity: 0.3, color: '#28a745' }}></i>
+                    <i className="fas fa-plus-circle fa-3x" style={{ marginBottom: '0.6rem', opacity: 0.3, color: '#28a745' }}></i>
                     <p style={{ margin: 0 }}>Brak dokumentów KP do wyświetlenia</p>
                   </div>
                 )}
@@ -1676,7 +1753,7 @@ const KasaBankPage = () => {
                   display: 'flex', 
                   justifyContent: 'space-between', 
                   alignItems: 'center', 
-                  marginBottom: '1rem' 
+                  marginBottom: '0.6rem' 
                 }}>
                   <h5 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>
                     <i className="fas fa-minus-circle" style={{ color: '#dc3545', marginRight: '0.5rem' }}></i>
@@ -1713,30 +1790,31 @@ const KasaBankPage = () => {
                   </button>
                 </div>
                 {kwDocuments.length > 0 ? (
-                  <div style={{ overflowX: 'auto' }}>
+                  <div style={{ overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
                     <table style={{ 
                       width: '100%', 
                       borderCollapse: 'collapse',
-                      fontSize: '0.875rem'
+                      fontSize: '0.7rem',
+                      minWidth: '550px'
                     }}>
                       <thead>
-                        <tr style={{ borderBottom: '2px solid #e9ecef' }}>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                        <tr style={{ borderBottom: '1px solid #dee2e6' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Data
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
-                            Nr dokumentu
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
+                            Nr dok.
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Płatność
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Kontrahent
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'left', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'left', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Opis
                           </th>
-                          <th style={{ padding: '0.75rem 0.5rem', textAlign: 'right', fontWeight: '600', color: '#495057' }}>
+                          <th style={{ padding: '0.3rem 0.2rem', textAlign: 'right', fontWeight: '600', color: '#495057', fontSize: '0.65rem' }}>
                             Kwota
                           </th>
                         </tr>
@@ -1744,10 +1822,10 @@ const KasaBankPage = () => {
                       <tbody>
                         {kwDocuments.map((doc, index) => (
                           <tr key={index} style={{ borderBottom: '1px solid #f8f9fa' }}>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               {doc.data_operacji}
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               <span style={{ 
                                 fontFamily: 'monospace', 
                                 fontSize: '0.8rem',
@@ -1758,7 +1836,7 @@ const KasaBankPage = () => {
                                 {doc.numer_dokumentu || '-'}
                               </span>
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                 <i className={getPaymentTypeIcon(doc.typ_platnosci)} 
                                    style={{ color: getPaymentTypeColor(doc.typ_platnosci) }}></i>
@@ -1767,14 +1845,14 @@ const KasaBankPage = () => {
                                 </span>
                               </div>
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               {doc.kontrahent || '-'}
                             </td>
-                            <td style={{ padding: '0.75rem 0.5rem' }}>
+                            <td style={{ padding: '0.35rem 0.25rem' }}>
                               {doc.opis || '-'}
                             </td>
                             <td style={{ 
-                              padding: '0.75rem 0.5rem', 
+                              padding: '0.35rem 0.25rem', 
                               textAlign: 'right',
                               fontWeight: '600',
                               color: '#dc3545'
@@ -1792,7 +1870,7 @@ const KasaBankPage = () => {
                     padding: '2rem',
                     color: '#6c757d'
                   }}>
-                    <i className="fas fa-minus-circle fa-3x" style={{ marginBottom: '1rem', opacity: 0.3, color: '#dc3545' }}></i>
+                    <i className="fas fa-minus-circle fa-3x" style={{ marginBottom: '0.6rem', opacity: 0.3, color: '#dc3545' }}></i>
                     <p style={{ margin: 0 }}>Brak dokumentów KW do wyświetlenia</p>
                   </div>
                 )}
@@ -1811,6 +1889,7 @@ const KasaBankPage = () => {
           loadData(); // Odśwież dane po dodaniu
         }}
         operationType="KP"
+        locationId={locationId}
       />
       
       <AddOperationModal
@@ -1821,6 +1900,7 @@ const KasaBankPage = () => {
           loadData(); // Odśwież dane po dodaniu
         }}
         operationType="KW"
+        locationId={locationId}
       />
       
       <EditOperationModal

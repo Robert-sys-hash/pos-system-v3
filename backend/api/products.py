@@ -5,6 +5,7 @@ Wyszukiwarka produktów, szczegóły, kategorie, statystyki
 
 from flask import Blueprint, request, jsonify
 from utils.database import execute_query, execute_insert, success_response, error_response, not_found_response
+from api.margin_service import margin_service
 
 products_bp = Blueprint('products', __name__)
 
@@ -12,12 +13,35 @@ products_bp = Blueprint('products', __name__)
 def get_all_products():
     """
     Pobierz wszystkie produkty (endpoint bazowy)
-    Parametry: limit (int, opcjonalny)
+    Parametry: limit (int, opcjonalny), search (string, opcjonalny)
     """
+    print(f"🟢 WYWOŁANA FUNKCJA get_all_products z parametrami: {request.args}")
     try:
-        limit = int(request.args.get('limit', 100))
+        # Safely parse limit parameter
+        limit_param = request.args.get('limit', '100')
+        print(f"🔍 DEBUG limit_param: '{limit_param}'")
+        if not limit_param or limit_param in ['undefined', 'null', '']:
+            limit = 100
+        else:
+            try:
+                limit = int(limit_param)
+            except ValueError:
+                limit = 100
+        print(f"🔍 DEBUG final limit: {limit}")
         
-        sql_query = """
+        search = request.args.get('search', '').strip()
+        
+        # Budowanie warunków WHERE dla wyszukiwania
+        where_conditions = []
+        params = []
+        
+        if search:
+            where_conditions.append("(p.nazwa LIKE ? OR p.ean LIKE ? OR p.kod_produktu LIKE ?)")
+            params.extend([f"%{search}%", f"%{search}%", f"%{search}%"])
+        
+        where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+        
+        sql_query = f"""
         SELECT 
             p.id,
             p.nazwa as name,
@@ -31,8 +55,8 @@ def get_all_products():
             0 as stock_quantity,
             p.jednostka as unit,
             p.stawka_vat as tax_rate,
-            COALESCE(p.cena_zakupu, 0) as purchase_price,
-            COALESCE(p.cena_zakupu, 0) as cena_zakupu,
+            COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as purchase_price,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu,
             COALESCE(p.cena_zakupu_netto, 0) as cena_zakupu_netto,
             COALESCE(p.cena_zakupu_brutto, 0) as cena_zakupu_brutto,
             COALESCE(p.cena_sprzedazy_netto, 0) as cena_sprzedazy_netto,
@@ -49,20 +73,39 @@ def get_all_products():
         FROM produkty p
         LEFT JOIN kategorie_produktow k ON p.category_id = k.id
         LEFT JOIN producenci pr ON p.producent_id = pr.id
+        {where_clause}
         ORDER BY p.nazwa ASC 
         LIMIT ?
         """
         
-        results = execute_query(sql_query, [limit])
+        params.append(limit)
+        
+        # DEBUG: Log SQL query and parameters
+        print(f"🔍 SQL Query: {sql_query}")
+        print(f"🔍 Params: {params}")
+        
+        results = execute_query(sql_query, params)
         
         if results is None:
             return error_response("Błąd połączenia z bazą danych", 500)
+        
+        # Aktualizuj ceny zakupu używając margin_service (tak samo jak w /products/inventory)
+        for product in results:
+            try:
+                # Pobierz najnowszą cenę zakupu z faktury
+                purchase_price, method = margin_service.get_product_purchase_price(
+                    product_id=product['id'],
+                    warehouse_id=5  # Domyślny magazyn
+                )
+                # Zastąp cenę z tabeli produkty na cenę z margin_service
+                product['purchase_price'] = purchase_price
+                product['purchase_price_method'] = method
+                print(f"🔍 DEBUG /products - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+            except Exception as e:
+                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                # Zostaw oryginalną cenę w przypadku błędu
             
-        return success_response({
-            'products': results,
-            'total': len(results),
-            'limit': limit
-        }, f"Znaleziono {len(results)} produktów")
+        return success_response(results, f"Znaleziono {len(results)} produktów")
         
     except ValueError:
         return error_response("Parametr 'limit' musi być liczbą", 400)
@@ -91,55 +134,40 @@ def search_products():
         conditions = []
         params = []
         
-        if warehouse_id:
-            # Dla konkretnego magazynu
+        if location_id:
+            # Dla lokalizacji - używamy pos_magazyn i warehouse_product_prices przez warehouses
             sql_query = """
             SELECT 
                 p.id,
                 p.nazwa as name,
                 p.opis as description,
-                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
+                COALESCE(wpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto, p.cena, 0) as price,
                 p.kategoria as category,
                 p.ean as barcode,
-                COALESCE(il.ilosc_dostepna, 0) as stock_quantity,
+                COALESCE(pm.stan_aktualny, 0) as stock_quantity,
                 p.jednostka as unit,
                 COALESCE(p.stawka_vat, 23) as tax_rate,
                 p.data_utworzenia as created_at,
                 p.data_modyfikacji as updated_at,
                 p.gramatura,
                 p.ilosc_jednostek,
-                p.jednostka_wagi
+                p.jednostka_wagi,
+                CASE WHEN wpp.cena_sprzedazy_brutto IS NOT NULL THEN 1 ELSE 0 END as has_special_price,
+                wpp.cena_sprzedazy_netto as special_price_netto,
+                wpp.cena_sprzedazy_brutto as special_price_brutto,
+                p.cena_sprzedazy_netto as default_price_netto,
+                p.cena_sprzedazy_brutto as default_price_brutto,
+                COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as current_purchase_price
             FROM produkty p
-            LEFT JOIN inventory_locations il ON p.id = il.product_id AND il.warehouse_id = ?
+            LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id AND pm.lokalizacja = ?
+            LEFT JOIN warehouses w ON w.location_id = ?
+            LEFT JOIN warehouse_product_prices wpp ON p.id = wpp.product_id AND w.id = wpp.warehouse_id AND wpp.aktywny = 1
             WHERE 1=1
             """
-            params.append(warehouse_id)
-        elif location_id:
-            # Dla lokalizacji - suma stanów ze wszystkich magazynów tej lokalizacji
-            sql_query = """
-            SELECT 
-                p.id,
-                p.nazwa as name,
-                p.opis as description,
-                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
-                p.kategoria as category,
-                p.ean as barcode,
-                COALESCE(SUM(il.ilosc_dostepna), 0) as stock_quantity,
-                p.jednostka as unit,
-                COALESCE(p.stawka_vat, 23) as tax_rate,
-                p.data_utworzenia as created_at,
-                p.data_modyfikacji as updated_at,
-                p.gramatura,
-                p.ilosc_jednostek,
-                p.jednostka_wagi
-            FROM produkty p
-            LEFT JOIN inventory_locations il ON p.id = il.product_id
-            LEFT JOIN warehouses w ON il.warehouse_id = w.id AND w.location_id = ?
-            WHERE 1=1
-            """
+            params.append(str(location_id))
             params.append(location_id)
         else:
-            # Bez lokalizacji - stary sposób bez stanów magazynowych
+            # Bez lokalizacji - używamy produkty bez stanów magazynowych
             sql_query = """
             SELECT 
                 p.id,
@@ -155,7 +183,13 @@ def search_products():
                 p.data_modyfikacji as updated_at,
                 p.gramatura,
                 p.ilosc_jednostek,
-                p.jednostka_wagi
+                p.jednostka_wagi,
+                0 as has_special_price,
+                NULL as special_price_netto,
+                NULL as special_price_brutto,
+                p.cena_sprzedazy_netto as default_price_netto,
+                p.cena_sprzedazy_brutto as default_price_brutto,
+                COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as current_purchase_price
             FROM produkty p
             WHERE 1=1
             """
@@ -172,9 +206,7 @@ def search_products():
         if conditions:
             sql_query += " AND " + " AND ".join(conditions)
         
-        # Dodaj GROUP BY dla przypadku location_id (suma stanów z wielu magazynów)
-        if location_id:
-            sql_query += " GROUP BY p.id"
+        # Sortowanie według nazwy produktu
             
         sql_query += " ORDER BY p.nazwa ASC LIMIT ?"
         params.append(limit)
@@ -183,6 +215,22 @@ def search_products():
         
         if results is None:
             return error_response("Błąd połączenia z bazą danych", 500)
+        
+        # Dodaj najnowsze ceny zakupu z margin_service (jak w API inventory)
+        for product in results:
+            try:
+                # Pobierz najnowszą cenę zakupu z faktury
+                purchase_price, method = margin_service.get_product_purchase_price(
+                    product_id=product['id'],
+                    warehouse_id=5  # Domyślny magazyn
+                )
+                # Zastąp starą cenę na najnowszą z faktury
+                product['current_purchase_price'] = purchase_price
+                product['purchase_price_method'] = method
+                print(f"🔍 DEBUG search - Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+            except Exception as e:
+                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                # Zostaw oryginalną cenę w przypadku błędu
             
         return success_response({
             'products': results,
@@ -254,6 +302,24 @@ def get_product(product_id):
                 'sales_last_30_days': sales_data[0]['sales_count'] or 0,
                 'quantity_sold_last_30_days': sales_data[0]['total_quantity'] or 0
             })
+        
+        # Aktualizuj ceny zakupu używając margin_service (tak samo jak w /products/inventory)
+        try:
+            # Pobierz najnowszą cenę zakupu z faktury
+            purchase_price, method = margin_service.get_product_purchase_price(
+                product_id=product['id'],
+                warehouse_id=5  # Domyślny magazyn
+            )
+            # Zastąp/dodaj cenę z margin_service
+            product['purchase_price'] = purchase_price
+            product['purchase_price_method'] = method
+            # Jeśli ma pole cost_price, też je zaktualizuj
+            if 'cost_price' in product:
+                product['cost_price'] = purchase_price
+            print(f"🔍 DEBUG /products/{product_id} - cena zakupu {purchase_price} ({method})")
+        except Exception as e:
+            print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product_id}: {e}")
+            # Zostaw oryginalną cenę w przypadku błędu
         
         return success_response(product, "Szczegóły produktu")
         
@@ -578,104 +644,67 @@ def get_products_stats():
 @products_bp.route('/products/inventory', methods=['GET'])
 def get_inventory():
     """
-    Pobierz wszystkie stany magazynowe
-    GET /api/products/inventory?page=1&limit=20&search=&category=
+    Pobiera produkty z informacją o stanach magazynowych z tabeli pos_magazyn
+    GET /api/products/inventory?page=1&limit=20&search=&category=&available_only=1
     """
     try:
+        # Pobierz parametry zapytania
         page = int(request.args.get('page', 1))
         limit = int(request.args.get('limit', 20))
         search = request.args.get('search', '').strip()
         category = request.args.get('category', '').strip()
-        available_only = request.args.get('available_only', 'false').lower() == 'true'
-        warehouse_id = request.args.get('warehouse_id')  # Dodaj warehouse_id
-        location_id = request.args.get('location_id')  # Dodaj location_id
+        available_only = request.args.get('available_only', '0') == '1'
+        location_id = request.args.get('location_id', type=int)
+        warehouse_id = request.args.get('warehouse_id', type=int)
         
         offset = (page - 1) * limit
-        
-        # Budowanie zapytania dla tabeli produkty
-        conditions = []
         params = []
+        conditions = []
         
-        # Zapytanie z subquery dla właściwego filtrowania magazynów
-        if warehouse_id:
-            # Dla konkretnego magazynu - pokazuj wszystkie produkty z ich stanem w tym magazynie
-            base_sql = """
-            SELECT 
-                p.id,
-                p.nazwa as name,
-                p.opis as description,
-                p.kategoria as category,
-                p.category_id,
-                k.nazwa as category_name,
-                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
-                COALESCE(p.cena_sprzedazy_netto, p.cena * 0.8, 0) as price_net,
-                COALESCE(p.cena_sprzedazy_netto, p.cena * 0.8, 0) as cena_sprzedazy_netto,
-                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
-                COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as purchase_price,
-                COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as cena_zakupu_netto,
-                COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
-                p.ean as barcode,
-                p.kod_produktu as product_code,
-                COALESCE(p.stawka_vat, 23) as tax_rate,
-                COALESCE(il_specific.stock_quantity, 0) as stock_quantity,
-                COALESCE(il_specific.min_stock_level, 0) as min_stock_level,
-                p.jednostka as unit,
-                p.data_utworzenia as created_at,
-                p.data_modyfikacji as updated_at
-            FROM produkty p
-            
-            LEFT JOIN kategorie_produktow k ON p.category_id = k.id
-            LEFT JOIN (
-                SELECT product_id, 
-                       SUM(ilosc_dostepna) as stock_quantity,
-                       AVG(ilosc_minimalna) as min_stock_level
-                FROM inventory_locations 
-                WHERE warehouse_id = ?
-                GROUP BY product_id
-            ) il_specific ON p.id = il_specific.product_id
-            WHERE 1=1
-            """
-            params.append(warehouse_id)
-        else:
-            # Dla lokalizacji - pokaż wszystkie produkty z ich stanem we wszystkich magazynach lokalizacji
-            base_sql = """
-            SELECT 
-                p.id,
-                p.nazwa as name,
-                p.opis as description,
-                p.kategoria as category,
-                p.category_id,
-                k.nazwa as category_name,
-                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
-                COALESCE(p.cena_sprzedazy_netto, p.cena * 0.8, 0) as price_net,
-                COALESCE(p.cena_sprzedazy_netto, p.cena * 0.8, 0) as cena_sprzedazy_netto,
-                COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
-                COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as purchase_price,
-                COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as cena_zakupu_netto,
-                COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
-                p.ean as barcode,
-                p.kod_produktu as product_code,
-                COALESCE(p.stawka_vat, 23) as tax_rate,
-                COALESCE(il_location.stock_quantity, 0) as stock_quantity,
-                COALESCE(il_location.min_stock_level, 0) as min_stock_level,
-                p.jednostka as unit,
-                p.data_utworzenia as created_at,
-                p.data_modyfikacji as updated_at
-            FROM produkty p
-            
-            LEFT JOIN kategorie_produktow k ON p.category_id = k.id
-            LEFT JOIN (
-                SELECT il.product_id, 
-                       SUM(il.ilosc_dostepna) as stock_quantity,
-                       AVG(il.ilosc_minimalna) as min_stock_level
-                FROM inventory_locations il
-                JOIN warehouses w ON il.warehouse_id = w.id
-                WHERE w.location_id = ?
-                GROUP BY il.product_id
-            ) il_location ON p.id = il_location.product_id
-            WHERE 1=1
-            """
+        print(f"🔍 DEBUG inventory - używam pos_magazyn, available_only: {available_only}, location_id: {location_id}, warehouse_id: {warehouse_id}")
+        
+        # Dodaj location_id jako pierwszy parametr dla warehouse join
+        if location_id:
             params.append(location_id)
+        else:
+            params.append(5)  # Domyślna lokalizacja (Kalisz)
+        
+        # Główne zapytanie używające tabeli pos_magazyn z obsługą cen specjalnych
+        base_sql = """
+        SELECT DISTINCT
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.kategoria as category,
+            p.category_id,
+            k.nazwa as category_name,
+            COALESCE(wpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto, p.cena, 0) as price,
+            COALESCE(wpp.cena_sprzedazy_netto, p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as price_net,
+            COALESCE(wpp.cena_sprzedazy_netto, p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as cena_sprzedazy_netto,
+            COALESCE(wpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
+            COALESCE(p.cena_zakupu_netto, p.cena_zakupu, 0) as purchase_price,
+            p.cena_zakupu_netto as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
+            p.ean as barcode,
+            p.kod_produktu as product_code,
+            COALESCE(p.stawka_vat, 23) as tax_rate,
+            COALESCE(pm.stan_aktualny, 0) as stock_quantity,
+            COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+            p.jednostka as unit,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at,
+            CASE WHEN wpp.cena_sprzedazy_brutto IS NOT NULL THEN 1 ELSE 0 END as has_special_price,
+            wpp.cena_sprzedazy_netto as special_price_netto,
+            wpp.cena_sprzedazy_brutto as special_price_brutto,
+            p.cena_sprzedazy_netto as default_price_netto,
+            p.cena_sprzedazy_brutto as default_price_brutto
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        LEFT JOIN (SELECT MIN(id) as id, location_id FROM warehouses WHERE location_id = ? GROUP BY location_id) w ON 1=1
+        LEFT JOIN warehouse_product_prices wpp ON p.id = wpp.product_id AND w.id = wpp.warehouse_id AND wpp.aktywny = 1
+        WHERE 1=1
+        """
         
         if search:
             conditions.append("(p.nazwa LIKE ? OR p.opis LIKE ? OR p.ean LIKE ?)")
@@ -683,57 +712,67 @@ def get_inventory():
             params.extend([search_pattern, search_pattern, search_pattern])
             
         if category:
-            # Szukaj w obu systemach kategorii - starym i nowym hierarchicznym
             conditions.append("(p.kategoria LIKE ? OR k.nazwa LIKE ?)")
             category_pattern = f"%{category}%"
             params.extend([category_pattern, category_pattern])
             
         if available_only:
-            if warehouse_id:
-                conditions.append("COALESCE(il_specific.stock_quantity, 0) > 0")
-            else:
-                conditions.append("COALESCE(il_location.stock_quantity, 0) > 0")
+            conditions.append("COALESCE(pm.stan_aktualny, 0) > 0")
             
+        # Filtrowanie według lokalizacji w pos_magazyn
+        if location_id:
+            conditions.append("pm.lokalizacja = ?")
+            params.append(str(location_id))
+            print(f"🔍 DEBUG dodaję filtr lokalizacji: {location_id}")
+            
+        # TODO: W przyszłości można dodać filtrowanie według konkretnego magazynu
+        # jeśli warehouse_id zostanie zmapowane na pos_magazyn
+        
         if conditions:
             base_sql += " AND " + " AND ".join(conditions)
             
-        # Sortowanie priorytetowe: najpierw dostępne, potem alfabetycznie
-        if warehouse_id:
-            sql_query = base_sql + " ORDER BY COALESCE(il_specific.stock_quantity, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?"
-        else:
-            sql_query = base_sql + " ORDER BY COALESCE(il_location.stock_quantity, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?"
+        # Grupowanie po produkcie aby uniknąć duplikatów z pos_magazyn
+        base_sql += " GROUP BY p.id"
+            
+        # Sortowanie: najpierw dostępne, potem alfabetycznie
+        sql_query = base_sql + " ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?"
         params.extend([limit, offset])
+        
+        print(f"🔍 DEBUG SQL: {sql_query}")
+        print(f"🔍 DEBUG params: {params}")
         
         products = execute_query(sql_query, params)
         
-        # Sprawdź czy zapytanie się powiodło
         if products is None:
             return error_response("Błąd połączenia z bazą danych", 500)
         
+        print(f"🔍 DEBUG znaleziono {len(products)} produktów")
+        
+        # Aktualizuj ceny zakupu używając margin_service
+        for product in products:
+            try:
+                # Pobierz najnowszą cenę zakupu z faktury
+                purchase_price, method = margin_service.get_product_purchase_price(
+                    product_id=product['id'],
+                    warehouse_id=location_id
+                )
+                # Zastąp cenę z tabeli produkty na cenę z margin_service
+                product['purchase_price'] = purchase_price
+                product['purchase_price_method'] = method
+                print(f"🔍 DEBUG Produkt {product['id']}: cena zakupu {purchase_price} ({method})")
+            except Exception as e:
+                print(f"⚠️ Błąd pobierania ceny zakupu dla produktu {product['id']}: {e}")
+                # Zostaw oryginalną cenę w przypadku błędu
+        
         # Policz wszystkie produkty dla paginacji
-        if warehouse_id:
-            count_sql = """SELECT COUNT(p.id) as total FROM produkty p  
-                            LEFT JOIN kategorie_produktow k ON p.category_id = k.id
-                            LEFT JOIN (
-                                SELECT product_id, SUM(ilosc_dostepna) as stock_quantity
-                                FROM inventory_locations 
-                                WHERE warehouse_id = ?
-                                GROUP BY product_id
-                            ) il_specific ON p.id = il_specific.product_id
-                            WHERE 1=1"""
-            count_params = [warehouse_id]
-        else:
-            count_sql = """SELECT COUNT(p.id) as total FROM produkty p  
-                            LEFT JOIN kategorie_produktow k ON p.category_id = k.id
-                            LEFT JOIN (
-                                SELECT il.product_id, SUM(il.ilosc_dostepna) as stock_quantity
-                                FROM inventory_locations il
-                                JOIN warehouses w ON il.warehouse_id = w.id
-                                WHERE w.location_id = ?
-                                GROUP BY il.product_id
-                            ) il_location ON p.id = il_location.product_id
-                            WHERE 1=1"""
-            count_params = [location_id]
+        count_sql = """
+        SELECT COUNT(DISTINCT p.id) as total 
+        FROM produkty p  
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        WHERE 1=1
+        """
+        count_params = []
         
         if search:
             count_sql += " AND (p.nazwa LIKE ? OR p.opis LIKE ? OR p.ean LIKE ?)"
@@ -741,16 +780,17 @@ def get_inventory():
             count_params.extend([search_pattern, search_pattern, search_pattern])
             
         if category:
-            # Szukaj w obu systemach kategorii - starym i nowym hierarchicznym
             count_sql += " AND (p.kategoria LIKE ? OR k.nazwa LIKE ?)"
             category_pattern = f"%{category}%"
             count_params.extend([category_pattern, category_pattern])
             
         if available_only:
-            if warehouse_id:
-                count_sql += " AND COALESCE(il_specific.stock_quantity, 0) > 0"
-            else:
-                count_sql += " AND COALESCE(il_location.stock_quantity, 0) > 0"
+            count_sql += " AND COALESCE(pm.stan_aktualny, 0) > 0"
+            
+        # Filtrowanie według lokalizacji w count query
+        if location_id:
+            count_sql += " AND pm.lokalizacja = ?"
+            count_params.append(str(location_id))
             
         total_result = execute_query(count_sql, count_params)
         if total_result is None:
@@ -1465,3 +1505,189 @@ def bulk_update_manufacturer():
     except Exception as e:
         print(f"Błąd masowej aktualizacji producenta: {e}")
         return error_response("Wystąpił błąd podczas masowej aktualizacji producenta", 500)
+
+@products_bp.route('/products/<int:product_id>/history', methods=['GET'])
+def get_product_history(product_id):
+    """
+    Pobierz pełną historię operacji dla danego produktu
+    Historia obejmuje: sprzedaże, zmiany cen, ruchy magazynowe
+    """
+    try:
+        limit = int(request.args.get('limit', 100))
+        location_id = request.args.get('location_id')
+        warehouse_id = request.args.get('warehouse_id')
+        
+        # Sprawdź czy produkt istnieje
+        print(f"🔍 PRODUCT CHECK SQL: SELECT nazwa FROM produkty WHERE id = {product_id}")
+        product_check = execute_query("SELECT nazwa FROM produkty WHERE id = ?", [product_id])
+        print(f"🔍 PRODUCT CHECK RESULT: {product_check}")
+        if not product_check:
+            return not_found_response("Produkt nie został znaleziony")
+        
+        product_name = product_check[0]['nazwa']
+        print(f"🔍 PRODUCT NAME: {product_name}")
+        
+        # Sprawdź strukturę tabel
+        tables_check = execute_query("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('pos_transakcje', 'pos_transakcje_pozycje')")
+        print(f"🔍 TABLES CHECK: {tables_check}")
+        
+        # Sprawdź kolumny w pos_transakcje_pozycje
+        columns_check = execute_query("PRAGMA table_info(pos_transakcje_pozycje)")
+        print(f"🔍 COLUMNS in pos_transakcje_pozycje: {columns_check}")
+        
+        # 1. Historia sprzedaży z transakcji
+        sales_sql = """
+        SELECT 
+            'sprzedaz' as operation_type,
+            t.data_transakcji as operation_date,
+            t.czas_transakcji as operation_time,
+            pp.ilosc as quantity,
+            pp.cena_jednostkowa as unit_price,
+            pp.wartosc_brutto as total_value,
+            t.suma_brutto as transaction_total,
+            t.forma_platnosci as payment_method,
+            l.nazwa as location_name,
+            NULL as warehouse_name,
+            t.id as transaction_id,
+            t.kasjer_login as operator_name,
+            t.numer_paragonu as customer_info
+        FROM pos_pozycje pp
+        JOIN pos_transakcje t ON pp.transakcja_id = t.id
+        LEFT JOIN locations l ON t.location_id = l.id
+        WHERE pp.produkt_id = ?
+        """
+        
+        params_sales = [product_id]
+        
+        # Filtrowanie po lokalizacji
+        if location_id:
+            sales_sql += " AND t.location_id = ?"
+            params_sales.append(location_id)
+        
+        sales_sql += " ORDER BY t.data_transakcji DESC, t.czas_transakcji DESC LIMIT ?"
+        params_sales.append(limit)
+        
+        print(f"🔍 SALES SQL: {sales_sql}")
+        print(f"🔍 SALES PARAMS: {params_sales}")
+        sales_history = execute_query(sales_sql, params_sales) or []
+        print(f"🔍 SALES RESULTS: {len(sales_history)} rows")
+        
+        # 2. Historia zmian magazynowych z warehouse_history
+        inventory_sql = """
+        SELECT 
+            'ruch_magazynowy' as operation_type,
+            DATE(wh.created_at) as operation_date,
+            TIME(wh.created_at) as operation_time,
+            wh.quantity_change as quantity,
+            NULL as unit_price,
+            NULL as total_value,
+            NULL as transaction_total,
+            wh.operation_type as payment_method,
+            NULL as location_name,
+            NULL as warehouse_name,
+            wh.reference_id as transaction_id,
+            wh.created_by as operator_name,
+            COALESCE(wh.reason, wh.document_number) as customer_info
+        FROM warehouse_history wh
+        WHERE wh.product_id = ?
+        """
+        
+        params_inventory = [product_id]
+        
+        inventory_sql += " ORDER BY wh.created_at DESC LIMIT ?"
+        params_inventory.append(limit)
+        
+        # Sprawdź czy tabela warehouse_history istnieje
+        try:
+            print(f"🔍 INVENTORY SQL: {inventory_sql}")
+            print(f"🔍 INVENTORY PARAMS: {params_inventory}")
+            inventory_history = execute_query(inventory_sql, params_inventory) or []
+            print(f"🔍 INVENTORY RESULTS: {len(inventory_history)} rows")
+        except Exception as e:
+            print(f"❌ INVENTORY ERROR: {e}")
+            inventory_history = []
+        
+        # 3. Historia zmian cen z v_location_prices_history
+        price_sql = """
+        SELECT 
+            'zmiana_ceny' as operation_type,
+            DATE(vh.created_at) as operation_date,
+            TIME(vh.created_at) as operation_time,
+            1 as quantity,
+            vh.cena_sprzedazy_brutto as unit_price,
+            vh.cena_sprzedazy_brutto as total_value,
+            NULL as transaction_total,
+            CASE 
+                WHEN vh.status_okresu = 'Zakończony' THEN 'Cena zakończona'
+                WHEN vh.status_okresu = 'Aktywny' THEN 'Cena aktywna'
+                ELSE 'Cena bezterminowa'
+            END as payment_method,
+            vh.location_name as location_name,
+            NULL as warehouse_name,
+            NULL as transaction_id,
+            vh.created_by as operator_name,
+            COALESCE(vh.uwagi, 'Okres: ' || vh.data_od || ' - ' || COALESCE(vh.data_do, 'bezterminowo')) as customer_info
+        FROM v_location_prices_history vh
+        WHERE vh.product_id = ?
+        """
+        
+        params_price = [product_id]
+        
+        if location_id:
+            price_sql += " AND vh.location_id = ?"
+            params_price.append(location_id)
+        
+        price_sql += " ORDER BY vh.created_at DESC LIMIT ?"
+        params_price.append(limit)
+        
+        # Sprawdź czy view v_location_prices_history istnieje
+        try:
+            print(f"🔍 PRICE SQL: {price_sql}")
+            print(f"🔍 PRICE PARAMS: {params_price}")
+            price_history = execute_query(price_sql, params_price) or []
+            print(f"🔍 PRICE RESULTS: {len(price_history)} rows")
+        except Exception as e:
+            print(f"❌ PRICE ERROR: {e}")
+            price_history = []
+        
+        # Połącz wszystkie historie i posortuj chronologicznie
+        all_history = sales_history + inventory_history + price_history
+        
+        # Sortowanie po dacie i czasie (najnowsze na górze)
+        all_history.sort(key=lambda x: (x['operation_date'] or '', x['operation_time'] or ''), reverse=True)
+        
+        # Ograniczenie do limit wyników
+        all_history = all_history[:limit]
+        
+        # Statystyki
+        total_sold = sum(item['quantity'] for item in sales_history)
+        total_revenue = sum(item['total_value'] for item in sales_history if item['total_value'])
+        avg_price = total_revenue / total_sold if total_sold > 0 else 0
+        
+        stats = {
+            'total_operations': len(all_history),
+            'total_sales': len(sales_history),
+            'total_sold_quantity': total_sold,
+            'total_revenue': total_revenue,
+            'average_sale_price': avg_price,
+            'inventory_operations': len(inventory_history),
+            'price_changes': len(price_history)
+        }
+        
+        return success_response({
+            'product_id': product_id,
+            'product_name': product_name,
+            'history': all_history,
+            'stats': stats,
+            'filters': {
+                'location_id': location_id,
+                'warehouse_id': warehouse_id,
+                'limit': limit
+            }
+        }, f"Znaleziono {len(all_history)} operacji dla produktu: {product_name}")
+        
+    except ValueError:
+        return error_response("Parametr 'limit' musi być liczbą", 400)
+    except Exception as e:
+        print(f"Błąd pobierania historii produktu {product_id}: {e}")
+        return error_response("Wystąpił błąd podczas pobierania historii produktu", 500)

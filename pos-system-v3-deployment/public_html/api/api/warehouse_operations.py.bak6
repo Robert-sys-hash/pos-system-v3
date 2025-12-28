@@ -1,0 +1,700 @@
+from flask import Blueprint, request, jsonify
+from utils.database import get_db_connection, execute_query, execute_insert
+from utils.response_helpers import success_response, error_response
+import traceback
+import logging
+from datetime import datetime
+
+warehouse_operations_bp = Blueprint('warehouse_operations', __name__)
+
+def execute_select(query, params=None):
+    """Wrapper function for compatibility with old format"""
+    result = execute_query(query, params)
+    if result is not None:
+        return {'success': True, 'data': result}
+    else:
+        return {'success': False, 'error': 'Database query failed'}
+
+@warehouse_operations_bp.route('/warehouse/purchase-invoices', methods=['GET', 'OPTIONS'])
+def get_purchase_invoices_for_pz():
+    """Pobiera faktury zakupu dostępne do generowania PZ"""
+    try:
+        query = """
+        SELECT 
+            fz.id,
+            fz.numer_faktury as invoice_number,
+            fz.dostawca_nazwa as supplier_name,
+            fz.data_faktury as invoice_date,
+            fz.suma_brutto as total_amount,
+            fz.status,
+            CASE 
+                WHEN wr.id IS NOT NULL THEN 1 
+                ELSE 0 
+            END as pz_generated
+        FROM faktury_zakupowe fz
+        LEFT JOIN warehouse_receipts wr ON fz.id = wr.source_invoice_id AND wr.type = 'external'
+        ORDER BY fz.data_faktury DESC
+        """
+        
+        result = execute_select(query)
+        
+        if result['success']:
+            return success_response(result['data'], "Faktury załadowane pomyślnie")
+        else:
+            return error_response(result['error'])
+            
+    except Exception as e:
+        logging.error(f"Błąd pobierania faktur: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/external-receipt/<int:invoice_id>', methods=['POST', 'OPTIONS'])
+def generate_external_receipt(invoice_id):
+    """Generuje PZ (przyjęcie zewnętrzne) na podstawie faktury zakupu"""
+    conn = None
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Sprawdź czy PZ już zostało wygenerowane
+        cursor.execute("""
+            SELECT id FROM warehouse_receipts 
+            WHERE source_invoice_id = ? AND type = 'external'
+        """, (invoice_id,))
+        existing = cursor.fetchone()
+        
+        if existing:
+            return error_response("PZ dla tej faktury już zostało wygenerowane")
+        
+        # Pobierz dane faktury - dostosowane do polskiego schematu
+        cursor.execute("""
+            SELECT * FROM faktury_zakupowe WHERE id = ?
+        """, (invoice_id,))
+        invoice = cursor.fetchone()
+        
+        if not invoice:
+            return error_response("Nie znaleziono faktury zakupowej")
+        
+        # Utwórz wpis PZ
+        cursor.execute("""
+            INSERT INTO warehouse_receipts 
+            (type, source_invoice_id, document_number, supplier_name, receipt_date, total_amount, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, ('external', invoice_id, f"PZ-{invoice_id}-{datetime.now().strftime('%Y%m%d')}", 
+              invoice['dostawca_nazwa'], datetime.now().isoformat(), 
+              invoice['suma_brutto'], 'completed', datetime.now().isoformat()))
+        
+        receipt_id = cursor.lastrowid
+        if not receipt_id:
+            return error_response("Błąd tworzenia dokumentu PZ")
+        
+        # Pobierz pozycje faktury - dostosowane do polskiego schematu
+        cursor.execute("""
+            SELECT * FROM faktury_zakupowe_pozycje 
+            WHERE faktura_id = ? AND status_mapowania = 'zmapowany'
+        """, (invoice_id,))
+        items = cursor.fetchall()
+        
+        print(f"🔍 Znaleziono {len(items)} pozycji do przetworzenia")
+        processed_count = 0
+        
+        for item in items:
+            print(f"📦 Przetwarzanie pozycji: ID={item['id']}, product_id={item['product_id']}, ilosc={item['ilosc']}")
+            
+            # Sprawdź czy pozycja ma zmapowany produkt
+            if not item['product_id']:
+                print(f"⚠️ Pozycja {item['id']} nie ma zmapowanego produktu - pomijanie")
+                continue
+                
+            # Dodaj pozycję do PZ
+            cursor.execute("""
+                INSERT INTO warehouse_receipt_items 
+                (receipt_id, product_id, quantity, unit_price, total_price)
+                VALUES (?, ?, ?, ?, ?)
+            """, (receipt_id, item['product_id'], item['ilosc'], 
+                  item['cena_netto'], item['wartosc_brutto']))
+            
+            receipt_item_id = cursor.lastrowid
+            print(f"✅ Dodano pozycję PZ: {receipt_item_id}")
+            
+            # Aktualizuj lub utwórz stan magazynowy
+            cursor.execute("""
+                INSERT OR IGNORE INTO warehouse_stock 
+                (product_id, warehouse_id, current_stock, min_stock, stan_maksymalny, stan_rezerwowany)
+                VALUES (?, 1, 0, 0, 0, 0)
+            """, (item['product_id'],))
+            
+            cursor.execute("""
+                UPDATE warehouse_stock 
+                SET current_stock = current_stock + ?, 
+                    data_ostatniej_zmiany = CURRENT_TIMESTAMP
+                WHERE product_id = ? AND warehouse_id = 1
+            """, (item['ilosc'], item['product_id']))
+            
+            print(f"📊 Zaktualizowano stan magazynowy dla produktu {item['product_id']}")
+            
+            # Dodaj wpis do historii magazynu
+            cursor.execute("""
+                INSERT INTO warehouse_history 
+                (product_id, operation_type, quantity_change, reason, document_number, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (item['product_id'], 'receipt_external', item['ilosc'], 
+                  f"PZ na podstawie faktury {invoice['numer_faktury']}", 
+                  f"PZ-{invoice_id}-{datetime.now().strftime('%Y%m%d')}", 
+                  datetime.now().isoformat()))
+                  
+            history_id = cursor.lastrowid
+            print(f"📝 Dodano wpis do historii: {history_id}")
+            processed_count += 1
+            
+        print(f"✅ Przetworzono {processed_count} pozycji")
+        
+        # Zatwierdź transakcję
+        conn.commit()
+        
+        return success_response({"receipt_id": receipt_id, "processed_items": processed_count}, "PZ zostało wygenerowane pomyślnie")
+        
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logging.error(f"Błąd generowania PZ: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+    finally:
+        if conn:
+            conn.close()
+
+@warehouse_operations_bp.route('/warehouse/internal-receipt', methods=['POST', 'OPTIONS'])
+def create_internal_receipt():
+    """Tworzy przyjęcie wewnętrzne (PW)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'POST,OPTIONS')
+        return response
+    
+    try:
+        data = request.get_json()
+        products = data.get('products', [])
+        
+        if not products:
+            return error_response("Brak produktów do przyjęcia")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Utwórz dokument PW
+        document_number = f"PW-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        receipt_id = execute_insert("""
+            INSERT INTO warehouse_receipts 
+            (type, document_number, receipt_date, status, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, ('internal', document_number, datetime.now().isoformat(), 
+              'completed', datetime.now().isoformat()))
+        
+        if not receipt_id:
+            return error_response("Błąd tworzenia dokumentu PW")
+        
+        # Przetwórz produkty
+        for product in products:
+            product_id = product.get('product_id')
+            quantity = product.get('quantity', 0)
+            reason = product.get('reason', 'Przyjęcie wewnętrzne')
+            
+            # Dodaj pozycję do PW
+            execute_insert("""
+                INSERT INTO warehouse_receipt_items 
+                (receipt_id, product_id, quantity, reason)
+                VALUES (?, ?, ?, ?)
+            """, (receipt_id, product_id, quantity, reason))
+            
+            # Aktualizuj stan magazynowy
+            cursor.execute("""
+                UPDATE warehouse_stock 
+                SET current_stock = current_stock + ?, 
+                    data_ostatniej_zmiany = CURRENT_TIMESTAMP
+                WHERE product_id = ? AND warehouse_id = 1
+            """, (quantity, product_id))
+            
+            # Dodaj wpis do historii magazynu
+            execute_insert("""
+                INSERT INTO warehouse_history 
+                (product_id, operation_type, quantity_change, reason, document_number, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (product_id, 'receipt_internal', quantity, reason, 
+                  document_number, datetime.now().isoformat()))
+        
+        conn.commit()
+        conn.close()
+        
+        return success_response({"receipt_id": receipt_id}, "Przyjęcie wewnętrzne zostało zarejestrowane pomyślnie")
+        
+    except Exception as e:
+        logging.error(f"Błąd tworzenia PW: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/internal-receipt/list', methods=['GET', 'OPTIONS'])
+def get_internal_receipts():
+    """Pobiera listę przyjęć wewnętrznych (PW)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
+    try:
+        date_filter = request.args.get('date', '')
+        status_filter = request.args.get('status', 'all')
+        
+        query = """
+        SELECT 
+            wr.id,
+            wr.document_number,
+            wr.receipt_date,
+            wr.status,
+            wr.created_by,
+            wr.created_at,
+            COUNT(wri.id) as items_count
+        FROM warehouse_receipts wr
+        LEFT JOIN warehouse_receipt_items wri ON wr.id = wri.receipt_id
+        WHERE wr.type = 'internal'
+        """
+        
+        params = []
+        
+        if date_filter:
+            query += " AND DATE(wr.receipt_date) = ?"
+            params.append(date_filter)
+            
+        if status_filter != 'all':
+            query += " AND wr.status = ?"
+            params.append(status_filter)
+        
+        query += " GROUP BY wr.id ORDER BY wr.created_at DESC"
+        
+        result = execute_select(query, params if params else None)
+        
+        if result['success']:
+            return success_response(result['data'], "Historia PW załadowana pomyślnie")
+        else:
+            return error_response(result['error'])
+            
+    except Exception as e:
+        logging.error(f"Błąd pobierania historii PW: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/external-receipt/list', methods=['GET', 'OPTIONS'])
+def get_external_receipts():
+    """Pobiera listę przyjęć zewnętrznych (PZ)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
+    try:
+        date_filter = request.args.get('date', '')
+        status_filter = request.args.get('status', 'all')
+        
+        query = """
+        SELECT 
+            wr.id,
+            wr.document_number,
+            wr.receipt_date,
+            wr.status,
+            wr.supplier_name,
+            wr.total_amount,
+            wr.created_by,
+            wr.created_at,
+            pi.invoice_number as source_invoice_number,
+            COUNT(wri.id) as items_count
+        FROM warehouse_receipts wr
+        LEFT JOIN warehouse_receipt_items wri ON wr.id = wri.receipt_id
+        LEFT JOIN purchase_invoices pi ON wr.source_invoice_id = pi.id
+        WHERE wr.type = 'external'
+        """
+        
+        params = []
+        
+        if date_filter:
+            query += " AND DATE(wr.receipt_date) = ?"
+            params.append(date_filter)
+            
+        if status_filter != 'all':
+            query += " AND wr.status = ?"
+            params.append(status_filter)
+        
+        query += " GROUP BY wr.id ORDER BY wr.created_at DESC"
+        
+        result = execute_select(query, params if params else None)
+        
+        if result['success']:
+            return success_response(result['data'], "Historia PZ załadowana pomyślnie")
+        else:
+            return error_response(result['error'])
+            
+    except Exception as e:
+        logging.error(f"Błąd pobierania historii PZ: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/internal-issue/list', methods=['GET', 'OPTIONS'])
+def get_internal_issues():
+    """Pobiera listę rozchodów wewnętrznych (RW)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
+    try:
+        date_filter = request.args.get('date', '')
+        status_filter = request.args.get('status', 'all')
+        
+        query = """
+        SELECT 
+            wi.id,
+            wi.document_number,
+            wi.issue_date,
+            wi.status,
+            wi.created_by,
+            wi.created_at,
+            COUNT(wii.id) as items_count
+        FROM warehouse_issues wi
+        LEFT JOIN warehouse_issue_items wii ON wi.id = wii.issue_id
+        WHERE 1=1
+        """
+        
+        params = []
+        
+        if date_filter:
+            query += " AND DATE(wi.issue_date) = ?"
+            params.append(date_filter)
+            
+        if status_filter != 'all':
+            query += " AND wi.status = ?"
+            params.append(status_filter)
+        
+        query += " GROUP BY wi.id ORDER BY wi.created_at DESC"
+        
+        result = execute_select(query, params if params else None)
+        
+        if result['success']:
+            return success_response(result['data'], "Historia RW załadowana pomyślnie")
+        else:
+            return error_response(result['error'])
+            
+    except Exception as e:
+        logging.error(f"Błąd pobierania historii RW: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/internal-issue', methods=['POST', 'OPTIONS'])
+def create_internal_issue():
+    """Tworzy rozchód wewnętrzny (RW)"""
+    try:
+        data = request.get_json()
+        products = data.get('products', [])
+        
+        if not products:
+            return error_response("Brak produktów do wydania")
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Sprawdź dostępność produktów
+        for product in products:
+            product_id = product.get('product_id')
+            quantity = product.get('quantity', 0)
+            
+            check_query = "SELECT current_stock FROM warehouse_stock WHERE product_id = ? AND warehouse_id = 1"
+            result = execute_select(check_query, (product_id,))
+            
+            if not result['success'] or len(result['data']) == 0:
+                return error_response(f"Nie znaleziono produktu o ID {product_id}")
+            
+            available_quantity = result['data'][0]['current_stock'] or 0
+            if available_quantity < quantity:
+                return error_response(f"Niewystarczający stan magazynowy dla produktu ID {product_id}. Dostępne: {available_quantity}, żądane: {quantity}")
+        
+        # Utwórz dokument RW
+        document_number = f"RW-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+        issue_id = execute_insert("""
+            INSERT INTO warehouse_issues 
+            (type, document_number, issue_date, status, created_at)
+            VALUES (?, ?, ?, ?, ?)
+        """, ('internal', document_number, datetime.now().isoformat(), 
+              'completed', datetime.now().isoformat()))
+        
+        if not issue_id:
+            return error_response("Błąd tworzenia dokumentu RW")
+        
+        # Przetwórz produkty
+        for product in products:
+            product_id = product.get('product_id')
+            quantity = product.get('quantity', 0)
+            reason = product.get('reason', 'Rozchód wewnętrzny')
+            
+            # Dodaj pozycję do RW
+            execute_insert("""
+                INSERT INTO warehouse_issue_items 
+                (issue_id, product_id, quantity, reason)
+                VALUES (?, ?, ?, ?)
+            """, (issue_id, product_id, quantity, reason))
+            
+            # Aktualizuj stan magazynowy
+            cursor.execute("""
+                UPDATE warehouse_stock 
+                SET current_stock = current_stock - ?, 
+                    data_ostatniej_zmiany = CURRENT_TIMESTAMP
+                WHERE product_id = ? AND warehouse_id = 1
+            """, (quantity, product_id))
+            
+            # Dodaj wpis do historii magazynu
+            execute_insert("""
+                INSERT INTO warehouse_history 
+                (product_id, operation_type, quantity_change, reason, document_number, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (product_id, 'issue_internal', -quantity, reason, 
+                  document_number, datetime.now().isoformat()))
+        
+        conn.commit()
+        conn.close()
+        
+        return success_response({"issue_id": issue_id}, "Rozchód wewnętrzny został zarejestrowany pomyślnie")
+        
+    except Exception as e:
+        logging.error(f"Błąd tworzenia RW: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/inventory/start', methods=['POST', 'OPTIONS'])
+def start_inventory():
+    """Rozpoczyna inwentaryzację"""
+    try:
+        data = request.get_json()
+        category_id = data.get('category')
+        
+        # Sprawdź czy nie ma aktywnej inwentaryzacji
+        active_check = execute_select("SELECT id FROM inventory_sessions WHERE status = 'active'")
+        if active_check['success'] and len(active_check['data']) > 0:
+            return error_response("Istnieje już aktywna inwentaryzacja")
+        
+        # Utwórz sesję inwentaryzacji
+        session_id = execute_insert("""
+            INSERT INTO inventory_sessions 
+            (start_date, category_id, status, created_at)
+            VALUES (?, ?, ?, ?)
+        """, (datetime.now().isoformat(), category_id, 'active', datetime.now().isoformat()))
+        
+        if not session_id:
+            return error_response("Błąd tworzenia sesji inwentaryzacji")
+        
+        # Pobierz produkty do inwentaryzacji
+        if category_id:
+            products_query = """
+                SELECT p.id as product_id, p.nazwa as product_name, p.kod_produktu as product_code, 
+                       p.opis as description, COALESCE(sm.current_stock, 0) as system_count, p.jednostka as unit
+                FROM produkty p
+                LEFT JOIN warehouse_stock sm ON p.id = sm.product_id AND sm.warehouse_id = 1
+                WHERE p.category_id = ?
+                ORDER BY p.nazwa
+            """
+            products_result = execute_select(products_query, (category_id,))
+        else:
+            products_query = """
+                SELECT p.id as product_id, p.nazwa as product_name, p.kod_produktu as product_code, 
+                       p.opis as description, COALESCE(sm.current_stock, 0) as system_count, p.jednostka as unit
+                FROM produkty p
+                LEFT JOIN warehouse_stock sm ON p.id = sm.product_id AND sm.warehouse_id = 1
+                ORDER BY p.nazwa
+            """
+            products_result = execute_select(products_query)
+        
+        if not products_result['success']:
+            return error_response("Błąd pobierania produktów")
+        
+        # Dodaj produkty do sesji inwentaryzacji
+        for product in products_result['data']:
+            execute_insert("""
+                INSERT INTO inventory_items 
+                (session_id, product_id, system_count)
+                VALUES (?, ?, ?)
+            """, (session_id, product['product_id'], product['system_count']))
+        
+        return success_response({
+            "session_id": session_id,
+            "products": products_result['data']
+        }, "Inwentaryzacja została rozpoczęta pomyślnie")
+        
+    except Exception as e:
+        logging.error(f"Błąd rozpoczynania inwentaryzacji: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/inventory/active', methods=['GET', 'OPTIONS'])
+def get_active_inventory():
+    """Pobiera aktywną inwentaryzację"""
+    try:
+        query = """
+        SELECT 
+            s.id as session_id, s.start_date, s.category_id,
+            i.product_id, i.system_count, i.actual_count,
+            p.name as product_name, p.product_code, p.description, p.unit
+        FROM inventory_sessions s
+        LEFT JOIN inventory_items i ON s.id = i.session_id
+        LEFT JOIN products p ON i.product_id = p.id
+        WHERE s.status = 'active'
+        ORDER BY p.name
+        """
+        
+        result = execute_select(query)
+        
+        if result['success']:
+            if len(result['data']) == 0:
+                return success_response(None, "Brak aktywnej inwentaryzacji")
+            
+            # Grupuj dane
+            session = {
+                "session_id": result['data'][0]['session_id'],
+                "start_date": result['data'][0]['start_date'],
+                "category_id": result['data'][0]['category_id'],
+                "products": []
+            }
+            
+            for row in result['data']:
+                if row['product_id']:  # Pomijaj puste wiersze
+                    session['products'].append({
+                        "product_id": row['product_id'],
+                        "product_name": row['product_name'],
+                        "product_code": row['product_code'],
+                        "description": row['description'],
+                        "unit": row['unit'],
+                        "system_count": row['system_count'],
+                        "actual_count": row['actual_count']
+                    })
+            
+            return success_response(session, "Aktywna inwentaryzacja załadowana")
+        else:
+            return error_response(result['error'])
+            
+    except Exception as e:
+        logging.error(f"Błąd pobierania aktywnej inwentaryzacji: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/inventory/finish', methods=['POST', 'OPTIONS'])
+def finish_inventory():
+    """Kończy inwentaryzację"""
+    try:
+        data = request.get_json()
+        products = data.get('products', [])
+        
+        if not products:
+            return error_response("Brak danych do zakończenia inwentaryzacji")
+        
+        # Pobierz aktywną sesję
+        session_result = execute_select("SELECT id FROM inventory_sessions WHERE status = 'active'")
+        if not session_result['success'] or len(session_result['data']) == 0:
+            return error_response("Brak aktywnej inwentaryzacji")
+        
+        session_id = session_result['data'][0]['id']
+        
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Przetwórz wszystkie produkty
+        for product in products:
+            product_id = product.get('product_id')
+            system_count = product.get('system_count', 0)
+            actual_count = product.get('actual_count', 0)
+            difference = product.get('difference', 0)
+            
+            # Aktualizuj pozycję inwentaryzacji
+            cursor.execute("""
+                UPDATE inventory_items 
+                SET actual_count = ?, difference = ?
+                WHERE session_id = ? AND product_id = ?
+            """, (actual_count, difference, session_id, product_id))
+            
+            # Jeśli jest różnica, aktualizuj stan magazynowy
+            if difference != 0:
+                cursor.execute("""
+                    UPDATE warehouse_stock 
+                    SET current_stock = ?, 
+                        data_ostatniej_zmiany = CURRENT_TIMESTAMP
+                    WHERE product_id = ? AND warehouse_id = 1
+                """, (actual_count, product_id))
+                
+                # Dodaj wpis do historii magazynu
+                operation_type = 'inventory_increase' if difference > 0 else 'inventory_decrease'
+                execute_insert("""
+                    INSERT INTO warehouse_history 
+                    (product_id, operation_type, quantity_change, reason, document_number, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (product_id, operation_type, difference, 
+                      f"Korekta inwentaryzacyjna - różnica: {difference}", 
+                      f"INV-{session_id}", datetime.now().isoformat()))
+        
+        # Zamknij sesję inwentaryzacji
+        cursor.execute("""
+            UPDATE inventory_sessions 
+            SET status = 'completed', end_date = ?
+            WHERE id = ?
+        """, (datetime.now().isoformat(), session_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return success_response({"session_id": session_id}, "Inwentaryzacja została zakończona pomyślnie")
+        
+    except Exception as e:
+        logging.error(f"Błąd kończenia inwentaryzacji: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/inventory/sessions', methods=['GET'])
+def get_inventory_sessions():
+    """Pobiera listę sesji inwentaryzacji z filtrowaniem"""
+    try:
+        date_filter = request.args.get('date', '')
+        status_filter = request.args.get('status', '')
+        
+        # Budowanie zapytania z filtrowaniem
+        query = """
+            SELECT 
+                id,
+                started_at,
+                finished_at,
+                status,
+                created_by,
+                (SELECT COUNT(*) FROM inventory_items WHERE session_id = inventory_sessions.id) as total_products
+            FROM inventory_sessions
+            WHERE 1=1
+        """
+        params = []
+        
+        if date_filter:
+            query += " AND DATE(started_at) = ?"
+            params.append(date_filter)
+        
+        if status_filter:
+            query += " AND status = ?"
+            params.append(status_filter)
+            
+        query += " ORDER BY started_at DESC"
+        
+        sessions = execute_select(query, params)
+        
+        return success_response(sessions, "Lista sesji inwentaryzacji pobrana pomyślnie")
+        
+    except Exception as e:
+        logging.error(f"Błąd pobierania sesji inwentaryzacji: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")

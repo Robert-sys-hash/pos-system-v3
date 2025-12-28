@@ -6,6 +6,10 @@ import categoryService from '../services/categoryService';
 import manufacturerService from '../services/manufacturerService';
 import AnnouncementAdmin from '../components/announcements/AnnouncementAdmin';
 import DocumentPrefixesPage from './DocumentPrefixesPage';
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
 const AdminPage = () => {
   const [activeTab, setActiveTab] = useState('system');
@@ -26,6 +30,7 @@ const AdminPage = () => {
   
   // State dla rabatów
   const [discounts, setDiscounts] = useState([]);
+  const [discountLocations, setDiscountLocations] = useState([]); // Lista lokalizacji dla selecta
   const [newDiscount, setNewDiscount] = useState({
     nazwa: '',
     opis: '',
@@ -38,7 +43,8 @@ const AdminPage = () => {
     limit_dzienny_aktywny: false,
     limit_dzienny_kwota: 0,
     limit_dzienny_ilosc: 0,
-    aktywny: true
+    aktywny: true,
+    location_id: '' // Pusta wartość = wszystkie lokalizacje
   });
   const [editingDiscount, setEditingDiscount] = useState(null);
   
@@ -175,7 +181,7 @@ const AdminPage = () => {
       }
 
       const endpoint = reportType === 'dzienne' ? 'dzienne' : 'miesieczne';
-      const response = await fetch(`http://localhost:5002/api/rabaty/raporty/${endpoint}?${params}`);
+      const response = await fetch(`${API_BASE}/rabaty/raporty/${endpoint}?${params}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -258,6 +264,7 @@ const AdminPage = () => {
     loadCategories();
     loadManufacturers();
     loadDiscounts();
+    loadDiscountLocations();
     loadDiscountStats();
     loadBackupSchedulerStatus();
     loadBackupList();
@@ -317,7 +324,7 @@ const AdminPage = () => {
   const loadSystemInfo = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/info');
+      const response = await fetch(`${API_BASE}/info`);
       if (response.ok) {
         const data = await response.json();
         setSystemInfo(data);
@@ -332,7 +339,7 @@ const AdminPage = () => {
   const handleBackupDatabase = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup', {
+      const response = await fetch(`${API_BASE}/admin/backup`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -359,7 +366,7 @@ const AdminPage = () => {
   const handleExportData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/export', {
+      const response = await fetch(`${API_BASE}/admin/export`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -401,7 +408,7 @@ const AdminPage = () => {
   // Funkcje dla automatycznych backupów
   const loadBackupSchedulerStatus = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/status');
+      const response = await fetch(`${API_BASE}/admin/backup/scheduler/status`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -415,7 +422,7 @@ const AdminPage = () => {
 
   const loadBackupList = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/list');
+      const response = await fetch(`${API_BASE}/admin/backup/list`);
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -430,7 +437,7 @@ const AdminPage = () => {
   const handleStartScheduler = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/start', {
+      const response = await fetch(`${API_BASE}/admin/backup/scheduler/start`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -452,7 +459,7 @@ const AdminPage = () => {
   const handleStopScheduler = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/stop', {
+      const response = await fetch(`${API_BASE}/admin/backup/scheduler/stop`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -474,7 +481,7 @@ const AdminPage = () => {
   const handleManualBackup = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/manual', {
+      const response = await fetch(`${API_BASE}/admin/backup/manual`, {
         method: 'POST'
       });
       if (response.ok) {
@@ -496,7 +503,7 @@ const AdminPage = () => {
   // Funkcje dla definicji dokumentów
   const loadDocumentDefinitions = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions');
+      const response = await fetch(`${API_BASE}/admin/document-definitions`);
       if (response.ok) {
         const data = await response.json();
         setDocumentDefinitions(data.data?.definitions || []);
@@ -517,7 +524,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions', {
+      const response = await fetch(`${API_BASE}/admin/document-definitions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDefinition)
@@ -543,7 +550,7 @@ const AdminPage = () => {
 
   const handleGeneratePreview = async (docType) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/preview/${docType}`);
+      const response = await fetch(`${API_BASE}/admin/document-definitions/preview/${docType}`);
       if (response.ok) {
         const data = await response.json();
         setPreviewNumber(data.message.preview_number);
@@ -559,7 +566,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/${docType}/reset`, {
+      const response = await fetch(`${API_BASE}/admin/document-definitions/${docType}/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_number: 1 })
@@ -580,6 +587,8 @@ const AdminPage = () => {
   const loadCategories = useCallback(async () => {
     try {
       const data = await categoryService.getCategories();
+      console.log('🏷️ Loaded categories:', data);
+      console.log('🏷️ Categories count:', data?.length);
       setCategories(data || []);
     } catch (err) {
       console.error('Błąd podczas pobierania kategorii:', err);
@@ -742,13 +751,27 @@ const AdminPage = () => {
     }
   };
 
+  // Funkcja pobierania lokalizacji dla rabatów
+  const loadDiscountLocations = useCallback(async () => {
+    try {
+      const response = await fetch(`${API_BASE}/locations/`);
+      if (response.ok) {
+        const data = await response.json();
+        const locations = data.data?.locations || data.locations || [];
+        setDiscountLocations(locations);
+      }
+    } catch (err) {
+      console.error('❌ Błąd podczas pobierania lokalizacji:', err);
+    }
+  }, []);
+
   // Funkcje dla zarządzania rabatami
   const loadDiscounts = useCallback(async () => {
     console.log('📋 Ładuję listę rabatów...');
     console.log('🔍 Aktualny filtr:', discountFilter);
     
     try {
-      let url = 'http://localhost:5002/api/rabaty';
+      let url = `${API_BASE}/rabaty`;
       if (discountFilter === 'active') {
         url += '?aktywny=1';
       } else if (discountFilter === 'inactive') {
@@ -766,7 +789,7 @@ const AdminPage = () => {
         const data = await response.json();
         console.log('📦 Otrzymane dane rabatów:', data);
         
-        const discountsList = data.message?.rabaty || [];
+        const discountsList = data.data?.rabaty || data.message?.rabaty || [];
         console.log('🎯 Lista rabatów do ustawienia:', discountsList);
         console.log('🔢 Liczba rabatów:', discountsList.length);
         
@@ -797,7 +820,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/rabaty', {
+      const response = await fetch(`${API_BASE}/rabaty`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -818,7 +841,8 @@ const AdminPage = () => {
           limit_dzienny_aktywny: false,
           limit_dzienny_kwota: 0,
           limit_dzienny_ilosc: 0,
-          aktywny: true
+          aktywny: true,
+          location_id: ''
         });
         loadDiscounts();
         alert('Rabat został dodany pomyślnie');
@@ -841,9 +865,9 @@ const AdminPage = () => {
     }
 
     try {
-      console.log('🔄 Wysyłam zapytanie DELETE do:', `http://localhost:5002/api/rabaty/${discountId}`);
+      console.log('🔄 Wysyłam zapytanie DELETE do:', `${API_BASE}/rabaty/${discountId}`);
       
-      const response = await fetch(`http://localhost:5002/api/rabaty/${discountId}`, {
+      const response = await fetch(`${API_BASE}/rabaty/${discountId}`, {
         method: 'DELETE'
       });
 
@@ -890,10 +914,10 @@ const AdminPage = () => {
     }
 
     try {
-      console.log('🔄 Wysyłam zapytanie PUT do:', `http://localhost:5002/api/rabaty/${editingDiscount.id}`);
+      console.log('🔄 Wysyłam zapytanie PUT do:', `${API_BASE}/rabaty/${editingDiscount.id}`);
       console.log('📤 Dane do wysłania:', editingDiscount);
       
-      const response = await fetch(`http://localhost:5002/api/rabaty/${editingDiscount.id}`, {
+      const response = await fetch(`${API_BASE}/rabaty/${editingDiscount.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -926,7 +950,7 @@ const AdminPage = () => {
   // Funkcje dla raportów rabatów
   const loadDiscountStats = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/rabaty/stats');
+      const response = await fetch(`${API_BASE}/rabaty/stats`);
       if (response.ok) {
         const data = await response.json();
         setDiscountStats(data.data || {});
@@ -942,7 +966,7 @@ const AdminPage = () => {
       params.append('data_od', reportFilters.data_od);
       params.append('data_do', reportFilters.data_do);
       
-      const response = await fetch(`http://localhost:5002/api/rabaty/${discountId}/szczegoly?${params}`);
+      const response = await fetch(`${API_BASE}/rabaty/${discountId}/szczegoly?${params}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -953,48 +977,87 @@ const AdminPage = () => {
     }
   };
 
-  const exportDiscountReport = () => {
-    if (discountReports.length === 0) {
+  const exportDiscountReport = (data) => {
+    const reportData = data || discountReportData;
+    if (!reportData || reportData.length === 0) {
       alert('Brak danych do eksportu');
       return;
     }
 
     const csvContent = [
       // Nagłówki
-      reportType === 'dzienne' 
-        ? ['Data', 'Rabat', 'Typ', 'Kasjer', 'Ilość użyć', 'Suma rabatów', 'Średni rabat', 'Min rabat', 'Max rabat']
-        : ['Miesiąc', 'Rabat', 'Typ', 'Kasjer', 'Ilość użyć', 'Suma rabatów', 'Średni rabat'],
+      ['Data', 'Rabat', 'Typ', 'Kasjer', 'Ilość użyć', 'Wartość przed rabatem', 'Kwota rabatu', 'Wartość po rabacie'],
       // Dane
-      ...discountReports.map(report => 
-        reportType === 'dzienne'
-          ? [
-              report.dzien,
-              report.rabat_nazwa,
-              report.typ_rabatu,
-              report.kasjer,
-              report.ilosc_uzyc,
-              report.suma_rabatow,
-              report.sredni_rabat,
-              report.min_rabat,
-              report.max_rabat
-            ]
-          : [
-              report.miesiac_rok,
-              report.rabat_nazwa,
-              report.typ_rabatu,
-              report.kasjer,
-              report.ilosc_uzyc,
-              report.suma_rabatow,
-              report.sredni_rabat
-            ]
-      )
-    ].map(row => row.join(',')).join('\n');
+      ...reportData.map(report => [
+        report.data_transakcji || '',
+        report.nazwa_rabatu || '',
+        report.typ_rabatu || '',
+        report.kasjer || '',
+        report.ilosc_uzyc || 0,
+        report.wartosc_przed_rabatem || 0,
+        report.kwota_rabatu || 0,
+        report.wartosc_po_rabacie || 0
+      ])
+    ].map(row => row.join(';')).join('\n');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    // Dodaj BOM dla poprawnego wyświetlania polskich znaków w Excelu
+    const BOM = '\uFEFF';
+    const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `raport_rabaty_${reportType}_${new Date().toISOString().split('T')[0]}.csv`;
+    link.download = `raport_rabaty_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
+  };
+
+  const exportDiscountReportPDF = (data) => {
+    const reportData = data || discountReportData;
+    if (!reportData || reportData.length === 0) {
+      alert('Brak danych do eksportu');
+      return;
+    }
+
+    const doc = new jsPDF();
+    
+    // Tytuł
+    doc.setFontSize(16);
+    doc.text('Raport Rabatow', 14, 20);
+    
+    // Data generowania
+    doc.setFontSize(10);
+    doc.text(`Data wygenerowania: ${new Date().toLocaleDateString('pl-PL')}`, 14, 30);
+    
+    // Tabela
+    const tableColumn = ['Data', 'Rabat', 'Typ', 'Kasjer', 'Ilosc', 'Przed rabatem', 'Kwota rabatu', 'Po rabacie'];
+    const tableRows = reportData.map(report => [
+      report.data_transakcji || '',
+      report.nazwa_rabatu || '',
+      report.typ_rabatu || '',
+      report.kasjer || '',
+      report.ilosc_uzyc || 0,
+      `${(report.wartosc_przed_rabatem || 0).toFixed(2)} zl`,
+      `${(report.kwota_rabatu || 0).toFixed(2)} zl`,
+      `${(report.wartosc_po_rabacie || 0).toFixed(2)} zl`
+    ]);
+
+    doc.autoTable({
+      head: [tableColumn],
+      body: tableRows,
+      startY: 40,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 139, 202] }
+    });
+
+    // Podsumowanie
+    const finalY = doc.lastAutoTable.finalY + 10;
+    const totalRabat = reportData.reduce((sum, item) => sum + parseFloat(item.kwota_rabatu || 0), 0);
+    const totalPrzed = reportData.reduce((sum, item) => sum + parseFloat(item.wartosc_przed_rabatem || 0), 0);
+    
+    doc.setFontSize(10);
+    doc.text(`Liczba rekordow: ${reportData.length}`, 14, finalY);
+    doc.text(`Suma rabatow: ${totalRabat.toFixed(2)} zl`, 14, finalY + 6);
+    doc.text(`Wartosc przed rabatami: ${totalPrzed.toFixed(2)} zl`, 14, finalY + 12);
+
+    doc.save(`raport_rabaty_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   // Funkcje dla raportów zamknięć dnia już zdefiniowane powyżej
@@ -1009,7 +1072,7 @@ const AdminPage = () => {
 
   const loadLogs = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/logs');
+      const response = await fetch(`${API_BASE}/logs`);
       
       if (response.ok) {
         const data = await response.json();
@@ -2006,6 +2069,29 @@ const AdminPage = () => {
                           }}
                         />
                         
+                        {/* Lokalizacja */}
+                        <div style={{ marginTop: '0.5rem' }}>
+                          <label style={{ display: 'block', marginBottom: '0.25rem', fontSize: '0.75rem', fontWeight: '500' }}>
+                            🏢 Lokalizacja
+                          </label>
+                          <select
+                            value={editingDiscount?.location_id || ''}
+                            onChange={(e) => setEditingDiscount({...editingDiscount, location_id: e.target.value ? parseInt(e.target.value) : null})}
+                            style={{
+                              width: '100%',
+                              padding: '0.5rem',
+                              border: '1px solid #e9ecef',
+                              borderRadius: '0.375rem',
+                              fontSize: '0.875rem'
+                            }}
+                          >
+                            <option value="">Wszystkie lokalizacje</option>
+                            {discountLocations.map(loc => (
+                              <option key={loc.id} value={loc.id}>{loc.nazwa}</option>
+                            ))}
+                          </select>
+                        </div>
+                        
                         {/* Limity miesięczne */}
                         <div style={{ marginTop: '0.5rem', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '0.375rem' }}>
                           <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
@@ -2177,6 +2263,16 @@ const AdminPage = () => {
                               {discount.opis}
                             </div>
                           )}
+                          {discount.location_id && (
+                            <div style={{ fontSize: '0.75rem', color: '#17a2b8', marginTop: '0.25rem' }}>
+                              🏢 Lokalizacja: {discountLocations.find(l => l.id === discount.location_id)?.nazwa || `ID: ${discount.location_id}`}
+                            </div>
+                          )}
+                          {!discount.location_id && (
+                            <div style={{ fontSize: '0.75rem', color: '#28a745', marginTop: '0.25rem' }}>
+                              🌍 Wszystkie lokalizacje
+                            </div>
+                          )}
                           {(discount.limit_miesieczny_aktywny || discount.limit_dzienny_aktywny) && (
                             <div style={{ fontSize: '0.75rem', color: '#007bff', marginTop: '0.25rem' }}>
                               {discount.limit_miesieczny_aktywny && '📅 Limit miesięczny '}
@@ -2321,6 +2417,31 @@ const AdminPage = () => {
                   fontSize: '0.875rem'
                 }}
               />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '0.5rem', fontSize: '0.875rem', fontWeight: '500' }}>
+                🏢 Lokalizacja
+              </label>
+              <select
+                value={newDiscount.location_id || ''}
+                onChange={(e) => setNewDiscount({...newDiscount, location_id: e.target.value ? parseInt(e.target.value) : null})}
+                style={{
+                  width: '100%',
+                  padding: '0.5rem',
+                  border: '1px solid #e9ecef',
+                  borderRadius: '0.375rem',
+                  fontSize: '0.875rem'
+                }}
+              >
+                <option value="">Wszystkie lokalizacje</option>
+                {discountLocations.map(loc => (
+                  <option key={loc.id} value={loc.id}>{loc.nazwa}</option>
+                ))}
+              </select>
+              <small style={{ color: '#6c757d', fontSize: '0.75rem' }}>
+                Wybierz lokalizację lub zostaw "Wszystkie lokalizacje" aby rabat był dostępny wszędzie
+              </small>
             </div>
 
             <div>
@@ -2663,6 +2784,21 @@ const AdminPage = () => {
               }}
             >
               📤 Eksportuj CSV
+            </button>
+            <button
+              onClick={() => exportDiscountReportPDF(discountReportData)}
+              style={{
+                padding: '0.5rem 1rem',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '0.375rem',
+                cursor: 'pointer',
+                fontSize: '0.875rem',
+                marginLeft: '0.5rem'
+              }}
+            >
+              📄 Eksportuj PDF
             </button>
           </div>
 

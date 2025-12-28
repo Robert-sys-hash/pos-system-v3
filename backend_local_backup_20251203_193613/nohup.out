@@ -1,0 +1,207 @@
+✅ Coupons blueprint OK
+✅ Podstawowe blueprinty załadowane
+✅ Podstawowe blueprinty zarejestrowane
+✅ Auth blueprint OK
+✅ Transactions blueprint OK
+✅ Shifts blueprint OK
+✅ Shifts Enhanced blueprint OK
+✅ Invoices blueprint OK
+✅ Admin blueprint OK
+✅ Manufacturers blueprint OK
+✅ Cenowki blueprint OK
+⚠️ Nie można zaimportować margin_service: No module named 'utils.margin_service'
+✅ Cenowki Advanced blueprint OK
+✅ Sales Invoices blueprint OK
+✅ Product Reports blueprint OK
+✅ Kasa/Bank blueprint OK
+✅ Locations blueprint OK
+✅ Purchase invoices blueprint OK
+❌ Błąd warehouses blueprint: No module named 'utils.margin_service'
+✅ Zarejestrowano systemową czcionkę UTF-8: /System/Library/Fonts/Helvetica.ttc
+✅ Zarejestrowano rodzinę czcionek Helvetica
+🔤 Dostępne czcionki: ['Symbol', 'SystemUTF8', 'ZapfDingbats']
+✅ Tabela custom_invoice_templates utworzona/sprawdzona
+✅ Custom Templates blueprint OK
+✅ Messenger blueprint OK
+✅ Rabaty blueprint OK
+🔍 APP: Próbuję importować api.margins...
+🔍 MARGINS: Blueprint margins został zainicjowany! WERSJA 2024-12-02-20:05
+🔍 MARGINS: Import MarginService udany
+🔍 APP: Zaimportowano margins_bp: <Blueprint 'margins_new'>
+🔍 APP: Blueprint name: margins_new
+✅ Margins blueprint OK
+✅ Orders blueprint OK
+✅ Warehouse operations blueprint OK
+✅ FIFO system blueprint OK
+✅ Location pricing blueprint OK
+✅ Announcements blueprint OK
+✅ Document Prefixes blueprint OK
+✅ Fiscal Printer blueprint OK
+🗄️  Ścieżka do bazy danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+✅ Baza danych znaleziona
+🕘 Uruchomiono scheduler automatycznych backupów (21:30 codziennie)
+✅ Scheduler automatycznych backupów uruchomiony
+✅ Scheduler automatycznych backupów uruchomiony
+🚀 Uruchamianie POS System V3 API na porcie 8000...
+📡 CORS skonfigurowany dla React frontend
+ * Serving Flask app 'app'
+ * Debug mode: off
+INFO:werkzeug:[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8000
+ * Running on http://192.168.0.112:8000
+INFO:werkzeug:[33mPress CTRL+C to quit[0m
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 11:44:18] "GET /api/products/inventory?location_id=5&limit=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 11:44:29] "GET /api/products/inventory?location_id=1&limit=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 11:44:35] "GET /api/products/inventory?limit=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 11:44:47] "GET /api/products/inventory?location_id=5&limit=1 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 16:05:28] "GET /api/warehouses/5/prices?limit=2 HTTP/1.1" 200 -
+🔍 DEBUG inventory - używam pos_magazyn, available_only: False, location_id: 5, warehouse_id: None
+🔍 DEBUG dodaję filtr lokalizacji: 5
+🔍 DEBUG SQL: 
+        SELECT 
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.kategoria as category,
+            p.category_id,
+            k.nazwa as category_name,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as price_net,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as cena_sprzedazy_netto,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as purchase_price,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
+            p.ean as barcode,
+            p.kod_produktu as product_code,
+            COALESCE(p.stawka_vat, 23) as tax_rate,
+            COALESCE(pm.stan_aktualny, 0) as stock_quantity,
+            COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+            p.jednostka as unit,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        WHERE 1=1
+         AND pm.lokalizacja = ? ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?
+🔍 DEBUG params: ['5', 1, 0]
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG znaleziono 1 produktów
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG inventory - używam pos_magazyn, available_only: False, location_id: 1, warehouse_id: None
+🔍 DEBUG dodaję filtr lokalizacji: 1
+🔍 DEBUG SQL: 
+        SELECT 
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.kategoria as category,
+            p.category_id,
+            k.nazwa as category_name,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as price_net,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as cena_sprzedazy_netto,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as purchase_price,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
+            p.ean as barcode,
+            p.kod_produktu as product_code,
+            COALESCE(p.stawka_vat, 23) as tax_rate,
+            COALESCE(pm.stan_aktualny, 0) as stock_quantity,
+            COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+            p.jednostka as unit,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        WHERE 1=1
+         AND pm.lokalizacja = ? ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?
+🔍 DEBUG params: ['1', 1, 0]
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG znaleziono 1 produktów
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG inventory - używam pos_magazyn, available_only: False, location_id: None, warehouse_id: None
+🔍 DEBUG SQL: 
+        SELECT 
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.kategoria as category,
+            p.category_id,
+            k.nazwa as category_name,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as price_net,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as cena_sprzedazy_netto,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as purchase_price,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
+            p.ean as barcode,
+            p.kod_produktu as product_code,
+            COALESCE(p.stawka_vat, 23) as tax_rate,
+            COALESCE(pm.stan_aktualny, 0) as stock_quantity,
+            COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+            p.jednostka as unit,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        WHERE 1=1
+         ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?
+🔍 DEBUG params: [1, 0]
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG znaleziono 1 produktów
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG inventory - używam pos_magazyn, available_only: False, location_id: 5, warehouse_id: None
+🔍 DEBUG dodaję filtr lokalizacji: 5
+🔍 DEBUG SQL: 
+        SELECT 
+            p.id,
+            p.nazwa as name,
+            p.opis as description,
+            p.kategoria as category,
+            p.category_id,
+            k.nazwa as category_name,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as price,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as price_net,
+            COALESCE(p.cena_sprzedazy_netto, p.cena / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0) as cena_sprzedazy_netto,
+            COALESCE(p.cena_sprzedazy_brutto, p.cena, 0) as cena_sprzedazy_brutto,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as purchase_price,
+            COALESCE(p.cena_zakupu, p.cena_zakupu_netto, 0) as cena_zakupu_netto,
+            COALESCE(p.cena_zakupu_brutto, p.cena_zakupu, 0) as cena_zakupu_brutto,
+            p.ean as barcode,
+            p.kod_produktu as product_code,
+            COALESCE(p.stawka_vat, 23) as tax_rate,
+            COALESCE(pm.stan_aktualny, 0) as stock_quantity,
+            COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+            p.jednostka as unit,
+            p.data_utworzenia as created_at,
+            p.data_modyfikacji as updated_at
+        FROM produkty p
+        LEFT JOIN kategorie_produktow k ON p.category_id = k.id
+        LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id
+        WHERE 1=1
+         AND pm.lokalizacja = ? ORDER BY COALESCE(pm.stan_aktualny, 0) DESC, p.nazwa ASC LIMIT ? OFFSET ?
+🔍 DEBUG params: ['5', 1, 0]
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG znaleziono 1 produktów
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔌 Łączę z bazą danych: /Users/robson/Downloads/pos-system-v3/kupony.db
+🔍 DEBUG: Starting products stats
+🔍 DEBUG: Trying table produkty
+🔍 DATABASE: Using database at: /Users/robson/Downloads/pos-system-v3/kupony.db
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 16:05:34] "GET /api/products/stats HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 16:06:07] "GET /api/warehouses/5/prices?limit=2 HTTP/1.1" 200 -
+INFO:werkzeug:127.0.0.1 - - [03/Dec/2025 16:06:11] "GET /api/warehouses/5/prices?limit=1 HTTP/1.1" 200 -

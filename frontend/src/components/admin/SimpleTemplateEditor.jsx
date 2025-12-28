@@ -108,7 +108,7 @@ const SimpleTemplateEditor = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:5002/api/custom-templates');
+      const response = await fetch('http://localhost:8000/api/custom-templates');
       const data = await response.json();
       
       if (data.success) {
@@ -167,7 +167,7 @@ const SimpleTemplateEditor = () => {
         }
       };
 
-      const response = await fetch('http://localhost:5002/api/custom-templates', {
+      const response = await fetch('http://localhost:8000/api/custom-templates', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,7 +209,7 @@ const SimpleTemplateEditor = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`http://localhost:5002/api/custom-templates/${templateId}`, {
+      const response = await fetch(`http://localhost:8000/api/custom-templates/${templateId}`, {
         method: 'DELETE'
       });
 
@@ -277,7 +277,7 @@ const SimpleTemplateEditor = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`http://localhost:5002/api/custom-templates/${templateId}`, {
+      const response = await fetch(`http://localhost:8000/api/custom-templates/${templateId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -310,7 +310,7 @@ const SimpleTemplateEditor = () => {
       setDuplicatingTemplate(template.id);
       setError(null);
 
-      const response = await fetch(`http://localhost:5002/api/custom-templates/${template.id}/duplicate`, {
+      const response = await fetch(`http://localhost:8000/api/custom-templates/${template.id}/duplicate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -342,7 +342,7 @@ const SimpleTemplateEditor = () => {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`http://localhost:5002/api/custom-templates/${templateId}`, {
+      const response = await fetch(`http://localhost:8000/api/custom-templates/${templateId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -688,7 +688,7 @@ const SimpleTemplateEditor = () => {
         }
       };
 
-      const response = await fetch(`http://localhost:5002/api/custom-templates/${editingTemplate.id}`, {
+      const response = await fetch(`http://localhost:8000/api/custom-templates/${editingTemplate.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -760,7 +760,7 @@ const SimpleTemplateEditor = () => {
         }
       });
 
-      const response = await fetch('http://localhost:5002/api/custom-template-preview', {
+      const response = await fetch('http://localhost:8000/api/custom-template-preview', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

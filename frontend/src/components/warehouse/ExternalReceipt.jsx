@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { warehouseService } from '../../services/warehouseService';
-import { productService } from '../../services/productService';
 
 const ExternalReceipt = () => {
   const [invoices, setInvoices] = useState([]);
@@ -13,6 +12,11 @@ const ExternalReceipt = () => {
   const [activeTab, setActiveTab] = useState('new'); // 'new' lub 'history'
   const [dateFilter, setDateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  // Modal szczegółów PZ
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'new') {
@@ -70,6 +74,42 @@ const ExternalReceipt = () => {
         loadReceipts(); // Odśwież historię
       } else {
         setError(result.error || 'Błąd podczas generowania PZ');
+      }
+    } catch (err) {
+      setError('Błąd połączenia z serwerem');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Funkcja do wyświetlania szczegółów PZ
+  const viewReceiptDetails = async (receiptId) => {
+    setDetailsLoading(true);
+    try {
+      const result = await warehouseService.getExternalReceiptDetails(receiptId);
+      if (result.success) {
+        setSelectedReceipt(result.data);
+        setShowDetailsModal(true);
+      } else {
+        setError(result.error || 'Błąd pobierania szczegółów PZ');
+      }
+    } catch (err) {
+      setError('Błąd połączenia z serwerem');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  // Funkcja do pobierania PDF
+  const downloadPDF = async (receiptId) => {
+    setLoading(true);
+    try {
+      const result = await warehouseService.downloadExternalReceiptPDF(receiptId);
+      if (result.success) {
+        setSuccess('PDF został pobrany');
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(result.error || 'Błąd pobierania PDF');
       }
     } catch (err) {
       setError('Błąd połączenia z serwerem');
@@ -336,15 +376,19 @@ const ExternalReceipt = () => {
                         <td>
                           <button
                             className="btn btn-outline-primary btn-sm me-1"
-                            onClick={() => {/* TODO: Zobacz szczegóły */}}
+                            onClick={() => viewReceiptDetails(receipt.id)}
+                            disabled={detailsLoading}
+                            title="Zobacz szczegóły"
                           >
                             <i className="fas fa-eye"></i>
                           </button>
                           <button
                             className="btn btn-outline-secondary btn-sm"
-                            onClick={() => {/* TODO: Drukuj */}}
+                            onClick={() => downloadPDF(receipt.id)}
+                            disabled={loading}
+                            title="Pobierz PDF"
                           >
-                            <i className="fas fa-print"></i>
+                            <i className="fas fa-file-pdf"></i>
                           </button>
                         </td>
                       </tr>
@@ -353,6 +397,106 @@ const ExternalReceipt = () => {
                 </table>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal szczegółów PZ */}
+      {showDetailsModal && selectedReceipt && (
+        <div className="modal show d-block" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title">
+                  📋 Szczegóły dokumentu PZ: {selectedReceipt.document_number}
+                </h5>
+                <button 
+                  type="button" 
+                  className="btn-close btn-close-white" 
+                  onClick={() => setShowDetailsModal(false)}
+                ></button>
+              </div>
+              <div className="modal-body">
+                {/* Informacje nagłówkowe */}
+                <div className="row mb-4">
+                  <div className="col-md-6">
+                    <p><strong>Data przyjęcia:</strong> {selectedReceipt.receipt_date ? new Date(selectedReceipt.receipt_date).toLocaleDateString('pl-PL') : '-'}</p>
+                    <p><strong>Dostawca:</strong> {selectedReceipt.supplier_name || '-'}</p>
+                  </div>
+                  <div className="col-md-6">
+                    <p><strong>Faktura źródłowa:</strong> {selectedReceipt.source_invoice_number || '-'}</p>
+                    <p><strong>Status:</strong> 
+                      <span className={`badge ms-2 ${selectedReceipt.status === 'completed' ? 'bg-success' : 'bg-warning'}`}>
+                        {selectedReceipt.status === 'completed' ? 'Zakończone' : 'Oczekujące'}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Tabela pozycji */}
+                <h6 className="mb-3">📦 Pozycje dokumentu:</h6>
+                {selectedReceipt.items && selectedReceipt.items.length > 0 ? (
+                  <div className="table-responsive">
+                    <table className="table table-sm table-striped">
+                      <thead className="table-dark">
+                        <tr>
+                          <th>Lp.</th>
+                          <th>Nazwa produktu</th>
+                          <th>Kod kreskowy</th>
+                          <th className="text-end">Ilość</th>
+                          <th>J.m.</th>
+                          <th className="text-end">Cena netto</th>
+                          <th className="text-end">Wartość</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {selectedReceipt.items.map((item, index) => (
+                          <tr key={item.id}>
+                            <td>{index + 1}</td>
+                            <td>{item.product_name || '-'}</td>
+                            <td><small className="text-muted">{item.barcode || '-'}</small></td>
+                            <td className="text-end">{item.quantity?.toFixed(2)}</td>
+                            <td>{item.unit || 'szt'}</td>
+                            <td className="text-end">{item.unit_price?.toFixed(2)} zł</td>
+                            <td className="text-end"><strong>{item.total_price?.toFixed(2)} zł</strong></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                      <tfoot className="table-secondary">
+                        <tr>
+                          <td colSpan="6" className="text-end"><strong>RAZEM:</strong></td>
+                          <td className="text-end">
+                            <strong>
+                              {selectedReceipt.items.reduce((sum, item) => sum + (item.total_price || 0), 0).toFixed(2)} zł
+                            </strong>
+                          </td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="alert alert-info">
+                    Brak pozycji w dokumencie
+                  </div>
+                )}
+              </div>
+              <div className="modal-footer">
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => downloadPDF(selectedReceipt.id)}
+                  disabled={loading}
+                >
+                  <i className="fas fa-file-pdf me-1"></i>
+                  Pobierz PDF
+                </button>
+                <button 
+                  className="btn btn-secondary" 
+                  onClick={() => setShowDetailsModal(false)}
+                >
+                  Zamknij
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

@@ -136,7 +136,7 @@ const AdminPage = () => {
   const loadSystemInfo = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/info');
+      const response = await fetch('http://localhost:8000/api/info');
       if (response.ok) {
         const data = await response.json();
         setSystemInfo(data);
@@ -151,7 +151,7 @@ const AdminPage = () => {
   const handleBackupDatabase = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/backup', {
+      const response = await fetch('http://localhost:8000/api/admin/backup', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -178,7 +178,7 @@ const AdminPage = () => {
   const handleExportData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/export', {
+      const response = await fetch('http://localhost:8000/api/admin/export', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -220,7 +220,7 @@ const AdminPage = () => {
   // Funkcje dla automatycznych backupów
   const loadBackupSchedulerStatus = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/status');
+      const response = await fetch('http://localhost:8000/api/admin/backup/scheduler/status');
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -234,7 +234,7 @@ const AdminPage = () => {
 
   const loadBackupList = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/list');
+      const response = await fetch('http://localhost:8000/api/admin/backup/list');
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -249,7 +249,7 @@ const AdminPage = () => {
   const handleStartScheduler = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/start', {
+      const response = await fetch('http://localhost:8000/api/admin/backup/scheduler/start', {
         method: 'POST'
       });
       if (response.ok) {
@@ -271,7 +271,7 @@ const AdminPage = () => {
   const handleStopScheduler = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/scheduler/stop', {
+      const response = await fetch('http://localhost:8000/api/admin/backup/scheduler/stop', {
         method: 'POST'
       });
       if (response.ok) {
@@ -293,7 +293,7 @@ const AdminPage = () => {
   const handleManualBackup = async () => {
     setBackupLoading(true);
     try {
-      const response = await fetch('http://localhost:5002/api/admin/backup/manual', {
+      const response = await fetch('http://localhost:8000/api/admin/backup/manual', {
         method: 'POST'
       });
       if (response.ok) {
@@ -315,7 +315,7 @@ const AdminPage = () => {
   // Funkcje dla definicji dokumentów
   const loadDocumentDefinitions = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions');
+      const response = await fetch('http://localhost:8000/api/admin/document-definitions');
       if (response.ok) {
         const data = await response.json();
         setDocumentDefinitions(data.data?.definitions || []);
@@ -336,7 +336,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions', {
+      const response = await fetch('http://localhost:8000/api/admin/document-definitions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newDefinition)
@@ -362,7 +362,7 @@ const AdminPage = () => {
 
   const handleGeneratePreview = async (docType) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/preview/${docType}`);
+      const response = await fetch(`http://localhost:8000/api/admin/document-definitions/preview/${docType}`);
       if (response.ok) {
         const data = await response.json();
         setPreviewNumber(data.message.preview_number);
@@ -378,7 +378,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/${docType}/reset`, {
+      const response = await fetch(`http://localhost:8000/api/admin/document-definitions/${docType}/reset`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ new_number: 1 })
@@ -479,7 +479,7 @@ const AdminPage = () => {
 
   const loadUsers = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/users');
+      const response = await fetch('http://localhost:8000/api/admin/users');
       if (response.ok) {
         const data = await response.json();
         setUsers(data.data.users || []);
@@ -496,7 +496,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/admin/users', {
+      const response = await fetch('http://localhost:8000/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -524,7 +524,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/users/${userId}`, {
+      const response = await fetch(`http://localhost:8000/api/admin/users/${userId}`, {
         method: 'DELETE',
       });
 
@@ -571,7 +571,7 @@ const AdminPage = () => {
         updateData.haslo = editingUser.haslo;
       }
 
-      const response = await fetch(`http://localhost:5002/api/admin/users/${editingUser.id}`, {
+      const response = await fetch(`http://localhost:8000/api/admin/users/${editingUser.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -683,7 +683,7 @@ const AdminPage = () => {
     console.log('🔍 Aktualny filtr:', discountFilter);
     
     try {
-      let url = 'http://localhost:5002/api/rabaty';
+      let url = 'http://localhost:8000/api/rabaty';
       if (discountFilter === 'active') {
         url += '?aktywny=1';
       } else if (discountFilter === 'inactive') {
@@ -732,7 +732,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/rabaty', {
+      const response = await fetch('http://localhost:8000/api/rabaty', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -776,9 +776,9 @@ const AdminPage = () => {
     }
 
     try {
-      console.log('🔄 Wysyłam zapytanie DELETE do:', `http://localhost:5002/api/rabaty/${discountId}`);
+      console.log('🔄 Wysyłam zapytanie DELETE do:', `http://localhost:8000/api/rabaty/${discountId}`);
       
-      const response = await fetch(`http://localhost:5002/api/rabaty/${discountId}`, {
+      const response = await fetch(`http://localhost:8000/api/rabaty/${discountId}`, {
         method: 'DELETE'
       });
 
@@ -825,10 +825,10 @@ const AdminPage = () => {
     }
 
     try {
-      console.log('🔄 Wysyłam zapytanie PUT do:', `http://localhost:5002/api/rabaty/${editingDiscount.id}`);
+      console.log('🔄 Wysyłam zapytanie PUT do:', `http://localhost:8000/api/rabaty/${editingDiscount.id}`);
       console.log('📤 Dane do wysłania:', editingDiscount);
       
-      const response = await fetch(`http://localhost:5002/api/rabaty/${editingDiscount.id}`, {
+      const response = await fetch(`http://localhost:8000/api/rabaty/${editingDiscount.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json'
@@ -861,7 +861,7 @@ const AdminPage = () => {
   // Funkcje dla raportów rabatów
   const loadDiscountStats = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/rabaty/stats');
+      const response = await fetch('http://localhost:8000/api/rabaty/stats');
       if (response.ok) {
         const data = await response.json();
         setDiscountStats(data.data || {});
@@ -889,7 +889,7 @@ const AdminPage = () => {
       }
 
       const endpoint = reportType === 'dzienne' ? 'dzienne' : 'miesieczne';
-      const response = await fetch(`http://localhost:5002/api/rabaty/raporty/${endpoint}?${params}`);
+      const response = await fetch(`http://localhost:8000/api/rabaty/raporty/${endpoint}?${params}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -906,7 +906,7 @@ const AdminPage = () => {
       params.append('data_od', reportFilters.data_od);
       params.append('data_do', reportFilters.data_do);
       
-      const response = await fetch(`http://localhost:5002/api/rabaty/${discountId}/szczegoly?${params}`);
+      const response = await fetch(`http://localhost:8000/api/rabaty/${discountId}/szczegoly?${params}`);
       
       if (response.ok) {
         const data = await response.json();

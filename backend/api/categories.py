@@ -9,6 +9,7 @@ from utils.database import execute_query, execute_insert, success_response, erro
 categories_bp = Blueprint('categories', __name__)
 
 @categories_bp.route('/categories', methods=['GET'])
+@categories_bp.route("/categories/", methods=["GET"])
 def get_all_categories():
     """
     Pobierz wszystkie kategorie produktów w strukturze drzewa

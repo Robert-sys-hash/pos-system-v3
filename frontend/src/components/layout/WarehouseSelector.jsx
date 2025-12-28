@@ -16,7 +16,7 @@ const WarehouseSelector = ({ user, onWarehouseChange }) => {
 
   const fetchCurrentWarehouse = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/auth/current-warehouse', {
+      const response = await fetch('http://localhost:8000/api/auth/current-warehouse', {
         method: 'GET',
         credentials: 'include',
         headers: {
@@ -39,7 +39,7 @@ const WarehouseSelector = ({ user, onWarehouseChange }) => {
     try {
       setLoading(true);
       // Pobierz wszystkie magazyny zamiast tylko dostępne dla użytkownika
-      const response = await fetch('http://localhost:5002/api/warehouses', {
+      const response = await fetch('http://localhost:8000/api/warehouses', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ const WarehouseSelector = ({ user, onWarehouseChange }) => {
 
   const handleWarehouseChange = async (warehouseId) => {
     try {
-      const response = await fetch('http://localhost:5002/api/auth/current-warehouse', {
+      const response = await fetch('http://localhost:8000/api/auth/current-warehouse', {
         method: 'POST',
         credentials: 'include',
         headers: {

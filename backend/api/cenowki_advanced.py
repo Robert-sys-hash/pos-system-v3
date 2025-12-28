@@ -403,12 +403,7 @@ def get_cenowki():
             type_filter=type_filter
         )
         
-        return success_response({
-            'cenowki': cenowki,
-            'count': len(cenowki),
-            'limit': limit,
-            'offset': offset
-        }, "Lista cenowek")
+        return success_response(cenowki, "Lista cenowek")
         
     except Exception as e:
         return error_response(f"Błąd pobierania cenowek: {str(e)}", 500)

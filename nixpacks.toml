@@ -1,0 +1,23 @@
+[phases.setup]
+nixPkgs = ["sqlite", "pkg-config"]
+
+[phases.install]
+dependsOn = ["setup"]
+cmds = ["pip install -r requirements.txt"]
+
+[phases.build]
+dependsOn = ["install"]
+cmds = [
+  "echo '📦 Building frontend...'",
+  "cd frontend",
+  "npm install",
+  "npm run build",
+  "cd ..",
+  "echo '📂 Copying frontend to backend/static...'",
+  "mkdir -p backend/static",
+  "cp -r frontend/build/* backend/static/",
+  "echo '✅ Build completed!'"
+]
+
+[start]
+cmd = "cd backend && gunicorn app:app --bind 0.0.0.0:$PORT --timeout 120 --workers 1"

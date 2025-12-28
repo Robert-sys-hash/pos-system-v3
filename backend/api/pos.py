@@ -20,26 +20,35 @@ pos_bp = Blueprint('pos', __name__)
 def get_pos_stats():
     """
     Pobierz statystyki POS - sprzedaż dzisiaj, w tym tygodniu, miesiącu
+    Obsługuje filtrowanie po location_id
     """
     try:
-        print("🔍 DEBUG: Starting POS stats")
+        location_id = request.args.get('location_id')
+        print(f"🔍 DEBUG: Starting POS stats for location_id: {location_id}")
         
-        stats_query = """
+        # Buduj warunki WHERE
+        base_conditions = "WHERE status = 'zakonczony'"
+        location_filter = ""
+        if location_id:
+            base_conditions += f" AND location_id = {location_id}"
+            location_filter = f" AND location_id = {location_id}"
+        
+        stats_query = f"""
         SELECT 
             COUNT(*) as total_transactions,
             COALESCE(SUM(suma_brutto), 0) as total_revenue,
             COALESCE(AVG(suma_brutto), 0) as average_transaction,
-            COUNT(CASE WHEN DATE(data_transakcji) = DATE('now') THEN 1 END) as today_transactions,
-            COALESCE(SUM(CASE WHEN DATE(data_transakcji) = DATE('now') THEN suma_brutto ELSE 0 END), 0) as today_revenue,
-            COALESCE(AVG(CASE WHEN DATE(data_transakcji) = DATE('now') THEN suma_brutto ELSE NULL END), 0) as today_average_transaction,
-            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days') THEN 1 END) as week_transactions,
-            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days') THEN suma_brutto ELSE 0 END), 0) as week_revenue,
-            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days') THEN suma_brutto ELSE NULL END), 0) as week_average_transaction,
-            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days') THEN 1 END) as month_transactions,
-            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days') THEN suma_brutto ELSE 0 END), 0) as month_revenue,
-            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days') THEN suma_brutto ELSE NULL END), 0) as month_average_transaction
+            COUNT(CASE WHEN DATE(data_transakcji) = DATE('now'){location_filter} THEN 1 END) as today_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) = DATE('now'){location_filter} THEN suma_brutto ELSE 0 END), 0) as today_revenue,
+            COALESCE(AVG(CASE WHEN DATE(data_transakcji) = DATE('now'){location_filter} THEN suma_brutto ELSE NULL END), 0) as today_average_transaction,
+            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days'){location_filter} THEN 1 END) as week_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days'){location_filter} THEN suma_brutto ELSE 0 END), 0) as week_revenue,
+            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days'){location_filter} THEN suma_brutto ELSE NULL END), 0) as week_average_transaction,
+            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days'){location_filter} THEN 1 END) as month_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days'){location_filter} THEN suma_brutto ELSE 0 END), 0) as month_revenue,
+            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days'){location_filter} THEN suma_brutto ELSE NULL END), 0) as month_average_transaction
         FROM pos_transakcje
-        WHERE status = 'zakonczony'
+        {base_conditions}
         """
         
         print("🔍 DEBUG: Executing query...")
@@ -76,9 +85,17 @@ def get_pos_stats():
 def get_monthly_stats():
     """
     Pobierz miesięczne statystyki POS z podziałem na miesiące
+    Obsługuje filtrowanie po location_id
     """
     try:
-        monthly_stats_query = """
+        location_id = request.args.get('location_id')
+        
+        # Buduj warunek WHERE dla lokalizacji
+        location_filter = ""
+        if location_id:
+            location_filter = f" AND t.location_id = {location_id}"
+        
+        monthly_stats_query = f"""
         SELECT 
             strftime('%Y-%m', data_transakcji) as month,
             strftime('%Y', data_transakcji) as year,
@@ -94,7 +111,7 @@ def get_monthly_stats():
             GROUP BY transakcja_id
         ) pozycje ON t.id = pozycje.transakcja_id
         WHERE t.status = 'zakonczony' 
-        AND DATE(t.data_transakcji) >= DATE('now', '-12 months')
+        AND DATE(t.data_transakcji) >= DATE('now', '-12 months'){location_filter}
         GROUP BY strftime('%Y-%m', t.data_transakcji)
         ORDER BY month DESC
         LIMIT 12
@@ -122,6 +139,63 @@ def get_monthly_stats():
     except Exception as e:
         print(f"Błąd pobierania miesięcznych statystyk: {e}")
         return error_response("Wystąpił błąd podczas pobierania miesięcznych statystyk", 500)
+
+@pos_bp.route('/pos/sales-target', methods=['GET'])
+def get_sales_target():
+    """
+    Pobierz cel sprzedaży dla danej lokalizacji i bieżącego miesiąca z postępem
+    """
+    try:
+        location_id = request.args.get('location_id')
+        
+        if not location_id:
+            return error_response("Parametr location_id jest wymagany", 400)
+        
+        current_year = datetime.now().year
+        current_month = datetime.now().month
+        
+        # Pobierz cel sprzedaży
+        target_query = """
+        SELECT st.*, l.nazwa as location_name
+        FROM sales_targets st
+        JOIN locations l ON st.location_id = l.id
+        WHERE st.location_id = ? AND st.year = ? AND st.month = ?
+        """
+        
+        target_result = execute_query(target_query, (location_id, current_year, current_month))
+        
+        if not target_result:
+            return not_found_response("Nie znaleziono celu sprzedaży dla tej lokalizacji w bieżącym miesiącu")
+        
+        target = target_result[0]
+        
+        # Pobierz aktualną sprzedaż w tym miesiącu
+        revenue_query = """
+        SELECT COALESCE(SUM(suma_brutto), 0) as current_revenue
+        FROM pos_transakcje 
+        WHERE status = 'zakonczony' 
+        AND strftime('%Y', data_transakcji) = ?
+        AND strftime('%m', data_transakcji) = ?
+        """
+        
+        revenue_result = execute_query(revenue_query, (str(current_year), f"{current_month:02d}"))
+        current_revenue = revenue_result[0]['current_revenue'] if revenue_result else 0
+        
+        # Oblicz postęp
+        progress_percentage = (current_revenue / target['target_amount']) * 100 if target['target_amount'] > 0 else 0
+        remaining = max(target['target_amount'] - current_revenue, 0)
+        
+        return success_response({
+            'target': target,
+            'current_revenue': current_revenue,
+            'progress_percentage': progress_percentage,
+            'remaining': remaining,
+            'achieved': current_revenue >= target['target_amount']
+        }, "Cel sprzedaży pobrany pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania celu sprzedaży: {e}")
+        return error_response("Wystąpił błąd podczas pobierania celu sprzedaży", 500)
 
 @pos_bp.route('/pos/transactions', methods=['GET'])
 def get_recent_transactions():
@@ -362,7 +436,8 @@ def complete_transaction(transaction_id):
             t.id,
             t.status,
             t.suma_brutto as total_amount,
-            t.rabat_kwota
+            t.rabat_kwota,
+            t.location_id
         FROM pos_transakcje t
         WHERE t.id = ?
         """
@@ -515,8 +590,8 @@ def complete_transaction(transaction_id):
             kasa_operacja_sql = """
             INSERT INTO kasa_operacje 
             (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
-             numer_dokumentu, data_operacji, utworzyl)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+             numer_dokumentu, data_operacji, utworzyl, location_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             """
             
             opis = f"Sprzedaż - transakcja #{transaction_id}"
@@ -533,7 +608,8 @@ def complete_transaction(transaction_id):
                 'sprzedaz',
                 f"TRANS-{transaction_id}",
                 datetime.now().date().isoformat(),
-                data.get('user', 'system')
+                data.get('user', 'system'),
+                transaction.get('location_id')
             ))
         except Exception as e:
             # Loguj błąd ale nie przerywaj procesu
@@ -1309,16 +1385,18 @@ def complete_cart_transaction(transakcja_id):
         
         if result is not None:
             # === SKUTEK MAGAZYNOWY - ODEJMOWANIE STANÓW ===
-            # Pobierz aktualny magazyn z sesji użytkownika
-            current_warehouse_id = session.get('current_warehouse_id')
+            # Pobierz location_id z transakcji (nie z sesji!)
+            current_warehouse_id = transakcja.get('location_id')
             if not current_warehouse_id:
-                # Fallback - pobierz pierwszy aktywny magazyn
-                warehouse_fallback = execute_query("""
-                    SELECT id FROM warehouses WHERE aktywny = 1 ORDER BY id LIMIT 1
-                """, ())
-                current_warehouse_id = warehouse_fallback[0]['id'] if warehouse_fallback else 1
+                # Fallback - pobierz z sesji lub pierwszy aktywny magazyn
+                current_warehouse_id = session.get('current_warehouse_id')
+                if not current_warehouse_id:
+                    warehouse_fallback = execute_query("""
+                        SELECT id FROM warehouses WHERE aktywny = 1 ORDER BY id LIMIT 1
+                    """, ())
+                    current_warehouse_id = warehouse_fallback[0]['id'] if warehouse_fallback else 1
             
-            print(f"🏪 SKUTEK MAGAZYNOWY: Odejmowanie stanów z magazynu ID: {current_warehouse_id}")
+            print(f"🏪 SKUTEK MAGAZYNOWY: Odejmowanie stanów z lokalizacji ID: {current_warehouse_id}")
             
             # Pobierz pozycje transakcji do odejmowania stanów
             pozycje_sql = """
@@ -1411,14 +1489,14 @@ def complete_cart_transaction(transakcja_id):
                 kasa_operacja_sql = """
                 INSERT INTO kasa_operacje 
                 (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
-                 numer_dokumentu, data_operacji, utworzyl)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 numer_dokumentu, data_operacji, utworzyl, location_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 
                 opis = f"Sprzedaż - transakcja #{transakcja_id}"
                 
-                # Użyj kwoty otrzymanej jako kwotę końcową (po rabacie)
-                final_amount = kwota_otrzymana
+                # Użyj faktycznej kwoty transakcji (już obliczonej wcześniej)
+                # final_amount jest już dostępny z linii 1313
                 
                 print(f"DEBUG kasa_operacje (cart): metoda_platnosci={metoda_platnosci}, typ_platnosci={typ_platnosci}, final_amount={final_amount}")
                 
@@ -1430,7 +1508,8 @@ def complete_cart_transaction(transakcja_id):
                     'sprzedaz',
                     f"TRANS-{transakcja_id}",
                     datetime.now().date().isoformat(),
-                    'system'
+                    'system',
+                    transaction_location_id
                 ))
             except Exception as e:
                 # Loguj błąd ale nie przerywaj procesu

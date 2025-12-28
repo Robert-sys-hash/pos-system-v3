@@ -28,7 +28,7 @@ const AdminPage = () => {
   // Funkcje dla kategorii
   const loadCategories = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/categories');
+      const response = await fetch('http://localhost:8000/api/categories');
       if (response.ok) {
         const data = await response.json();
         setCategories(buildCategoryTree(data.data || []));
@@ -78,7 +78,7 @@ const AdminPage = () => {
     if (!newCategoryName.trim()) return;
 
     try {
-      const response = await fetch('http://localhost:5002/api/categories', {
+      const response = await fetch('http://localhost:8000/api/categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -103,7 +103,7 @@ const AdminPage = () => {
   // Funkcje dla producentów
   const loadManufacturers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/manufacturers');
+      const response = await fetch('http://localhost:8000/api/manufacturers');
       if (response.ok) {
         const data = await response.json();
         setManufacturers(data.data || []);
@@ -120,7 +120,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/manufacturers', {
+      const response = await fetch('http://localhost:8000/api/manufacturers', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newManufacturer)
@@ -155,7 +155,7 @@ const AdminPage = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/manufacturers/${editingManufacturer.id}`, {
+      const response = await fetch(`http://localhost:8000/api/manufacturers/${editingManufacturer.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editingManufacturer)
@@ -179,7 +179,7 @@ const AdminPage = () => {
     if (!window.confirm('Czy na pewno chcesz usunąć tego producenta?')) return;
 
     try {
-      const response = await fetch(`http://localhost:5002/api/manufacturers/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/manufacturers/${id}`, {
         method: 'DELETE'
       });
 

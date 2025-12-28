@@ -18,7 +18,7 @@ const DocumentDefinitionsTab = () => {
   const loadDocumentDefinitions = async () => {
     try {
       setDocumentDefinitionsLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions');
+      const response = await fetch('http://localhost:8000/api/admin/document-definitions');
       if (response.ok) {
         const data = await response.json();
         setDocumentDefinitions(data.data || []);
@@ -39,7 +39,7 @@ const DocumentDefinitionsTab = () => {
     }
 
     try {
-      const response = await fetch('http://localhost:5002/api/admin/document-definitions', {
+      const response = await fetch('http://localhost:8000/api/admin/document-definitions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -68,7 +68,7 @@ const DocumentDefinitionsTab = () => {
 
   const handleGeneratePreview = async (docType) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/${docType}/preview`);
+      const response = await fetch(`http://localhost:8000/api/admin/document-definitions/${docType}/preview`);
       if (response.ok) {
         const data = await response.json();
         setPreviewNumber(data.preview_number);
@@ -88,7 +88,7 @@ const DocumentDefinitionsTab = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/admin/document-definitions/${docType}/reset`, {
+      const response = await fetch(`http://localhost:8000/api/admin/document-definitions/${docType}/reset`, {
         method: 'POST'
       });
 

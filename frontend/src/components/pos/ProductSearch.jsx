@@ -68,27 +68,26 @@ const ProductSearch = ({
     
     try {
       console.log('🔍 ProductSearch - wyszukiwanie z locationId:', locationId);
-      const response = await productService.searchProducts(query, currentCategory, 50, locationId);
+      console.log('🔍 ProductSearch - używam getInventoryProducts dla POS');
+      
+      const response = await productService.getInventoryProducts({ 
+        query: query, 
+        category: currentCategory, 
+        limit: 50, 
+        locationId: locationId,
+        availableOnly: currentOnlyAvailable
+      });
       
       if (response.success) {
-        let allProducts = response.data.products || response.data || [];
+        let allProducts = response.products || [];
         
-        console.log('🔍 ProductSearch - otrzymane produkty:', allProducts.length);
+        console.log('🔍 ProductSearch - otrzymane produkty z magazynu:', allProducts.length);
         
-        // Filtruj produkty z niezerowym stanem jeśli opcja jest włączona
-        if (currentOnlyAvailable) {
-          const availableProducts = allProducts.filter(product => {
-            const stock = product.stock_quantity || 0;
-            return stock > 0;
-          });
-          console.log('🔍 ProductSearch - produkty dostępne:', availableProducts.length);
-          allProducts = availableProducts;
-        }
-        
+        // Produkty są już przefiltrowane przez availableOnly w API
         setProducts(allProducts.slice(0, 15)); // Ogranicz do 15 wyników
         setShowResults(true);
       } else {
-        setError(response.message);
+        setError(response.message || 'Brak produktów w magazynie');
         setProducts([]);
       }
     } catch (err) {
@@ -456,6 +455,21 @@ const ProductSearch = ({
                           {product.category || product.kategoria}
                         </span>
                       )}
+                      {/* Oznaczenie ceny specjalnej */}
+                      {product.has_special_price === 1 && (
+                        <div style={{
+                          fontSize: '8px',
+                          backgroundColor: '#ffc107',
+                          color: '#000',
+                          padding: '1px 4px',
+                          borderRadius: '2px',
+                          marginTop: '2px',
+                          display: 'inline-block',
+                          fontWeight: '600'
+                        }}>
+                          CENA SPECJALNA
+                        </div>
+                      )}
                     </td>
                     <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                       <span style={{
@@ -485,9 +499,21 @@ const ProductSearch = ({
                       textAlign: 'right',
                       fontWeight: '600',
                       fontSize: '11px',
-                      color: isOutOfStock ? '#6c757d' : '#198754'
+                      color: isOutOfStock ? '#6c757d' : (product.has_special_price ? '#ffc107' : '#198754')
                     }}>
-                      {price.toFixed(2)} zł
+                      <div>
+                        {price.toFixed(2)} zł
+                        {product.has_special_price && (
+                          <div style={{
+                            fontSize: '8px',
+                            color: '#6c757d',
+                            fontWeight: '400',
+                            textDecoration: 'line-through'
+                          }}>
+                            {(product.default_price_brutto || 0).toFixed(2)} zł
+                          </div>
+                        )}
+                      </div>
                     </td>
                     <td style={{ padding: '6px 8px', textAlign: 'center' }}>
                       <button

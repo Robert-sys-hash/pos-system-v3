@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DirectAdmin Test</title>
+    <meta charset="utf-8">
+</head>
+<body>
+    <h1>DirectAdmin Test Page</h1>
+    <p>Jeśli widzisz tę stronę, to podstawowe pliki zostały wgrane.</p>
+    
+    <h2>Testy:</h2>
+    <div id="results"></div>
+    
+    <script>
+        // Test API
+        async function testAPI() {
+            const resultsDiv = document.getElementById('results');
+            
+            try {
+                resultsDiv.innerHTML += '<p>Testowanie API...</p>';
+                
+                const response = await fetch('/api/test');
+                const data = await response.json();
+                
+                resultsDiv.innerHTML += '<p style="color: green;">✅ API działa!</p>';
+                resultsDiv.innerHTML += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                
+            } catch (error) {
+                resultsDiv.innerHTML += '<p style="color: red;">❌ API nie działa: ' + error.message + '</p>';
+            }
+        }
+        
+        // Uruchom test po załadowaniu
+        window.onload = testAPI;
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { kasaBankService } from '../../services/kasaBankService';
 
-function AddOperationModal({ isOpen, onClose, onSuccess, operationType = 'KP' }) {
+function AddOperationModal({ isOpen, onClose, onSuccess, operationType = 'KP', locationId = null }) {
   const [formData, setFormData] = useState({
     typ_operacji: operationType,
     typ_platnosci: 'gotowka',
@@ -97,7 +97,8 @@ function AddOperationModal({ isOpen, onClose, onSuccess, operationType = 'KP' })
 
       const operacjaData = {
         ...formData,
-        kwota: parseFloat(formData.kwota)
+        kwota: parseFloat(formData.kwota),
+        location_id: locationId
       };
 
       await kasaBankService.createOperacja(operacjaData);

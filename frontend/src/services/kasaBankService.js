@@ -7,10 +7,11 @@ import api from './api';
 
 export const kasaBankService = {
   // Pobierz aktualne saldo
-  getSaldo: async () => {
+  getSaldo: async (locationId = null) => {
     try {
-      console.log('🔍 Pobieranie salda...');
-      const response = await api.get('/api/kasa-bank/saldo');
+      console.log('🔍 Pobieranie salda...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      const url = locationId ? `kasa-bank/saldo?location_id=${locationId}` : 'kasa-bank/saldo';
+      const response = await api.get(url);
       console.log('✅ Saldo pobrane:', response.data);
       return response.data;
     } catch (error) {
@@ -20,10 +21,12 @@ export const kasaBankService = {
   },
 
   // Pobierz operacje finansowe
-  getOperacje: async (limit = 50) => {
+  getOperacje: async (limit = 50, locationId = null) => {
     try {
-      console.log('🔍 Pobieranie operacji...');
-      const response = await api.get(`/api/kasa-bank/operacje?limit=${limit}`);
+      console.log('🔍 Pobieranie operacji...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      let url = `kasa-bank/operacje?limit=${limit}`;
+      if (locationId) url += `&location_id=${locationId}`;
+      const response = await api.get(url);
       console.log('✅ Operacje pobrane:', response.data);
       return response.data;
     } catch (error) {
@@ -33,10 +36,13 @@ export const kasaBankService = {
   },
 
   // Pobierz statystyki dzienne
-  getDailySummary: async (date = null) => {
+  getDailySummary: async (date = null, locationId = null) => {
     try {
-      console.log('🔍 Pobieranie podsumowania dziennego...');
-      const url = date ? `/api/kasa-bank/summary/daily?date=${date}` : '/api/kasa-bank/summary/daily';
+      console.log('🔍 Pobieranie podsumowania dziennego...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      let url = date ? `kasa-bank/summary/daily?date=${date}` : 'kasa-bank/summary/daily';
+      if (locationId) {
+        url += (url.includes('?') ? '&' : '?') + `location_id=${locationId}`;
+      }
       const response = await api.get(url);
       console.log('✅ Podsumowanie dzienny pobrane:', response.data);
       return response.data;
@@ -47,12 +53,19 @@ export const kasaBankService = {
   },
 
   // Pobierz statystyki miesięczne
-  getMonthlyStats: async (month = null, year = null) => {
+  getMonthlyStats: async (month = null, year = null, locationId = null) => {
     try {
-      console.log('🔍 Pobieranie statystyk miesięcznych...');
-      let url = '/api/kasa-bank/stats/monthly';
+      console.log('🔍 Pobieranie statystyk miesięcznych...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      let url = 'kasa-bank/stats/monthly';
+      const params = [];
       if (month && year) {
-        url += `?month=${month}&year=${year}`;
+        params.push(`month=${month}&year=${year}`);
+      }
+      if (locationId) {
+        params.push(`location_id=${locationId}`);
+      }
+      if (params.length > 0) {
+        url += `?${params.join('&')}`;
       }
       const response = await api.get(url);
       console.log('✅ Statystyki miesięczne pobrane:', response.data);
@@ -66,7 +79,7 @@ export const kasaBankService = {
   // Dodaj nową operację finansową
   addOperation: async (operationData) => {
     try {
-      const response = await api.post('/api/kasa-bank/operacje', operationData);
+      const response = await api.post('kasa-bank/operacje', operationData);
       return response.data;
     } catch (error) {
       throw new Error(error.response?.data?.message || 'Błąd dodawania operacji');
@@ -74,13 +87,14 @@ export const kasaBankService = {
   },
 
   // Pobierz płatności pogrupowane według typu
-  getPaymentsByType: async (dateFrom = null, dateTo = null) => {
+  getPaymentsByType: async (dateFrom = null, dateTo = null, locationId = null) => {
     try {
-      console.log('🔍 Pobieranie płatności według typu...');
-      let url = '/api/kasa-bank/payments/by-type';
+      console.log('🔍 Pobieranie płatności według typu...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      let url = 'kasa-bank/payments/by-type';
       const params = [];
       if (dateFrom) params.push(`date_from=${dateFrom}`);
       if (dateTo) params.push(`date_to=${dateTo}`);
+      if (locationId) params.push(`location_id=${locationId}`);
       if (params.length > 0) url += `?${params.join('&')}`;
       
       const response = await api.get(url);
@@ -93,12 +107,13 @@ export const kasaBankService = {
   },
 
   // Pobierz dokumenty KP (Kasa Przyjmie)
-  getKPDocuments: async (limit = 50, offset = 0, dateFrom = null, dateTo = null) => {
+  getKPDocuments: async (limit = 50, offset = 0, dateFrom = null, dateTo = null, locationId = null) => {
     try {
-      console.log('🔍 Pobieranie dokumentów KP...');
-      let url = `/api/kasa-bank/documents/kp?limit=${limit}&offset=${offset}`;
+      console.log('🔍 Pobieranie dokumentów KP...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      let url = `kasa-bank/documents/kp?limit=${limit}&offset=${offset}`;
       if (dateFrom) url += `&date_from=${dateFrom}`;
       if (dateTo) url += `&date_to=${dateTo}`;
+      if (locationId) url += `&location_id=${locationId}`;
       
       const response = await api.get(url);
       console.log('✅ Dokumenty KP pobrane:', response.data);
@@ -110,12 +125,13 @@ export const kasaBankService = {
   },
 
   // Pobierz dokumenty KW (Kasa Wydaje)
-  getKWDocuments: async (limit = 50, offset = 0, dateFrom = null, dateTo = null) => {
+  getKWDocuments: async (limit = 50, offset = 0, dateFrom = null, dateTo = null, locationId = null) => {
     try {
-      console.log('🔍 Pobieranie dokumentów KW...');
-      let url = `/api/kasa-bank/documents/kw?limit=${limit}&offset=${offset}`;
+      console.log('🔍 Pobieranie dokumentów KW...', locationId ? `dla lokalizacji ${locationId}` : 'globalnie');
+      let url = `kasa-bank/documents/kw?limit=${limit}&offset=${offset}`;
       if (dateFrom) url += `&date_from=${dateFrom}`;
       if (dateTo) url += `&date_to=${dateTo}`;
+      if (locationId) url += `&location_id=${locationId}`;
       
       const response = await api.get(url);
       console.log('✅ Dokumenty KW pobrane:', response.data);
@@ -130,7 +146,7 @@ export const kasaBankService = {
   createOperacja: async (operacjaData) => {
     try {
       console.log('🔍 Tworzenie operacji:', operacjaData);
-      const response = await api.post('/api/kasa-bank/operacje', operacjaData);
+      const response = await api.post('kasa-bank/operacje', operacjaData);
       console.log('✅ Operacja utworzona:', response.data);
       return response.data;
     } catch (error) {
@@ -143,7 +159,7 @@ export const kasaBankService = {
   updateOperacja: async (operacjaId, operacjaData) => {
     try {
       console.log('🔍 Aktualizowanie operacji:', operacjaId, operacjaData);
-      const response = await api.put(`/api/kasa-bank/operacje/${operacjaId}`, operacjaData);
+      const response = await api.put(`kasa-bank/operacje/${operacjaId}`, operacjaData);
       console.log('✅ Operacja zaktualizowana:', response.data);
       return response.data;
     } catch (error) {
@@ -156,7 +172,7 @@ export const kasaBankService = {
   getKategorie: async () => {
     try {
       console.log('🔍 Pobieranie kategorii...');
-      const response = await api.get('/api/kasa-bank/kategorie');
+      const response = await api.get('kasa-bank/kategorie');
       console.log('✅ Kategorie pobrane:', response.data);
       return response.data;
     } catch (error) {

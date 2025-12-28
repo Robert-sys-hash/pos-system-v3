@@ -9,7 +9,7 @@ export const transactionService = {
   async createTransaction(transactionData) {
     try {
       // 1. Utwórz nowy koszyk
-      const cartResponse = await api.post('/api/pos/cart/new', {
+      const cartResponse = await api.post('/pos/cart/new', {
         kasjer_id: transactionData.cashier || 'admin',
         location_id: transactionData.location_id
       });
@@ -22,7 +22,7 @@ export const transactionService = {
       
       // 2. Dodaj produkty do koszyka
       for (const item of transactionData.items) {
-        const itemResponse = await api.post(`/api/pos/cart/${transactionId}/items`, {
+        const itemResponse = await api.post(`/pos/cart/${transactionId}/items`, {
           product_id: item.product_id,
           ilosc: item.quantity
         });
@@ -37,7 +37,7 @@ export const transactionService = {
       
       // 4. Finalizuj transakcję jeśli status to 'zakonczony'
       if (transactionData.status === 'zakonczony') {
-        const finalizeResponse = await api.post(`/api/pos/cart/${transactionId}/finalize`, {
+        const finalizeResponse = await api.post(`/pos/cart/${transactionId}/finalize`, {
           payment_method: transactionData.payment_method || 'gotowka',
           customer_id: transactionData.customer_id
         });
@@ -71,7 +71,7 @@ export const transactionService = {
    */
   async getTransaction(transactionId) {
     try {
-      const response = await api.get(`/api/pos/cart/${transactionId}`);
+      const response = await api.get(`/pos/cart/${transactionId}`);
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Błąd pobierania transakcji');
@@ -111,7 +111,7 @@ export const transactionService = {
     try {
       if (updateData.action === 'add') {
         // Dodaj nowy produkt do koszyka
-        const response = await api.post(`/api/pos/cart/${transactionId}/items`, {
+        const response = await api.post(`/pos/cart/${transactionId}/items`, {
           product_id: updateData.product_id,
           ilosc: updateData.quantity || 1
         });
@@ -127,7 +127,7 @@ export const transactionService = {
         
       } else if (updateData.action === 'remove') {
         // Usuń pozycję z koszyka
-        const response = await api.delete(`/api/pos/cart/${transactionId}/items/${updateData.position_id}`);
+        const response = await api.delete(`/pos/cart/${transactionId}/items/${updateData.position_id}`);
         
         if (!response.data.success) {
           throw new Error(response.data.message || 'Błąd usuwania pozycji');
@@ -140,7 +140,7 @@ export const transactionService = {
         
       } else if (updateData.action === 'update') {
         // Aktualizuj ilość pozycji
-        const response = await api.put(`/api/pos/cart/${transactionId}/items/${updateData.position_id}`, {
+        const response = await api.put(`/pos/cart/${transactionId}/items/${updateData.position_id}`, {
           ilosc: updateData.quantity
         });
         
@@ -173,9 +173,12 @@ export const transactionService = {
    */
   async completeTransaction(transactionId, paymentData) {
     try {
-      const response = await api.post(`/api/pos/cart/${transactionId}/finalize`, {
+      const response = await api.post(`/pos/cart/${transactionId}/finalize`, {
         payment_method: paymentData.payment_method || 'gotowka',
-        customer_id: paymentData.customer_id || null
+        customer_id: paymentData.customer_id || null,
+        kwota_otrzymana: paymentData.kwota_otrzymana || paymentData.amount_paid,
+        amount_change: paymentData.amount_change || 0,
+        notatka: paymentData.note || ''
       });
       
       return {
@@ -204,7 +207,7 @@ export const transactionService = {
       const params = { limit };
       if (cashier) params.kasjer_id = cashier;
       
-      const response = await api.get('/api/pos/carts', { params });
+      const response = await api.get('/pos/carts', { params });
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Błąd pobierania koszyków');
@@ -226,11 +229,13 @@ export const transactionService = {
 
   /**
    * Pobierz statystyki dzienne
+   * @param {number} locationId - ID lokalizacji (opcjonalne)
    * @returns {Promise} Statystyki dnia
    */
-  async getDailyStats() {
+  async getDailyStats(locationId = null) {
     try {
-      const response = await api.get('/api/pos/stats');
+      const url = locationId ? `/pos/stats?location_id=${locationId}` : '/pos/stats';
+      const response = await api.get(url);
       return response.data;
     } catch (error) {
       console.error('Błąd pobierania statystyk dziennych:', error);
@@ -248,12 +253,38 @@ export const transactionService = {
   },
 
   /**
+   * Pobierz cel sprzedaży dla lokalizacji
+   * @param {number} locationId - ID lokalizacji
+   * @returns {Promise} Cel sprzedaży z postępem
+   */
+  async getSalesTarget(locationId) {
+    try {
+      const response = await api.get(`/pos/sales-target?location_id=${locationId}`);
+      return response.data;
+    } catch (error) {
+      console.error('Błąd pobierania celu sprzedaży:', error);
+      return {
+        success: false,
+        data: {
+          target_amount: 0,
+          current_revenue: 0,
+          remaining_amount: 0,
+          progress_percentage: 0,
+          has_target: false
+        }
+      };
+    }
+  },
+
+  /**
    * Pobierz statystyki miesięczne
+   * @param {number|string} locationId - ID lokalizacji (opcjonalne)
    * @returns {Promise} Statystyki miesięczne
    */
-  async getMonthlyStats() {
+  async getMonthlyStats(locationId = null) {
     try {
-      const response = await api.get('/api/pos/monthly-stats');
+      const url = locationId ? `/pos/monthly-stats?location_id=${locationId}` : '/pos/monthly-stats';
+      const response = await api.get(url);
       return response.data;
     } catch (error) {
       console.error('Błąd pobierania statystyk miesięcznych:', error);
@@ -278,7 +309,7 @@ export const transactionService = {
       };
       
       // Używamy nowego endpointu POS dla listy transakcji
-      const response = await api.get('/api/pos/transactions', { params });
+      const response = await api.get('/pos/transactions', { params });
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Błąd pobierania transakcji');
@@ -322,7 +353,7 @@ export const transactionService = {
    */
   async deleteTransaction(transactionId) {
     try {
-      const response = await api.delete(`/api/pos/cart/${transactionId}`);
+      const response = await api.delete(`/pos/cart/${transactionId}`);
       
       if (!response.data.success) {
         throw new Error(response.data.message || 'Błąd usuwania koszyka');
@@ -349,7 +380,7 @@ export const transactionService = {
    */
   async updateTransactionStatus(transactionId, status) {
     try {
-      const response = await api.put(`/api/pos/cart/${transactionId}/status`, {
+      const response = await api.put(`/pos/cart/${transactionId}/status`, {
         status
       });
       

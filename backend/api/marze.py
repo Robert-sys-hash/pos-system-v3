@@ -15,12 +15,12 @@ from utils.database import get_db_connection, execute_query, execute_insert, suc
 marze_bp = Blueprint('marze', __name__)
 
 class MarzeManager:
-    def __init__(self, db_path='../../kupony.db'):
-        self.db_path = db_path
+    def __init__(self):
+        pass
     
     def get_connection(self):
         """Połączenie z bazą danych"""
-        conn = sqlite3.connect(self.db_path)
+        conn = get_db_connection()
         conn.row_factory = sqlite3.Row
         return conn
     

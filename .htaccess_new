@@ -1,0 +1,128 @@
+RewriteEngine On
+AddHandler cgi-script .py .cgi
+
+# Handle files without extension as CGI
+<Files "stats">
+    SetHandler cgi-script
+</Files>
+<Files "locations">
+    SetHandler cgi-script
+</Files>
+<Files "warehouses">
+    SetHandler cgi-script
+</Files>
+
+Header always set Access-Control-Allow-Origin "*"
+Header always set Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+Header always set Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With"
+
+# NOWE PROXY REGUŁY - przekierowanie API calls na Flask port 8000
+# Produkty
+RewriteRule ^products/?$ http://localhost:8000/api/products [P,L]
+RewriteRule ^products/(.*)$ http://localhost:8000/api/products/$1 [P,L]
+
+# Magazyny
+RewriteRule ^warehouses/?$ http://localhost:8000/api/warehouses [P,L]
+RewriteRule ^warehouses/(.*)$ http://localhost:8000/api/warehouses/$1 [P,L]
+
+# Lokalizacje
+RewriteRule ^locations/?$ http://localhost:8000/api/locations [P,L]
+RewriteRule ^locations/(.*)$ http://localhost:8000/api/locations/$1 [P,L]
+
+# Klienci
+RewriteRule ^customers/?$ http://localhost:8000/api/customers [P,L]
+RewriteRule ^customers/(.*)$ http://localhost:8000/api/customers/$1 [P,L]
+
+# Autoryzacja
+RewriteRule ^auth/(.*)$ http://localhost:8000/api/auth/$1 [P,L]
+
+# Transakcje
+RewriteRule ^transactions/?$ http://localhost:8000/api/transactions [P,L]
+RewriteRule ^transactions/(.*)$ http://localhost:8000/api/transactions/$1 [P,L]
+
+# Paragony
+RewriteRule ^receipts/?$ http://localhost:8000/api/receipts [P,L]
+RewriteRule ^receipts/(.*)$ http://localhost:8000/api/receipts/$1 [P,L]
+
+# Faktury
+RewriteRule ^sales-invoices/?$ http://localhost:8000/api/sales-invoices [P,L]
+RewriteRule ^sales-invoices/(.*)$ http://localhost:8000/api/sales-invoices/$1 [P,L]
+
+# Faktury zakupu
+RewriteRule ^purchase-invoices/?$ http://localhost:8000/api/purchase-invoices [P,L]
+RewriteRule ^purchase-invoices/(.*)$ http://localhost:8000/api/purchase-invoices/$1 [P,L]
+
+# Kategorie
+RewriteRule ^categories/?$ http://localhost:8000/api/categories [P,L]
+RewriteRule ^categories/(.*)$ http://localhost:8000/api/categories/$1 [P,L]
+
+# Producenci
+RewriteRule ^manufacturers/?$ http://localhost:8000/api/manufacturers [P,L]
+RewriteRule ^manufacturers/(.*)$ http://localhost:8000/api/manufacturers/$1 [P,L]
+
+# Rabaty
+RewriteRule ^rabaty/?$ http://localhost:8000/api/rabaty [P,L]
+RewriteRule ^rabaty/(.*)$ http://localhost:8000/api/rabaty/$1 [P,L]
+
+# Admin
+RewriteRule ^admin/(.*)$ http://localhost:8000/api/admin/$1 [P,L]
+
+# Messenger
+RewriteRule ^messenger/(.*)$ http://localhost:8000/api/messenger/$1 [P,L]
+
+# POS
+RewriteRule ^pos/?$ http://localhost:8000/api/pos [P,L]
+RewriteRule ^pos/(.*)$ http://localhost:8000/api/pos/$1 [P,L]
+
+# Templates
+RewriteRule ^custom-templates/?$ http://localhost:8000/api/custom-templates [P,L]
+RewriteRule ^custom-templates/(.*)$ http://localhost:8000/api/custom-templates/$1 [P,L]
+RewriteRule ^custom-template-preview/?$ http://localhost:8000/api/custom-template-preview [P,L]
+
+# Document
+RewriteRule ^document-prefixes/?$ http://localhost:8000/api/document-prefixes [P,L]
+RewriteRule ^document-prefixes/(.*)$ http://localhost:8000/api/document-prefixes/$1 [P,L]
+RewriteRule ^document-types/?$ http://localhost:8000/api/document-types [P,L]
+RewriteRule ^locations-without-prefixes/?$ http://localhost:8000/api/locations-without-prefixes [P,L]
+RewriteRule ^create-default-prefixes/(.*)$ http://localhost:8000/api/create-default-prefixes/$1 [P,L]
+
+# Warehouse
+RewriteRule ^warehouse/(.*)$ http://localhost:8000/api/warehouse/$1 [P,L]
+
+# Info
+RewriteRule ^info/?$ http://localhost:8000/api/info [P,L]
+
+# Logs
+RewriteRule ^logs/?$ http://localhost:8000/api/logs [P,L]
+
+# Receipt details
+RewriteRule ^receipt-details/(.*)$ http://localhost:8000/api/receipt-details/$1 [P,L]
+RewriteRule ^receipt-invoice-eligibility/(.*)$ http://localhost:8000/api/receipt-invoice-eligibility/$1 [P,L]
+RewriteRule ^receipts-for-invoicing/?$ http://localhost:8000/api/receipts-for-invoicing [P,L]
+
+# STARE PROXY FLASK API - przekierowanie /api/* na Flask port 8000 (dla kompatybilności)
+RewriteRule ^api/(.*)$ http://localhost:8000/api/$1 [P,L]
+
+# API routing - Python files
+RewriteRule ^api/stats/?$ /api/simple.py [L]
+RewriteRule ^api/locations/?$ /api/locations.py [L]
+RewriteRule ^api/warehouses/?$ /api/warehouses.py [L]
+
+# WYJĄTEK: Pliki PHP - nie przekierowuj na React
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteCond %{REQUEST_URI} \.php$
+RewriteRule ^(.*)$ $1 [L]
+
+# WYJĄTEK: Folder /api/ - nie przekierowuj na React
+RewriteCond %{REQUEST_URI} ^/api/
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^(.*)$ $1 [L]
+
+# Direct files
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^(.*)$ $1 [L]
+
+# React fallback - wszystko inne
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule . /index.html [L]

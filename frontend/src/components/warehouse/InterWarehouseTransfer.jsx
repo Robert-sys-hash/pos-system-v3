@@ -63,7 +63,7 @@ const InterWarehouseTransfer = () => {
   const loadProducts = async () => {
     try {
       // Zakładamy że istnieje serwis produktów
-      const response = await fetch('http://localhost:5002/api/products/search?limit=100');
+      const response = await fetch('http://localhost:8000/api/products/search?limit=100');
       if (response.ok) {
         const data = await response.json();
         setProducts(data.data?.products || []);

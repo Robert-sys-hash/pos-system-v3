@@ -3,8 +3,10 @@ import { transactionService } from '../services/transactionService';
 import { productService } from '../services/productService';
 import { shiftService } from '../services/shiftService';
 import { productReportsService } from '../services/productReportsService';
+import { useLocation } from '../contexts/LocationContext';
 
 const ReportsPage = () => {
+  const { locationId, selectedLocation } = useLocation();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('daily');
@@ -40,7 +42,7 @@ const ReportsPage = () => {
 
   useEffect(() => {
     loadInitialData();
-  }, []);
+  }, [locationId]); // Przeładuj dane przy zmianie lokalizacji
 
   const loadInitialData = async () => {
     setLoading(true);
@@ -63,7 +65,7 @@ const ReportsPage = () => {
 
   const loadDailyStats = async () => {
     try {
-      const stats = await transactionService.getDailyStats();
+      const stats = await transactionService.getDailyStats(locationId);
       setDailyStats(stats);
     } catch (err) {
       console.error('Błąd podczas pobierania statystyk dziennych:', err);
@@ -72,7 +74,7 @@ const ReportsPage = () => {
 
   const loadMonthlyStats = async () => {
     try {
-      const stats = await transactionService.getMonthlyStats();
+      const stats = await transactionService.getMonthlyStats(locationId);
       setMonthlyStats(stats);
     } catch (err) {
       console.error('Błąd podczas pobierania statystyk miesięcznych:', err);
@@ -92,7 +94,7 @@ const ReportsPage = () => {
 
   const loadShiftHistory = async () => {
     try {
-      const shifts = await shiftService.getShiftHistory();
+      const shifts = await shiftService.getShiftsHistory();
       setShiftHistory(shifts || []);
     } catch (err) {
       console.error('Błąd podczas pobierania historii zmian:', err);
@@ -169,82 +171,70 @@ const ReportsPage = () => {
   };
 
   const renderDailyReport = () => (
-    <div className="row">
-      <div className="col-md-6">
-        <div className="card">
-          <div className="card-header">
-            <h5>📊 Statystyki dzienne i miesięczne</h5>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+            <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>📊 Statystyki dzienne i miesięczne</h5>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {dailyStats ? (
               <div>
-                <div className="row mb-3">
-                  <div className="col-6">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-success">{dailyStats?.data?.today_transactions || 0}</h4>
-                      <small>Transakcje dzisiaj</small>
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#28a745' }}>{dailyStats?.data?.today_transactions || 0}</h4>
+                    <small style={{ fontSize: '0.75rem' }}>Transakcje dzisiaj</small>
                   </div>
-                  <div className="col-6">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-primary">{(dailyStats?.data?.today_revenue || 0).toFixed(2)} zł</h4>
-                      <small>Przychód dzienny</small>
-                    </div>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#007bff' }}>{(dailyStats?.data?.today_revenue || 0).toFixed(2)} zł</h4>
+                    <small style={{ fontSize: '0.75rem' }}>Przychód dzienny</small>
                   </div>
                 </div>
-                <div className="row mb-3">
-                  <div className="col-6">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-info">{(dailyStats?.data?.today_average_transaction || 0).toFixed(2)} zł</h4>
-                      <small>Średnia dzienna</small>
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#17a2b8' }}>{(dailyStats?.data?.today_average_transaction || 0).toFixed(2)} zł</h4>
+                    <small style={{ fontSize: '0.75rem' }}>Średnia dzienna</small>
                   </div>
-                  <div className="col-6">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-warning">{(dailyStats?.data?.month_average_transaction || 0).toFixed(2)} zł</h4>
-                      <small>Średnia miesięczna</small>
-                    </div>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#ffc107' }}>{(dailyStats?.data?.month_average_transaction || 0).toFixed(2)} zł</h4>
+                    <small style={{ fontSize: '0.75rem' }}>Średnia miesięczna</small>
                   </div>
                 </div>
-                <div className="row">
-                  <div className="col-6">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-secondary">{dailyStats?.data?.month_transactions || 0}</h4>
-                      <small>Transakcje w miesiącu</small>
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#6c757d' }}>{dailyStats?.data?.month_transactions || 0}</h4>
+                    <small style={{ fontSize: '0.75rem' }}>Transakcje w miesiącu</small>
                   </div>
-                  <div className="col-6">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-dark">{(dailyStats?.data?.month_revenue || 0).toFixed(2)} zł</h4>
-                      <small>Przychód miesięczny</small>
-                    </div>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#343a40' }}>{(dailyStats?.data?.month_revenue || 0).toFixed(2)} zł</h4>
+                    <small style={{ fontSize: '0.75rem' }}>Przychód miesięczny</small>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center">Brak danych</div>
+              <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#6c757d' }}>Brak danych</div>
             )}
           </div>
         </div>
       </div>
       
-      <div className="col-md-6">
-        <div className="card">
-          <div className="card-header">
-            <h5>🏆 Top produkty</h5>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+            <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>🏆 Top produkty</h5>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {topProducts.length > 0 ? (
-              <div className="list-group list-group-flush">
+              <div>
                 {topProducts.slice(0, 5).map((product, index) => (
-                  <div key={product.id} className="list-group-item d-flex justify-content-between">
+                  <div key={product.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '0.4rem 0', borderBottom: index < 4 ? '1px solid #f8f9fa' : 'none', fontSize: '0.8rem' }}>
                     <span>#{index + 1} {product.nazwa}</span>
-                    <span className="badge bg-primary">{product.cena_sprzedazy} zł</span>
+                    <span style={{ backgroundColor: '#007bff', color: 'white', padding: '0.2rem 0.4rem', borderRadius: '0.25rem', fontSize: '0.75rem' }}>{product.cena_sprzedazy} zł</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-center">Brak danych</div>
+              <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#6c757d' }}>Brak danych</div>
             )}
           </div>
         </div>
@@ -253,24 +243,24 @@ const ReportsPage = () => {
   );
 
   const renderMonthlyReport = () => (
-    <div className="row">
-      <div className="col-12">
-        <div className="card">
-          <div className="card-header">
-            <h5>📅 Statystyki miesięczne</h5>
+    <div>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+            <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>📅 Statystyki miesięczne</h5>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {monthlyStats?.data && monthlyStats.data.length > 0 ? (
               <div>
-                <div className="table-responsive">
-                  <table className="table table-hover">
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8rem' }}>
                     <thead>
                       <tr>
-                        <th>Miesiąc</th>
-                        <th>Liczba transakcji</th>
-                        <th>Przychód</th>
-                        <th>Średnia paragonu</th>
-                        <th>Sprzedane produkty</th>
+                        <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.75rem' }}>Miesiąc</th>
+                        <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.75rem' }}>Liczba transakcji</th>
+                        <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.75rem' }}>Przychód</th>
+                        <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.75rem' }}>Średnia paragonu</th>
+                        <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.75rem' }}>Sprzedane produkty</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -283,11 +273,11 @@ const ReportsPage = () => {
                         
                         return (
                           <tr key={index}>
-                            <td><strong>{monthName} {month.year}</strong></td>
-                            <td>{month.transactions_count}</td>
-                            <td>{month.total_revenue.toFixed(2)} zł</td>
-                            <td className="text-info"><strong>{month.average_transaction.toFixed(2)} zł</strong></td>
-                            <td>{month.items_sold}</td>
+                            <td style={{ padding: '0.4rem', borderBottom: '1px solid #f8f9fa', fontWeight: '600' }}>{monthName} {month.year}</td>
+                            <td style={{ padding: '0.4rem', borderBottom: '1px solid #f8f9fa' }}>{month.transactions_count}</td>
+                            <td style={{ padding: '0.4rem', borderBottom: '1px solid #f8f9fa' }}>{month.total_revenue.toFixed(2)} zł</td>
+                            <td style={{ padding: '0.4rem', borderBottom: '1px solid #f8f9fa', color: '#17a2b8', fontWeight: '600' }}>{month.average_transaction.toFixed(2)} zł</td>
+                            <td style={{ padding: '0.4rem', borderBottom: '1px solid #f8f9fa' }}>{month.items_sold}</td>
                           </tr>
                         );
                       })}
@@ -296,37 +286,31 @@ const ReportsPage = () => {
                 </div>
                 
                 {/* Wykres lub podsumowanie */}
-                <div className="row mt-4">
-                  <div className="col-md-4">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-success">
-                        {monthlyStats.data.reduce((sum, month) => sum + month.transactions_count, 0)}
-                      </h4>
-                      <small>Wszystkie transakcje</small>
-                    </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginTop: '0.75rem' }}>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#28a745' }}>
+                      {monthlyStats.data.reduce((sum, month) => sum + month.transactions_count, 0)}
+                    </h4>
+                    <small style={{ fontSize: '0.75rem' }}>Wszystkie transakcje</small>
                   </div>
-                  <div className="col-md-4">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-primary">
-                        {monthlyStats.data.reduce((sum, month) => sum + month.total_revenue, 0).toFixed(2)} zł
-                      </h4>
-                      <small>Całkowity przychód</small>
-                    </div>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#007bff' }}>
+                      {monthlyStats.data.reduce((sum, month) => sum + month.total_revenue, 0).toFixed(2)} zł
+                    </h4>
+                    <small style={{ fontSize: '0.75rem' }}>Całkowity przychód</small>
                   </div>
-                  <div className="col-md-4">
-                    <div className="border p-3 text-center">
-                      <h4 className="text-info">
-                        {monthlyStats.data.length > 0 ? 
-                          (monthlyStats.data.reduce((sum, month) => sum + month.average_transaction, 0) / monthlyStats.data.length).toFixed(2) 
-                          : 0} zł
-                      </h4>
-                      <small>Średnia wszystkich miesięcy</small>
-                    </div>
+                  <div style={{ border: '1px solid #e9ecef', padding: '0.5rem', textAlign: 'center', borderRadius: '0.25rem' }}>
+                    <h4 style={{ margin: 0, fontSize: '1rem', fontWeight: '600', color: '#17a2b8' }}>
+                      {monthlyStats.data.length > 0 ? 
+                        (monthlyStats.data.reduce((sum, month) => sum + month.average_transaction, 0) / monthlyStats.data.length).toFixed(2) 
+                        : 0} zł
+                    </h4>
+                    <small style={{ fontSize: '0.75rem' }}>Średnia wszystkich miesięcy</small>
                   </div>
                 </div>
               </div>
             ) : (
-              <div className="text-center">Brak danych miesięcznych</div>
+              <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#6c757d' }}>Brak danych miesięcznych</div>
             )}
           </div>
         </div>
@@ -335,44 +319,50 @@ const ReportsPage = () => {
   );
 
   const renderShiftReport = () => (
-    <div className="card">
-      <div className="card-header">
-        <h5>📋 Historia zmian kasowych</h5>
+    <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+      <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+        <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>📋 Historia zmian kasowych</h5>
       </div>
-      <div className="card-body">
+      <div style={{ padding: '0.75rem' }}>
         {shiftHistory.length > 0 ? (
-          <div className="table-responsive">
-            <table className="table table-hover">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
               <thead>
                 <tr>
-                  <th>Data</th>
-                  <th>Kasjer</th>
-                  <th>Rozpoczęcie</th>
-                  <th>Zakończenie</th>
-                  <th>Saldo początkowe</th>
-                  <th>Saldo końcowe</th>
-                  <th>Różnica</th>
-                  <th>Status</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Data</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Kasjer</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Start</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Koniec</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Saldo pocz.</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Saldo końc.</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Różnica</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {shiftHistory.map((shift) => (
                   <tr key={shift.id}>
-                    <td>{new Date(shift.data_otwarcia).toLocaleDateString('pl-PL')}</td>
-                    <td>{shift.kasjer_login}</td>
-                    <td>{new Date(shift.data_otwarcia).toLocaleTimeString('pl-PL')}</td>
-                    <td>{shift.data_zamkniecia ? new Date(shift.data_zamkniecia).toLocaleTimeString('pl-PL') : '-'}</td>
-                    <td>{shift.saldo_poczatkowe} zł</td>
-                    <td>{shift.saldo_koncowe || '-'} zł</td>
-                    <td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{new Date(shift.data_otwarcia).toLocaleDateString('pl-PL')}</td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{shift.kasjer_login}</td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{new Date(shift.data_otwarcia).toLocaleTimeString('pl-PL')}</td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{shift.data_zamkniecia ? new Date(shift.data_zamkniecia).toLocaleTimeString('pl-PL') : '-'}</td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{shift.saldo_poczatkowe} zł</td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{shift.saldo_koncowe || '-'} zł</td>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>
                       {shift.saldo_koncowe ? 
-                        <span className={shift.saldo_koncowe > shift.saldo_poczatkowe ? 'text-success' : 'text-danger'}>
+                        <span style={{ color: shift.saldo_koncowe > shift.saldo_poczatkowe ? '#28a745' : '#dc3545' }}>
                           {(shift.saldo_koncowe - shift.saldo_poczatkowe).toFixed(2)} zł
                         </span> : '-'
                       }
                     </td>
-                    <td>
-                      <span className={`badge ${shift.data_zamkniecia ? 'bg-success' : 'bg-warning'}`}>
+                    <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>
+                      <span style={{ 
+                        backgroundColor: shift.data_zamkniecia ? '#28a745' : '#ffc107', 
+                        color: 'white', 
+                        padding: '0.15rem 0.3rem', 
+                        borderRadius: '0.25rem', 
+                        fontSize: '0.65rem' 
+                      }}>
                         {shift.data_zamkniecia ? 'Zamknięta' : 'Otwarta'}
                       </span>
                     </td>
@@ -382,28 +372,28 @@ const ReportsPage = () => {
             </table>
           </div>
         ) : (
-          <div className="text-center">Brak danych</div>
+          <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#6c757d' }}>Brak danych</div>
         )}
       </div>
     </div>
   );
 
   const renderMarginReport = () => (
-    <div className="card">
-      <div className="card-header">
-        <h5>⚠️ Produkty z niską marżą</h5>
+    <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+      <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+        <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>⚠️ Produkty z niską marżą</h5>
       </div>
-      <div className="card-body">
+      <div style={{ padding: '0.75rem' }}>
         {lowMarginProducts.length > 0 ? (
-          <div className="table-responsive">
-            <table className="table table-hover">
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
               <thead>
                 <tr>
-                  <th>Produkt</th>
-                  <th>Cena zakupu</th>
-                  <th>Cena sprzedaży</th>
-                  <th>Marża</th>
-                  <th>Zysk</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Produkt</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Cena zakupu</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Cena sprzedaży</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Marża</th>
+                  <th style={{ padding: '0.4rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.7rem' }}>Zysk</th>
                 </tr>
               </thead>
               <tbody>
@@ -415,15 +405,25 @@ const ReportsPage = () => {
                   
                   return (
                     <tr key={product.id}>
-                      <td>{product.nazwa}</td>
-                      <td>{cenaZakupu.toFixed(2)} zł</td>
-                      <td>{cenaSprzedazy.toFixed(2)} zł</td>
-                      <td>
-                        <span className={`badge ${marza < 10 ? 'bg-danger' : marza < 20 ? 'bg-warning' : 'bg-success'}`}>
+                      <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{product.nazwa}</td>
+                      <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{cenaZakupu.toFixed(2)} zł</td>
+                      <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>{cenaSprzedazy.toFixed(2)} zł</td>
+                      <td style={{ padding: '0.3rem', borderBottom: '1px solid #f8f9fa' }}>
+                        <span style={{ 
+                          backgroundColor: marza < 10 ? '#dc3545' : marza < 20 ? '#ffc107' : '#28a745',
+                          color: 'white',
+                          padding: '0.15rem 0.3rem',
+                          borderRadius: '0.25rem',
+                          fontSize: '0.65rem'
+                        }}>
                           {marza.toFixed(1)}%
                         </span>
                       </td>
-                      <td className={zysk >= 0 ? 'text-success' : 'text-danger'}>
+                      <td style={{ 
+                        padding: '0.3rem', 
+                        borderBottom: '1px solid #f8f9fa',
+                        color: zysk >= 0 ? '#28a745' : '#dc3545'
+                      }}>
                         {zysk.toFixed(2)} zł
                       </td>
                     </tr>
@@ -433,7 +433,7 @@ const ReportsPage = () => {
             </table>
           </div>
         ) : (
-          <div className="text-center">Brak produktów z niską marżą</div>
+          <div style={{ textAlign: 'center', fontSize: '0.875rem', color: '#6c757d' }}>Brak produktów z niską marżą</div>
         )}
       </div>
     </div>
@@ -441,43 +441,42 @@ const ReportsPage = () => {
 
   // Nowe funkcje renderujące dla raportów produktowych
   const renderRotationReport = () => (
-    <div className="row">
-      <div className="col-md-6">
-        <div className="card">
-          <div className="card-header d-flex justify-content-between align-items-center">
-            <h5>🔄 Najbardziej rotujące produkty</h5>
-            <small className="text-muted">Top {reportParams.limit}</small>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>🔄 Najbardziej rotujące produkty</h5>
+            <small style={{ fontSize: '0.7rem', color: '#6c757d' }}>Top {reportParams.limit}</small>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {highestRotationProducts.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table table-sm">
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
                   <thead>
                     <tr>
-                      <th>Ranking</th>
-                      <th>Produkt</th>
-                      <th>Sprzedano</th>
-                      <th>Dziennie</th>
-                      <th>% całości</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Ranking</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Produkt</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Sprzedano</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Dziennie</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>%</th>
                     </tr>
                   </thead>
                   <tbody>
                     {highestRotationProducts.map((product) => (
                       <tr key={product.id}>
-                        <td>
-                          <span className="badge bg-primary">#{product.ranking}</span>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                          <span style={{ backgroundColor: '#007bff', color: 'white', padding: '0.1rem 0.2rem', borderRadius: '0.2rem', fontSize: '0.6rem' }}>#{product.ranking}</span>
                         </td>
-                        <td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
                           <div>
-                            <small className="fw-bold">{product.nazwa}</small>
-                            <br />
-                            <small className="text-muted">{product.kategoria_nazwa}</small>
+                            <div style={{ fontWeight: '600', fontSize: '0.65rem' }}>{product.nazwa}</div>
+                            <div style={{ color: '#6c757d', fontSize: '0.6rem' }}>{product.kategoria_nazwa}</div>
                           </div>
                         </td>
-                        <td>{product.total_quantity_sold}</td>
-                        <td>{product.rotation_index}</td>
-                        <td>
-                          <span className="badge bg-success">
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.total_quantity_sold}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.rotation_index}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                          <span style={{ backgroundColor: '#28a745', color: 'white', padding: '0.1rem 0.2rem', borderRadius: '0.2rem', fontSize: '0.6rem' }}>
                             {product.percentage_of_total_sales?.toFixed(1)}%
                           </span>
                         </td>
@@ -487,58 +486,60 @@ const ReportsPage = () => {
                 </table>
               </div>
             ) : (
-              <div className="text-center text-muted">Brak danych</div>
+              <div style={{ textAlign: 'center', color: '#6c757d', fontSize: '0.8rem' }}>Brak danych</div>
             )}
           </div>
         </div>
       </div>
 
-      <div className="col-md-6">
-        <div className="card">
-          <div className="card-header d-flex justify-content-between align-items-center">
-            <h5>🐌 Najmniej rotujące produkty</h5>
-            <small className="text-muted">Top {reportParams.limit}</small>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>🐌 Najmniej rotujące produkty</h5>
+            <small style={{ fontSize: '0.7rem', color: '#6c757d' }}>Top {reportParams.limit}</small>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {lowestRotationProducts.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table table-sm">
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.75rem' }}>
                   <thead>
                     <tr>
-                      <th>Produkt</th>
-                      <th>Problem</th>
-                      <th>Stan</th>
-                      <th>Sprzedano</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Produkt</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Problem</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Stan</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Sprzedano</th>
                     </tr>
                   </thead>
                   <tbody>
                     {lowestRotationProducts.map((product) => (
                       <tr key={product.id}>
-                        <td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
                           <div>
-                            <small className="fw-bold">{product.nazwa}</small>
-                            <br />
-                            <small className="text-muted">{product.kod_produktu}</small>
+                            <div style={{ fontWeight: '600', fontSize: '0.65rem' }}>{product.nazwa}</div>
+                            <div style={{ color: '#6c757d', fontSize: '0.6rem' }}>{product.kod_produktu}</div>
                           </div>
                         </td>
-                        <td>
-                          <span className={`badge ${
-                            product.issue === 'Brak sprzedaży' ? 'bg-danger' :
-                            product.issue === 'Bardzo niska rotacja' ? 'bg-warning' :
-                            'bg-secondary'
-                          }`}>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                          <span style={{ 
+                            backgroundColor: product.issue === 'Brak sprzedaży' ? '#dc3545' :
+                              product.issue === 'Bardzo niska rotacja' ? '#ffc107' : '#6c757d',
+                            color: 'white',
+                            padding: '0.1rem 0.2rem',
+                            borderRadius: '0.2rem',
+                            fontSize: '0.6rem'
+                          }}>
                             {product.issue}
                           </span>
                         </td>
-                        <td>{product.stan_magazynowy || 0}</td>
-                        <td>{product.total_quantity_sold || 0}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.stan_magazynowy || 0}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.total_quantity_sold || 0}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             ) : (
-              <div className="text-center text-muted">Brak danych</div>
+              <div style={{ textAlign: 'center', color: '#6c757d', fontSize: '0.8rem' }}>Brak danych</div>
             )}
           </div>
         </div>
@@ -547,81 +548,97 @@ const ReportsPage = () => {
   );
 
   const renderBestsellersReport = () => (
-    <div className="row">
-      <div className="col-12">
-        <div className="card">
-          <div className="card-header">
-            <div className="row align-items-center">
-              <div className="col">
-                <h5>🏆 Bestsellery - Top {reportParams.limit} produktów</h5>
-              </div>
-              <div className="col-auto">
-                <select 
-                  className="form-select form-select-sm"
-                  value={reportParams.metric}
-                  onChange={(e) => {
-                    setReportParams({...reportParams, metric: e.target.value});
-                    loadBestsellingProducts();
-                  }}
-                >
-                  <option value="quantity">Według ilości</option>
-                  <option value="revenue">Według przychodu</option>
-                </select>
-              </div>
+    <div>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>🏆 Bestsellery - Top {reportParams.limit} produktów</h5>
+              <select 
+                style={{ 
+                  padding: '0.25rem', 
+                  fontSize: '0.75rem', 
+                  border: '1px solid #e9ecef', 
+                  borderRadius: '0.25rem',
+                  backgroundColor: 'white'
+                }}
+                value={reportParams.metric}
+                onChange={(e) => {
+                  setReportParams({...reportParams, metric: e.target.value});
+                  loadBestsellingProducts();
+                }}
+              >
+                <option value="quantity">Według ilości</option>
+                <option value="revenue">Według przychodu</option>
+              </select>
             </div>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {bestsellingProducts.products?.length > 0 ? (
-              <div className="table-responsive">
-                <table className="table">
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                   <thead>
                     <tr>
-                      <th>Ranking</th>
-                      <th>Produkt</th>
-                      <th>Producent</th>
-                      <th>Ilość</th>
-                      <th>Przychód</th>
-                      <th>Śr. cena</th>
-                      <th>Transakcje</th>
-                      <th>% całości</th>
-                      <th>Trend</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Ranking</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Produkt</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Producent</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Ilość</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Przychód</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Śr. cena</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Trans.</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>%</th>
+                      <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Trend</th>
                     </tr>
                   </thead>
                   <tbody>
                     {bestsellingProducts.products.map((product) => (
                       <tr key={product.id}>
-                        <td>
-                          <span className={`badge ${
-                            product.ranking <= 3 ? 'bg-warning' :
-                            product.ranking <= 10 ? 'bg-primary' : 'bg-secondary'
-                          }`}>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                          <span style={{ 
+                            backgroundColor: product.ranking <= 3 ? '#ffc107' :
+                              product.ranking <= 10 ? '#007bff' : '#6c757d',
+                            color: 'white',
+                            padding: '0.1rem 0.25rem',
+                            borderRadius: '0.2rem',
+                            fontSize: '0.6rem'
+                          }}>
                             #{product.ranking}
                           </span>
                         </td>
-                        <td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
                           <div>
-                            <div className="fw-bold">{product.nazwa}</div>
-                            <small className="text-muted">{product.kod_produktu}</small>
+                            <div style={{ fontWeight: '600', fontSize: '0.65rem' }}>{product.nazwa}</div>
+                            <div style={{ color: '#6c757d', fontSize: '0.6rem' }}>{product.kod_produktu}</div>
                           </div>
                         </td>
-                        <td>{product.producent_nazwa || '-'}</td>
-                        <td>{product.total_quantity_sold}</td>
-                        <td>{product.total_revenue?.toFixed(2)} zł</td>
-                        <td>{product.avg_price?.toFixed(2)} zł</td>
-                        <td>{product.transactions_count}</td>
-                        <td>
-                          <span className="badge bg-info">
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.producent_nazwa || '-'}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.total_quantity_sold}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.total_revenue?.toFixed(2)} zł</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.avg_price?.toFixed(2)} zł</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{product.transactions_count}</td>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                          <span style={{ 
+                            backgroundColor: '#17a2b8',
+                            color: 'white',
+                            padding: '0.1rem 0.2rem',
+                            borderRadius: '0.2rem',
+                            fontSize: '0.6rem'
+                          }}>
                             {reportParams.metric === 'quantity' 
                               ? product.percentage_of_total_quantity?.toFixed(1)
                               : product.percentage_of_total_revenue?.toFixed(1)
                             }%
                           </span>
                         </td>
-                        <td>
-                          <span className={`badge ${
-                            product.trend === 'Wysoka' ? 'bg-success' :
-                            product.trend === 'Średnia' ? 'bg-warning' : 'bg-secondary'
-                          }`}>
+                        <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                          <span style={{ 
+                            backgroundColor: product.trend === 'Wysoka' ? '#28a745' :
+                              product.trend === 'Średnia' ? '#ffc107' : '#6c757d',
+                            color: 'white',
+                            padding: '0.1rem 0.2rem',
+                            borderRadius: '0.2rem',
+                            fontSize: '0.6rem'
+                          }}>
                             {product.trend}
                           </span>
                         </td>
@@ -631,7 +648,7 @@ const ReportsPage = () => {
                 </table>
               </div>
             ) : (
-              <div className="text-center text-muted">Brak danych</div>
+              <div style={{ textAlign: 'center', color: '#6c757d', fontSize: '0.8rem' }}>Brak danych</div>
             )}
           </div>
         </div>
@@ -640,129 +657,122 @@ const ReportsPage = () => {
   );
 
   const renderForecastReport = () => (
-    <div className="row">
-      <div className="col-12">
-        <div className="card">
-          <div className="card-header">
-            <div className="row align-items-center">
-              <div className="col">
-                <h5>📈 Prognoza sprzedaży na {reportParams.forecast_days} dni</h5>
-              </div>
-              <div className="col-auto">
-                <input
-                  type="number"
-                  className="form-control form-control-sm"
-                  style={{width: '100px'}}
-                  value={reportParams.forecast_days}
-                  onChange={(e) => {
-                    setReportParams({...reportParams, forecast_days: parseInt(e.target.value) || 30});
-                  }}
-                  onBlur={loadSalesForecast}
-                  min="1"
-                  max="365"
-                />
-              </div>
+    <div>
+      <div>
+        <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white' }}>
+          <div style={{ padding: '0.5rem', backgroundColor: '#f8f9fa', borderBottom: '1px solid #e9ecef' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h5 style={{ margin: 0, fontSize: '0.9rem', fontWeight: '600' }}>📈 Prognoza sprzedaży na {reportParams.forecast_days} dni</h5>
+              <input
+                type="number"
+                style={{
+                  width: '80px',
+                  padding: '0.25rem',
+                  fontSize: '0.75rem',
+                  border: '1px solid #e9ecef',
+                  borderRadius: '0.25rem'
+                }}
+                value={reportParams.forecast_days}
+                onChange={(e) => {
+                  setReportParams({...reportParams, forecast_days: parseInt(e.target.value) || 30});
+                }}
+                onBlur={loadSalesForecast}
+                min="1"
+                max="365"
+              />
             </div>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.75rem' }}>
             {salesForecast.forecasts?.length > 0 ? (
               <div>
-                <div className="row mb-3">
-                  <div className="col-md-3">
-                    <div className="card bg-light">
-                      <div className="card-body text-center">
-                        <h6>Produkty analizowane</h6>
-                        <h4 className="text-primary">{salesForecast.total_products}</h4>
-                      </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <div style={{ backgroundColor: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '0.25rem', padding: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#6c757d' }}>Produkty analizowane</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#007bff' }}>{salesForecast.total_products}</div>
+                  </div>
+                  <div style={{ backgroundColor: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '0.25rem', padding: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#6c757d' }}>Okres analizy</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#17a2b8' }}>{salesForecast.analysis_period} dni</div>
+                  </div>
+                  <div style={{ backgroundColor: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '0.25rem', padding: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#6c757d' }}>Prognoza łączna</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#28a745' }}>
+                      {salesForecast.forecasts.reduce((sum, f) => sum + f.forecast.total_forecast, 0).toFixed(0)} szt.
                     </div>
                   </div>
-                  <div className="col-md-3">
-                    <div className="card bg-light">
-                      <div className="card-body text-center">
-                        <h6>Okres analizy</h6>
-                        <h4 className="text-info">{salesForecast.analysis_period} dni</h4>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="card bg-light">
-                      <div className="card-body text-center">
-                        <h6>Prognoza łączna</h6>
-                        <h4 className="text-success">
-                          {salesForecast.forecasts.reduce((sum, f) => sum + f.forecast.total_forecast, 0).toFixed(0)} szt.
-                        </h4>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="col-md-3">
-                    <div className="card bg-light">
-                      <div className="card-body text-center">
-                        <h6>Wartość prognoza</h6>
-                        <h4 className="text-warning">
-                          {salesForecast.forecasts.reduce((sum, f) => sum + f.revenue_forecast.estimated_revenue, 0).toFixed(2)} zł
-                        </h4>
-                      </div>
+                  <div style={{ backgroundColor: '#f8f9fa', border: '1px solid #e9ecef', borderRadius: '0.25rem', padding: '0.5rem', textAlign: 'center' }}>
+                    <div style={{ fontSize: '0.7rem', color: '#6c757d' }}>Wartość prognoza</div>
+                    <div style={{ fontSize: '0.9rem', fontWeight: '600', color: '#ffc107' }}>
+                      {salesForecast.forecasts.reduce((sum, f) => sum + f.revenue_forecast.estimated_revenue, 0).toFixed(2)} zł
                     </div>
                   </div>
                 </div>
                 
-                <div className="table-responsive">
-                  <table className="table">
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.7rem' }}>
                     <thead>
                       <tr>
-                        <th>Produkt</th>
-                        <th>Stan magazynu</th>
-                        <th>Śr. dzienna</th>
-                        <th>Prognoza ({reportParams.forecast_days} dni)</th>
-                        <th>Trend</th>
-                        <th>Rekomendacje</th>
-                        <th>Wartość</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Produkt</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Stan</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Śr. dzienna</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Prognoza ({reportParams.forecast_days}d)</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Trend</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Akcja</th>
+                        <th style={{ padding: '0.3rem', borderBottom: '1px solid #e9ecef', textAlign: 'left', fontSize: '0.65rem' }}>Wartość</th>
                       </tr>
                     </thead>
                     <tbody>
                       {salesForecast.forecasts.slice(0, 15).map((forecast) => (
                         <tr key={forecast.product_id}>
-                          <td>
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
                             <div>
-                              <div className="fw-bold">{forecast.product_name}</div>
-                              <small className="text-muted">{forecast.product_code}</small>
+                              <div style={{ fontWeight: '600', fontSize: '0.65rem' }}>{forecast.product_name}</div>
+                              <div style={{ color: '#6c757d', fontSize: '0.6rem' }}>{forecast.product_code}</div>
                             </div>
                           </td>
-                          <td>
-                            <span className={`badge ${
-                              forecast.current_stock < forecast.forecast.total_forecast ? 'bg-danger' : 'bg-success'
-                            }`}>
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                            <span style={{
+                              backgroundColor: forecast.current_stock < forecast.forecast.total_forecast ? '#dc3545' : '#28a745',
+                              color: 'white',
+                              padding: '0.1rem 0.2rem',
+                              borderRadius: '0.2rem',
+                              fontSize: '0.6rem'
+                            }}>
                               {forecast.current_stock}
                             </span>
                           </td>
-                          <td>{forecast.forecast.daily_forecast}</td>
-                          <td>
-                            <strong>{forecast.forecast.total_forecast}</strong>
-                            <small className="text-muted d-block">
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>{forecast.forecast.daily_forecast}</td>
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                            <div style={{ fontWeight: '600' }}>{forecast.forecast.total_forecast}</div>
+                            <div style={{ color: '#6c757d', fontSize: '0.6rem' }}>
                               ±{forecast.forecast.confidence_level}
-                            </small>
+                            </div>
                           </td>
-                          <td>
-                            <span className={`badge ${
-                              forecast.historical_data.sales_trend === 'wzrostowy' ? 'bg-success' :
-                              forecast.historical_data.sales_trend === 'spadkowy' ? 'bg-danger' : 'bg-secondary'
-                            }`}>
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
+                            <span style={{
+                              backgroundColor: forecast.historical_data.sales_trend === 'wzrostowy' ? '#28a745' :
+                                forecast.historical_data.sales_trend === 'spadkowy' ? '#dc3545' : '#6c757d',
+                              color: 'white',
+                              padding: '0.1rem 0.2rem',
+                              borderRadius: '0.2rem',
+                              fontSize: '0.6rem'
+                            }}>
                               {forecast.historical_data.sales_trend}
                             </span>
                           </td>
-                          <td>
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
                             {forecast.inventory_recommendations.reorder_needed ? (
                               <div>
-                                <span className="badge bg-warning">Zamów</span>
-                                <small className="d-block">
+                                <span style={{ backgroundColor: '#ffc107', color: 'white', padding: '0.1rem 0.2rem', borderRadius: '0.2rem', fontSize: '0.6rem' }}>Zamów</span>
+                                <div style={{ fontSize: '0.6rem', color: '#6c757d' }}>
                                   {forecast.inventory_recommendations.suggested_order_quantity} szt.
-                                </small>
+                                </div>
                               </div>
                             ) : (
-                              <span className="badge bg-success">OK</span>
+                              <span style={{ backgroundColor: '#28a745', color: 'white', padding: '0.1rem 0.2rem', borderRadius: '0.2rem', fontSize: '0.6rem' }}>OK</span>
                             )}
                           </td>
-                          <td>
+                          <td style={{ padding: '0.25rem', borderBottom: '1px solid #f8f9fa' }}>
                             {forecast.revenue_forecast.estimated_revenue.toFixed(2)} zł
                           </td>
                         </tr>
@@ -772,7 +782,7 @@ const ReportsPage = () => {
                 </div>
               </div>
             ) : (
-              <div className="text-center text-muted">Brak danych do prognozy</div>
+              <div style={{ textAlign: 'center', color: '#6c757d', fontSize: '0.8rem' }}>Brak danych do prognozy</div>
             )}
           </div>
         </div>
@@ -786,7 +796,21 @@ const ReportsPage = () => {
     <div className="container-fluid mt-4">
       <div className="row">
         <div className="col-12">
-          <h2>📈 Raporty i Statystyki</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ fontSize: '1.1rem', fontWeight: '600', margin: 0 }}>📈 Raporty i Statystyki</h2>
+            {selectedLocation && (
+              <span style={{ 
+                backgroundColor: '#e3f2fd', 
+                color: '#1565c0', 
+                padding: '0.25rem 0.75rem', 
+                borderRadius: '0.25rem',
+                fontSize: '0.8rem',
+                fontWeight: '500'
+              }}>
+                📍 {selectedLocation.nazwa}
+              </span>
+            )}
+          </div>
           
           {error && (
             <div className="alert alert-danger alert-dismissible fade show" role="alert">
@@ -796,83 +820,144 @@ const ReportsPage = () => {
           )}
 
           {/* Zakładki */}
-          <ul className="nav nav-tabs mb-4">
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'daily' ? 'active' : ''}`}
-                onClick={() => setActiveTab('daily')}
-              >
-                📊 Statystyki
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'monthly' ? 'active' : ''}`}
-                onClick={() => setActiveTab('monthly')}
-              >
-                📅 Miesięczne
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'shifts' ? 'active' : ''}`}
-                onClick={() => setActiveTab('shifts')}
-              >
-                📋 Zmiany
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'margin' ? 'active' : ''}`}
-                onClick={() => setActiveTab('margin')}
-              >
-                ⚠️ Marże
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'rotation' ? 'active' : ''}`}
-                onClick={() => setActiveTab('rotation')}
-              >
-                🔄 Rotacja
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'bestsellers' ? 'active' : ''}`}
-                onClick={() => setActiveTab('bestsellers')}
-              >
-                🏆 Bestsellery
-              </button>
-            </li>
-            <li className="nav-item">
-              <button 
-                className={`nav-link ${activeTab === 'forecast' ? 'active' : ''}`}
-                onClick={() => setActiveTab('forecast')}
-              >
-                📈 Prognoza
-              </button>
-            </li>
-          </ul>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem', marginBottom: '1rem', borderBottom: '1px solid #e9ecef' }}>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'daily' ? '#007bff' : 'transparent',
+                color: activeTab === 'daily' ? 'white' : '#007bff',
+                border: activeTab === 'daily' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'daily' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('daily')}
+            >
+              📊 Statystyki
+            </button>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'monthly' ? '#007bff' : 'transparent',
+                color: activeTab === 'monthly' ? 'white' : '#007bff',
+                border: activeTab === 'monthly' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'monthly' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('monthly')}
+            >
+              📅 Miesięczne
+            </button>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'shifts' ? '#007bff' : 'transparent',
+                color: activeTab === 'shifts' ? 'white' : '#007bff',
+                border: activeTab === 'shifts' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'shifts' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('shifts')}
+            >
+              📋 Zmiany
+            </button>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'margin' ? '#007bff' : 'transparent',
+                color: activeTab === 'margin' ? 'white' : '#007bff',
+                border: activeTab === 'margin' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'margin' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('margin')}
+            >
+              ⚠️ Marże
+            </button>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'rotation' ? '#007bff' : 'transparent',
+                color: activeTab === 'rotation' ? 'white' : '#007bff',
+                border: activeTab === 'rotation' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'rotation' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('rotation')}
+            >
+              🔄 Rotacja
+            </button>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'bestsellers' ? '#007bff' : 'transparent',
+                color: activeTab === 'bestsellers' ? 'white' : '#007bff',
+                border: activeTab === 'bestsellers' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'bestsellers' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('bestsellers')}
+            >
+              🏆 Bestsellery
+            </button>
+            <button 
+              style={{
+                padding: '0.5rem 0.75rem',
+                fontSize: '0.8rem',
+                backgroundColor: activeTab === 'forecast' ? '#007bff' : 'transparent',
+                color: activeTab === 'forecast' ? 'white' : '#007bff',
+                border: activeTab === 'forecast' ? '1px solid #007bff' : '1px solid transparent',
+                borderRadius: '0.25rem 0.25rem 0 0',
+                cursor: 'pointer',
+                borderBottom: activeTab === 'forecast' ? 'none' : '1px solid #e9ecef'
+              }}
+              onClick={() => setActiveTab('forecast')}
+            >
+              📈 Prognoza
+            </button>
+          </div>
 
           {/* Filtry */}
-          <div className="card mb-3">
-            <div className="card-body">
-              <div className="row">
-                <div className="col-md-3">
-                  <label className="form-label">Data od:</label>
+          <div style={{ border: '1px solid #e9ecef', borderRadius: '0.375rem', backgroundColor: 'white', marginBottom: '0.75rem' }}>
+            <div style={{ padding: '0.75rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '0.75rem', alignItems: 'end' }}>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '500', color: '#6c757d', marginBottom: '0.25rem', display: 'block' }}>Data od:</label>
                   <input
                     type="date"
-                    className="form-control"
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.5rem', 
+                      fontSize: '0.8rem', 
+                      border: '1px solid #e9ecef', 
+                      borderRadius: '0.25rem'
+                    }}
                     value={dateFilter.startDate}
                     onChange={(e) => setDateFilter({...dateFilter, startDate: e.target.value})}
                   />
                 </div>
-                <div className="col-md-3">
-                  <label className="form-label">Data do:</label>
+                <div>
+                  <label style={{ fontSize: '0.8rem', fontWeight: '500', color: '#6c757d', marginBottom: '0.25rem', display: 'block' }}>Data do:</label>
                   <input
                     type="date"
-                    className="form-control"
+                    style={{ 
+                      width: '100%', 
+                      padding: '0.5rem', 
+                      fontSize: '0.8rem', 
+                      border: '1px solid #e9ecef', 
+                      borderRadius: '0.25rem'
+                    }}
                     value={dateFilter.endDate}
                     onChange={(e) => setDateFilter({...dateFilter, endDate: e.target.value})}
                   />
@@ -881,21 +966,34 @@ const ReportsPage = () => {
                 {/* Dodatkowe filtry dla raportów produktowych */}
                 {(['rotation', 'bestsellers', 'forecast'].includes(activeTab)) && (
                   <>
-                    <div className="col-md-2">
-                      <label className="form-label">Okres (dni):</label>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: '500', color: '#6c757d', marginBottom: '0.25rem', display: 'block' }}>Okres (dni):</label>
                       <input
                         type="number"
-                        className="form-control"
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.5rem', 
+                          fontSize: '0.8rem', 
+                          border: '1px solid #e9ecef', 
+                          borderRadius: '0.25rem'
+                        }}
                         value={reportParams.days}
                         onChange={(e) => setReportParams({...reportParams, days: parseInt(e.target.value) || 30})}
                         min="1"
                         max="365"
                       />
                     </div>
-                    <div className="col-md-2">
-                      <label className="form-label">Limit:</label>
+                    <div>
+                      <label style={{ fontSize: '0.8rem', fontWeight: '500', color: '#6c757d', marginBottom: '0.25rem', display: 'block' }}>Limit:</label>
                       <select
-                        className="form-control"
+                        style={{ 
+                          width: '100%', 
+                          padding: '0.5rem', 
+                          fontSize: '0.8rem', 
+                          border: '1px solid #e9ecef', 
+                          borderRadius: '0.25rem',
+                          backgroundColor: 'white'
+                        }}
                         value={reportParams.limit}
                         onChange={(e) => setReportParams({...reportParams, limit: parseInt(e.target.value)})}
                       >
@@ -908,9 +1006,17 @@ const ReportsPage = () => {
                   </>
                 )}
                 
-                <div className="col-md-2 d-flex align-items-end">
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
                   <button 
-                    className="btn btn-primary me-2"
+                    style={{
+                      padding: '0.5rem 0.75rem',
+                      fontSize: '0.8rem',
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '0.25rem',
+                      cursor: 'pointer'
+                    }}
                     onClick={() => {
                       loadInitialData();
                       if (['rotation', 'bestsellers', 'forecast'].includes(activeTab)) {
@@ -920,7 +1026,15 @@ const ReportsPage = () => {
                   >
                     🔄 Odśwież
                   </button>
-                  <button className="btn btn-success">
+                  <button style={{
+                    padding: '0.5rem 0.75rem',
+                    fontSize: '0.8rem',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    cursor: 'pointer'
+                  }}>
                     📤 Eksportuj
                   </button>
                 </div>

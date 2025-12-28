@@ -31,7 +31,7 @@ const MarginAlertsPage = () => {
     setError('');
 
     try {
-      const response = await fetch(`http://localhost:5002/api/margin/products/low-margins?threshold=${threshold}`);
+      const response = await fetch(`http://localhost:8000/api/margin/products/low-margins?threshold=${threshold}`);
       const data = await response.json();
 
       if (data.success) {
@@ -52,7 +52,7 @@ const MarginAlertsPage = () => {
     setCorrecting(prev => new Set([...prev, productId]));
 
     try {
-      const response = await fetch(`http://localhost:5002/api/margin/product/${productId}/correct`, {
+      const response = await fetch(`http://localhost:8000/api/margin/product/${productId}/correct`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

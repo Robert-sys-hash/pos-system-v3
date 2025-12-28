@@ -35,7 +35,7 @@ const PurchaseInvoiceEditPage = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch(`http://localhost:5002/api/purchase-invoices/${id}`);
+      const response = await fetch(`http://localhost:8000/api/purchase-invoices/${id}`);
       const data = await response.json();
       
       if (data.success) {
@@ -79,7 +79,7 @@ const PurchaseInvoiceEditPage = () => {
       setSaving(true);
       setError(null);
 
-      const response = await fetch(`http://localhost:5002/api/purchase-invoices/${id}`, {
+      const response = await fetch(`http://localhost:8000/api/purchase-invoices/${id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

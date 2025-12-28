@@ -13,6 +13,7 @@ import { shiftService } from "../services/shiftService";
 import { transactionService } from "../services/transactionService";
 import { productService } from "../services/productService";
 import { customerService } from "../services/customerService";
+import { marginService } from "../services/marginService";
 import { FaPercent, FaEuroSign, FaCheck, FaTimes } from "react-icons/fa";
 
 const PosPage = () => {
@@ -28,6 +29,13 @@ const PosPage = () => {
     receiptsToday: 0,
     dailyRevenue: 0,
     averageReceipt: 0,
+  });
+  const [salesTarget, setSalesTarget] = useState({
+    target_amount: 0,
+    current_revenue: 0,
+    remaining_amount: 0,
+    progress_percentage: 0,
+    has_target: false
   });
   const [currentTransaction, setCurrentTransaction] = useState(null);
   const [paymentMethod, setPaymentMethod] = useState("gotowka");
@@ -53,6 +61,27 @@ const PosPage = () => {
   const [currentUser] = useState("kasjer1"); // W rzeczywistej aplikacji z kontekstu
   const [cartDiscountTotal, setCartDiscountTotal] = useState(0);
 
+  // Stany dla płatności gotówkowej
+  const [showCashPaymentModal, setShowCashPaymentModal] = useState(false);
+  const [cashReceived, setCashReceived] = useState('');
+  const [cashChange, setCashChange] = useState(0);
+
+  // Stany dla płatności kuponem
+  const [showCouponPaymentModal, setShowCouponPaymentModal] = useState(false);
+  const [couponCode, setCouponCode] = useState('');
+  const [couponData, setCouponData] = useState(null);
+  const [couponValidating, setCouponValidating] = useState(false);
+
+  // Stany dla płatności dzielonej
+  const [showSplitPaymentModal, setShowSplitPaymentModal] = useState(false);
+  const [splitPayments, setSplitPayments] = useState([
+    { method: 'gotowka', amount: 0, label: 'Gotówka', icon: 'fas fa-money-bill-wave', color: '#198754' },
+    { method: 'karta', amount: 0, label: 'Karta', icon: 'fas fa-credit-card', color: '#0d6efd' },
+    { method: 'blik', amount: 0, label: 'BLIK', icon: 'fas fa-mobile-alt', color: '#ff6b35' },
+    { method: 'kupon', amount: 0, label: 'Kupon', icon: 'fas fa-ticket-alt', color: '#6f42c1', couponCode: '' }
+  ]);
+  const [splitPaymentError, setSplitPaymentError] = useState('');
+
   // Stany dla filtrów produktów w koszyku
   const [productSearchQuery, setProductSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("");
@@ -70,6 +99,14 @@ const PosPage = () => {
   useEffect(() => {
     loadInitialData();
   }, []);
+
+  // Reaguj na zmianę lokalizacji - przeładuj cele sprzedaży i statystyki
+  useEffect(() => {
+    if (locationId) {
+      loadSalesTarget();
+      loadDailyStats();
+    }
+  }, [locationId]);
 
   const loadCurrentShift = async () => {
     try {
@@ -94,6 +131,9 @@ const PosPage = () => {
 
       // Załaduj statystyki dnia
       await loadDailyStats();
+      
+      // Załaduj cel sprzedaży
+      await loadSalesTarget();
 
       // Załaduj dostępne rabaty
       await loadAvailableDiscounts();
@@ -107,17 +147,58 @@ const PosPage = () => {
 
   const loadDailyStats = async () => {
     try {
-      const response = await transactionService.getDailyStats();
+      const response = await transactionService.getDailyStats(currentLocationId);
       console.log('📊 Odebrane statystyki POS:', response);
       if (response.success) {
         setStats({
           receiptsToday: response.data.today_transactions || 0,
           dailyRevenue: response.data.today_revenue || 0,
-          averageReceipt: response.data.average_transaction || 0,
+          averageReceipt: response.data.today_average_transaction || 0,
         });
       }
     } catch (err) {
       console.error("Błąd ładowania statystyk:", err);
+    }
+  };
+
+  const loadSalesTarget = async () => {
+    if (!currentLocationId) return;
+    
+    try {
+      const response = await transactionService.getSalesTarget(currentLocationId);
+      console.log('🎯 Odebrane cele sprzedaży:', response);
+      if (response.success && response.data) {
+        // Mapuj dane z backendu na format oczekiwany przez frontend
+        const targetData = {
+          target_amount: response.data.target?.target_amount || 0,
+          current_revenue: response.data.current_revenue || 0,
+          remaining_amount: response.data.remaining || 0,
+          progress_percentage: response.data.progress_percentage || 0,
+          has_target: !!response.data.target // Ustaw has_target na true jeśli target istnieje
+        };
+        
+        console.log('🎯 Zmapowane dane celu:', targetData);
+        setSalesTarget(targetData);
+      } else {
+        // Brak celu - ustaw domyślne wartości
+        setSalesTarget({
+          target_amount: 0,
+          current_revenue: 0,
+          remaining_amount: 0,
+          progress_percentage: 0,
+          has_target: false
+        });
+      }
+    } catch (err) {
+      console.error("Błąd ładowania celu sprzedaży:", err);
+      // W przypadku błędu ustaw brak celu
+      setSalesTarget({
+        target_amount: 0,
+        current_revenue: 0,
+        remaining_amount: 0,
+        progress_percentage: 0,
+        has_target: false
+      });
     }
   };
 
@@ -210,17 +291,17 @@ const PosPage = () => {
 
   const loadAvailableDiscounts = async () => {
     try {
-      console.log("🎯 Ładowanie rabatów dla użytkownika:", currentUser);
+      console.log("🎯 Ładowanie rabatów dla użytkownika:", currentUser, "lokalizacja:", currentLocationId);
       const response = await fetch(
-        `http://localhost:5002/api/rabaty?user_id=${currentUser}`,
+        `http://localhost:8000/api/rabaty?user_id=${currentUser}&location_id=${currentLocationId || ''}`,
       );
       console.log("🎯 Response status:", response.status);
 
       if (response.ok) {
         const data = await response.json();
         console.log("🎯 Otrzymane dane rabatów:", data);
-        console.log("🎯 Liczba rabatów:", data?.message?.rabaty?.length || 0);
-        setAvailableDiscounts(data.message?.rabaty || []);
+        console.log("🎯 Liczba rabatów:", data?.data?.rabaty?.length || 0);
+        setAvailableDiscounts(data.data?.rabaty || []);
       } else {
         console.error("🎯 Błąd odpowiedzi serwera:", response.status);
       }
@@ -272,7 +353,7 @@ const PosPage = () => {
         };
 
         const createResponse = await fetch(
-          "http://localhost:5002/api/pos/cart/new",
+          "http://localhost:8000/api/pos/cart/new",
           {
             method: "POST",
             headers: {
@@ -298,7 +379,7 @@ const PosPage = () => {
         // Dodaj produkty do koszyka
         for (const item of cart) {
           const addItemResponse = await fetch(
-            `http://localhost:5002/api/pos/cart/${transactionId}/items`,
+            `http://localhost:8000/api/pos/cart/${transactionId}/items`,
             {
               method: "POST",
               headers: {
@@ -324,7 +405,7 @@ const PosPage = () => {
       // Zastosuj rabat przez backend API
       console.log("🎯 Wywołuję backend API dla zastosowania rabatu...");
       const discountResponse = await fetch(
-        `http://localhost:5002/api/pos/cart/${transactionId}/discount`,
+        `http://localhost:8000/api/pos/cart/${transactionId}/discount`,
         {
           method: "POST",
           headers: {
@@ -397,7 +478,7 @@ const PosPage = () => {
       // Wywołaj backend API jeśli rabat ma uzycie_id (został zapisany w bazie)
       if (discountToRemove.uzycie_id && currentTransaction?.id) {
         const response = await fetch(
-          `http://localhost:5002/api/pos/cart/${currentTransaction.id}/discount/${discountToRemove.uzycie_id}`,
+          `http://localhost:8000/api/pos/cart/${currentTransaction.id}/discount/${discountToRemove.uzycie_id}`,
           {
             method: "DELETE",
           }
@@ -494,15 +575,64 @@ const PosPage = () => {
         ),
       );
     } else {
-      setCart([
-        ...cart,
-        {
-          ...product,
-          quantity: 1,
-          price: product.price || product.cena || 0,
-          name: product.name || product.nazwa,
-        },
-      ]);
+      // Użyj ceny specjalnej jeśli istnieje, w przeciwnym razie domyślnej
+      const finalPrice = product.has_special_price && product.special_price_brutto 
+        ? product.special_price_brutto 
+        : product.default_price_brutto || product.price || product.cena || 0;
+        
+      console.log(`🔍 POS addToCart - Produkt ${product.name}:`, {
+        has_special_price: product.has_special_price,
+        special_price_brutto: product.special_price_brutto,
+        default_price_brutto: product.default_price_brutto,
+        finalPrice: finalPrice,
+        purchase_price: product.purchase_price
+      });
+        
+      const newCartItem = {
+        ...product,
+        quantity: 1,
+        price: finalPrice,
+        name: product.name || product.nazwa,
+        has_special_price: product.has_special_price || false,
+        special_price_brutto: product.special_price_brutto || null,
+        default_price_brutto: product.default_price_brutto || product.price || product.cena || 0,
+        // Zapisz najnowszą cenę zakupu z margin_service
+        current_purchase_price: product.purchase_price || product.cena_zakupu || 0,
+        purchase_price_method: product.purchase_price_method || 'Tabela produkty',
+        // Zachowaj informacje o marży dla dynamicznego przeliczania
+        margin_percent: null,
+        margin_amount: null
+      };
+        
+      setCart([...cart, newCartItem]);
+      
+      // Oblicz marżę dla nowo dodanego produktu
+      if (product.id && finalPrice > 0) {
+        marginService.calculateMargin({
+          product_id: product.id,
+          sell_price_brutto: finalPrice,
+          warehouse_id: currentLocationId
+        }).then(marginResult => {
+          console.log(`🔢 POS: Marża dla nowego produktu ${product.id}:`, marginResult);
+          
+          setCart(prevCart => 
+            prevCart.map((item) => {
+              if (item.id === product.id && item.margin_percent === null) {
+                return { 
+                  ...item, 
+                  margin_percent: marginResult.margin_percent,
+                  margin_amount: marginResult.margin_amount,
+                  current_purchase_price: marginResult.purchase_price,
+                  purchase_price_method: marginResult.purchase_price_method
+                };
+              }
+              return item;
+            })
+          );
+        }).catch(error => {
+          console.error('❌ POS: Błąd obliczania marży dla nowego produktu:', error);
+        });
+      }
     }
   };
 
@@ -523,27 +653,61 @@ const PosPage = () => {
     );
   };
 
-  const updatePrice = (productId, newPrice, isNetto = false) => {
-    setCart(
-      cart.map((item) => {
-        if (item.id === productId) {
-          const vat = item.vat || 23;
-          const vatMultiplier = 1 + vat / 100;
+  const updatePrice = async (productId, newPrice, isNetto = false) => {
+    const updatedCart = cart.map((item) => {
+      if (item.id === productId) {
+        const vat = item.tax_rate || item.vat || 23;
+        const vatMultiplier = 1 + vat / 100;
 
-          let updatedPrice;
-          if (isNetto) {
-            // Jeśli edytujemy cenę netto, przelicz na brutto
-            updatedPrice = newPrice * vatMultiplier;
-          } else {
-            // Jeśli edytujemy cenę brutto, użyj jej bezpośrednio
-            updatedPrice = newPrice;
-          }
-
-          return { ...item, price: updatedPrice };
+        let updatedPrice;
+        if (isNetto) {
+          // Jeśli edytujemy cenę netto, przelicz na brutto
+          updatedPrice = newPrice * vatMultiplier;
+        } else {
+          // Jeśli edytujemy cenę brutto, użyj jej bezpośrednio
+          updatedPrice = newPrice;
         }
-        return item;
-      }),
-    );
+
+        return { ...item, price: updatedPrice };
+      }
+      return item;
+    });
+    
+    // Aktualizuj koszyk natychmiast
+    setCart(updatedCart);
+    
+    // Oblicz nową marżę dla zmienionego produktu
+    const updatedItem = updatedCart.find(item => item.id === productId);
+    if (updatedItem) {
+      try {
+        const marginResult = await marginService.calculateMargin({
+          product_id: productId,
+          sell_price_brutto: updatedItem.price,
+          warehouse_id: currentLocationId
+        });
+        
+        console.log(`🔢 POS: Nowa marża dla produktu ${productId}:`, marginResult);
+        
+        // Aktualizuj marżę w koszyku
+        setCart(prevCart => 
+          prevCart.map((item) => {
+            if (item.id === productId) {
+              return { 
+                ...item, 
+                margin_percent: marginResult.margin_percent,
+                margin_amount: marginResult.margin_amount,
+                current_purchase_price: marginResult.purchase_price,
+                purchase_price_method: marginResult.purchase_price_method
+              };
+            }
+            return item;
+          })
+        );
+        
+      } catch (error) {
+        console.error('❌ POS: Błąd obliczania marży:', error);
+      }
+    }
   };
 
   const getTotalAmount = () => {
@@ -555,6 +719,10 @@ const PosPage = () => {
     setSelectedCustomer(null);
     setCurrentTransaction(null);
     setError("");
+    // Resetuj płatności dzielone
+    resetSplitPayments();
+    setShowSplitPaymentModal(false);
+    setSplitPaymentError("");
   };
 
   const saveDraft = async () => {
@@ -593,9 +761,160 @@ const PosPage = () => {
     }
   };
 
-  const processPayment = async () => {
+  // Funkcja do obsługi płatności gotówkowej
+  const handleCashPayment = () => {
+    console.log("💵 HandleCashPayment wywołane:", { cashReceived });
+    
+    const finalAmount = getFinalTotal();
+    const receivedAmount = parseFloat(cashReceived) || 0;
+    
+    if (receivedAmount < finalAmount) {
+      setError(`Otrzymana kwota (${receivedAmount.toFixed(2)} zł) jest mniejsza od należności (${finalAmount.toFixed(2)} zł)`);
+      return;
+    }
+
+    const change = receivedAmount - finalAmount;
+    setCashChange(change);
+    
+    console.log("💵 Zamykanie modalu i wywołanie processPayment z kwotą:", receivedAmount);
+    
+    // Zamknij modal i wywołaj płatność
+    setShowCashPaymentModal(false);
+    processPayment(receivedAmount);
+  };
+
+  // Funkcja do resetu modalu płatności
+  const resetCashPaymentModal = () => {
+    setCashReceived('');
+    setCashChange(0);
+    setShowCashPaymentModal(false);
+  };
+
+  // Funkcje obsługi kuponów
+  const validateCouponCode = async (code) => {
+    if (!code || code.length < 4) return null;
+    
+    setCouponValidating(true);
+    try {
+      const response = await fetch(`http://localhost:8000/api/coupons/validate/${code.toUpperCase()}`);
+      const data = await response.json();
+      
+      if (data.success && data.data.valid) {
+        return data.data;
+      } else {
+        throw new Error(data.data.errors?.join(', ') || 'Kupon nie jest ważny');
+      }
+    } catch (error) {
+      console.error('Błąd walidacji kuponu:', error);
+      throw error;
+    } finally {
+      setCouponValidating(false);
+    }
+  };
+
+  const handleCouponPayment = async () => {
+    try {
+      const validatedCoupon = await validateCouponCode(couponCode);
+      if (validatedCoupon) {
+        setCouponData(validatedCoupon);
+        setShowCouponPaymentModal(false);
+        // Kontynuuj z płatnością używając kuponu
+        processPayment(null, validatedCoupon);
+      }
+    } catch (error) {
+      setError(`Błąd kuponu: ${error.message}`);
+    }
+  };
+
+  const resetCouponPaymentModal = () => {
+    setCouponCode('');
+    setCouponData(null);
+    setShowCouponPaymentModal(false);
+  };
+
+  // Funkcje dla płatności dzielonej
+  const resetSplitPayments = () => {
+    setSplitPayments([
+      { method: 'gotowka', amount: 0, label: 'Gotówka', icon: 'fas fa-money-bill-wave', color: '#198754' },
+      { method: 'karta', amount: 0, label: 'Karta', icon: 'fas fa-credit-card', color: '#0d6efd' },
+      { method: 'blik', amount: 0, label: 'BLIK', icon: 'fas fa-mobile-alt', color: '#ff6b35' },
+      { method: 'kupon', amount: 0, label: 'Kupon', icon: 'fas fa-ticket-alt', color: '#6f42c1', couponCode: '' }
+    ]);
+    setSplitPaymentError('');
+  };
+
+  const updateSplitPaymentAmount = (method, amount) => {
+    setSplitPayments(prev => prev.map(payment => 
+      payment.method === method 
+        ? { ...payment, amount: parseFloat(amount) || 0 }
+        : payment
+    ));
+  };
+
+  const updateSplitPaymentCouponCode = (code) => {
+    setSplitPayments(prev => prev.map(payment => 
+      payment.method === 'kupon' 
+        ? { ...payment, couponCode: code }
+        : payment
+    ));
+  };
+
+  const getTotalSplitAmount = () => {
+    return splitPayments.reduce((total, payment) => total + (payment.amount || 0), 0);
+  };
+
+  const processSplitPayment = async () => {
+    const totalAmount = getFinalTotal();
+    const splitTotal = getTotalSplitAmount();
+    
+    if (Math.abs(splitTotal - totalAmount) > 0.01) {
+      setSplitPaymentError(`Suma płatności (${splitTotal.toFixed(2)} zł) nie równa się całkowitej kwocie (${totalAmount.toFixed(2)} zł)`);
+      return;
+    }
+
+    // Waliduj kupon jeśli używany
+    const couponPayment = splitPayments.find(p => p.method === 'kupon' && p.amount > 0);
+    if (couponPayment && couponPayment.couponCode) {
+      try {
+        const validatedCoupon = await validateCouponCode(couponPayment.couponCode);
+        if (validatedCoupon.value < couponPayment.amount) {
+          setSplitPaymentError(`Kupon ma wartość ${validatedCoupon.value} zł, nie można wykorzystać ${couponPayment.amount} zł`);
+          return;
+        }
+      } catch (error) {
+        setSplitPaymentError(`Błąd kuponu: ${error.message}`);
+        return;
+      }
+    }
+
+    // Przetwórz płatność dzieloną
+    setShowSplitPaymentModal(false);
+    await processPayment(null, null, splitPayments);
+  };
+
+  const processPayment = async (receivedAmount = null, couponData = null, splitPaymentsData = null) => {
+    console.log("🚀 ProcessPayment wywołane:", { paymentMethod, receivedAmount, cartLength: cart.length, splitPayments: splitPaymentsData });
+    
     if (cart.length === 0) {
       setError("Koszyk jest pusty");
+      return;
+    }
+
+    // Jeśli płatność dzielona, nie pokazuj innych modali
+    if (splitPaymentsData) {
+      console.log("💳 Przetwarzanie płatności dzielonej");
+      // Kontynuuj bez otwierania dodatkowych modali
+    }
+    // Jeśli płatność gotówkowa (ale nie dzielona) i nie podano kwoty otrzymanej, otwórz modal
+    else if (paymentMethod === "gotowka" && receivedAmount === null) {
+      console.log("💰 Otwieranie modalu płatności gotówkowej");
+      setShowCashPaymentModal(true);
+      return;
+    }
+    // Jeśli płatność kuponem (ale nie dzielona) i nie podano danych kuponu, otwórz modal
+    else if (paymentMethod === "kupon" && !couponData) {
+      console.log("🎟️ Otwieranie modalu płatności kuponem");
+      setShowCouponPaymentModal(true);
       return;
     }
 
@@ -621,12 +940,26 @@ const PosPage = () => {
           price: item.price,
           total: item.price * item.quantity,
         })),
-        payment_method: paymentMethod,
+        payment_method: splitPaymentsData ? "dzielona" : paymentMethod,
         total_amount: getFinalTotal(), // Używaj kwoty po rabacie
         total_gross: getTotalAmount(), // Kwota brutto przed rabatem
         discount_amount: cartDiscountTotal,
         applied_discounts: appliedDiscounts,
         cashier: currentShift?.kasjer_login || "admin",
+        // Dodaj informacje o płatnościach dzielonych
+        ...(splitPaymentsData && {
+          split_payments: splitPaymentsData.filter(p => p.amount > 0).map(p => ({
+            method: p.method,
+            amount: p.amount,
+            ...(p.method === 'kupon' && p.couponCode && { coupon_code: p.couponCode })
+          }))
+        }),
+        // Dodaj informacje o kuponie jeśli płacono kuponem
+        ...(couponData && {
+          coupon_code: couponData.code,
+          coupon_value: couponData.value,
+          coupon_discount: Math.min(couponData.value, getFinalTotal())
+        })
       };
 
       // Utwórz transakcję przez transactionService
@@ -643,13 +976,19 @@ const PosPage = () => {
           setCurrentTransaction({ id: transactionId });
           clearCart();
           await loadDailyStats(); // Odśwież statystyki
+          await loadSalesTarget(); // Odśwież cel sprzedaży
           alert("Transakcja została pomyślnie zrealizowana!");
         } else {
           // Transakcja wymaga finalizacji
+          const finalAmount = getFinalTotal();
+          const receivedAmountFloat = receivedAmount ? parseFloat(receivedAmount) : finalAmount;
+          const changeAmount = paymentMethod === "gotowka" ? Math.max(0, receivedAmountFloat - finalAmount) : 0;
+          
           const paymentData = {
             payment_method: paymentMethod,
-            amount_paid: getFinalTotal(), // Używaj kwoty po rabacie
-            amount_change: 0,
+            amount_paid: finalAmount, // Kwota transakcji
+            kwota_otrzymana: receivedAmountFloat, // Kwota otrzymana od klienta
+            amount_change: changeAmount, // Reszta
             customer_id: selectedCustomer?.id || null, // Dodaj customer_id
           };
 
@@ -659,9 +998,32 @@ const PosPage = () => {
           );
 
           if (completeResponse.success) {
+            // Jeśli płacono kuponem, oznacz go jako wykorzystany
+            if (couponData && paymentMethod === "kupon") {
+              try {
+                const useCouponResponse = await fetch(`http://localhost:8000/api/coupons/use/${couponData.code}`, {
+                  method: 'POST',
+                  headers: {
+                    'Content-Type': 'application/json',
+                  },
+                  body: JSON.stringify({
+                    transaction_id: transactionId,
+                    amount_used: Math.min(couponData.value, getFinalTotal())
+                  })
+                });
+                
+                if (!useCouponResponse.ok) {
+                  console.warn('Nie udało się oznaczyć kuponu jako wykorzystany');
+                }
+              } catch (error) {
+                console.error('Błąd przy wykorzystywaniu kuponu:', error);
+              }
+            }
+            
             setCurrentTransaction({ id: transactionId });
             clearCart();
             await loadDailyStats(); // Odśwież statystyki
+            await loadSalesTarget(); // Odśwież cel sprzedaży
             alert("Transakcja została pomyślnie zrealizowana!");
           } else {
             setError(completeResponse.error || "Błąd finalizacji transakcji");
@@ -850,18 +1212,18 @@ const PosPage = () => {
           style={{
             backgroundColor: "white",
             border: "2px solid #4472C4",
-            borderRadius: "8px",
-            padding: "20px",
+            borderRadius: "6px",
+            padding: "12px",
             textAlign: "center",
-            minWidth: "150px",
+            minWidth: "120px",
           }}
         >
           <div
-            style={{ fontSize: "32px", fontWeight: "bold", color: "#4472C4" }}
+            style={{ fontSize: "24px", fontWeight: "bold", color: "#4472C4" }}
           >
             {stats.receiptsToday}
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
+          <div style={{ fontSize: "12px", color: "#666" }}>
             Paragony dzisiaj
           </div>
         </div>
@@ -870,18 +1232,18 @@ const PosPage = () => {
           style={{
             backgroundColor: "white",
             border: "2px solid #70AD47",
-            borderRadius: "8px",
-            padding: "20px",
+            borderRadius: "6px",
+            padding: "12px",
             textAlign: "center",
-            minWidth: "150px",
+            minWidth: "120px",
           }}
         >
           <div
-            style={{ fontSize: "32px", fontWeight: "bold", color: "#70AD47" }}
+            style={{ fontSize: "24px", fontWeight: "bold", color: "#70AD47" }}
           >
-            {stats.dailyRevenue.toFixed(0)}
+            {stats.dailyRevenue.toFixed(2)}
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
+          <div style={{ fontSize: "12px", color: "#666" }}>
             Obrót dzienny (zł)
           </div>
         </div>
@@ -891,43 +1253,77 @@ const PosPage = () => {
           style={{
             backgroundColor: "white",
             border: "2px solid #00B0F0",
-            borderRadius: "8px",
-            padding: "20px",
+            borderRadius: "6px",
+            padding: "12px",
             textAlign: "center",
-            minWidth: "150px",
+            minWidth: "120px",
           }}
         >
           <div
-            style={{ fontSize: "32px", fontWeight: "bold", color: "#00B0F0" }}
+            style={{ fontSize: "24px", fontWeight: "bold", color: "#00B0F0" }}
           >
-            {stats.averageReceipt.toFixed(0)}
+            {stats.averageReceipt.toFixed(2)}
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
+          <div style={{ fontSize: "12px", color: "#666" }}>
             Średnia paragonu (zł)
           </div>
         </div>
 
-        {/* Status transakcji */}
+        {/* Cel sprzedaży miesięczny */}
         <div
           style={{
             backgroundColor: "white",
             border: "2px solid #FFC000",
             borderRadius: "8px",
-            padding: "20px",
-            textAlign: "center",
-            minWidth: "200px",
+            padding: "15px",
+            minWidth: "250px",
           }}
         >
           <div
-            style={{ fontSize: "18px", fontWeight: "bold", color: "#FFC000" }}
+            style={{ fontSize: "16px", fontWeight: "bold", color: "#FFC000", marginBottom: "8px" }}
           >
-            Ostatnia transakcja
+            🎯 Cel miesięczny
           </div>
-          <div style={{ fontSize: "14px", color: "#666" }}>
-            {currentTransaction
-              ? `Zakończona: ${currentTransaction.id}`
-              : "Brak transakcji"}
-          </div>
+          
+          {salesTarget.has_target ? (
+            <>
+              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>
+                Cel: {salesTarget.target_amount.toLocaleString()} zł
+              </div>
+              
+              {/* Pasek postępu */}
+              <div style={{ 
+                width: "100%", 
+                backgroundColor: "#f0f0f0", 
+                borderRadius: "10px", 
+                height: "8px",
+                marginBottom: "5px"
+              }}>
+                <div style={{
+                  width: `${salesTarget.progress_percentage}%`,
+                  backgroundColor: salesTarget.progress_percentage >= 100 ? "#28a745" : "#FFC000",
+                  height: "100%",
+                  borderRadius: "10px",
+                  transition: "width 0.3s ease"
+                }}></div>
+              </div>
+              
+              <div style={{ fontSize: "11px", color: "#666" }}>
+                Osiągnięto: {salesTarget.current_revenue.toLocaleString()} zł ({salesTarget.progress_percentage.toFixed(1)}%)
+              </div>
+              
+              <div style={{ fontSize: "11px", color: salesTarget.remaining_amount > 0 ? "#dc3545" : "#28a745" }}>
+                {salesTarget.remaining_amount > 0 
+                  ? `Pozostało: ${salesTarget.remaining_amount.toLocaleString()} zł`
+                  : "🎉 Cel osiągnięty!"
+                }
+              </div>
+            </>
+          ) : (
+            <div style={{ fontSize: "12px", color: "#666" }}>
+              Brak ustalonego celu dla tego miesiąca
+            </div>
+          )}
         </div>
 
         {/* Szybkie akcje */}
@@ -1678,18 +2074,31 @@ const PosPage = () => {
                     )}
                     {cart.map((item, index) => {
                       // Obliczenia dla ceny netto/brutto, marży, total itp.
-                      const nettoPrice =
-                        item.price / (1 + (item.vat || 23) / 100);
+                      const taxRate = item.tax_rate || item.vat || 23;
+                      const nettoPrice = item.price / (1 + taxRate / 100);
                       const bruttoPrice = item.price;
                       const total = item.price * item.quantity;
-                      const margaAbsolute = item.cena_zakupu
-                        ? bruttoPrice - item.cena_zakupu
-                        : 0;
-                      const margaPercent = item.cena_zakupu
-                        ? ((bruttoPrice - item.cena_zakupu) /
-                            item.cena_zakupu) *
-                          100
-                        : 0;
+                      
+                      // Użyj dynamicznie obliczonej marży jeśli dostępna, w przeciwnym razie oblicz z aktualnej ceny zakupu
+                      let margaAbsolute, margaPercent;
+                      
+                      if (item.margin_percent !== null && item.margin_amount !== null) {
+                        // Użyj dynamicznie obliczonej marży
+                        margaPercent = item.margin_percent;
+                        margaAbsolute = item.margin_amount;
+                      } else if (item.current_purchase_price && item.current_purchase_price > 0) {
+                        // Oblicz marżę z najnowszej ceny zakupu
+                        margaAbsolute = nettoPrice - item.current_purchase_price;
+                        margaPercent = (margaAbsolute / nettoPrice) * 100;
+                      } else if (item.cena_zakupu && item.cena_zakupu > 0) {
+                        // Fallback - stara metoda obliczania
+                        margaAbsolute = bruttoPrice - item.cena_zakupu;
+                        margaPercent = ((bruttoPrice - item.cena_zakupu) / item.cena_zakupu) * 100;
+                      } else {
+                        // Brak danych do obliczenia marży
+                        margaAbsolute = 0;
+                        margaPercent = 0;
+                      }
                       return (
                         <tr
                           key={item.id}
@@ -1915,7 +2324,7 @@ const PosPage = () => {
                           <td
                             style={{ padding: "8px 6px", textAlign: "center" }}
                           >
-                            {item.cena_zakupu ? (
+                            {(item.current_purchase_price > 0 || item.cena_zakupu > 0) ? (
                               <div
                                 style={{
                                   display: "flex",
@@ -1950,6 +2359,18 @@ const PosPage = () => {
                                 >
                                   {margaAbsolute.toFixed(2)} zł
                                 </span>
+                                {item.purchase_price_method && (
+                                  <span
+                                    style={{ 
+                                      fontSize: "8px", 
+                                      color: "#6c757d",
+                                      fontStyle: "italic"
+                                    }}
+                                    title={item.purchase_price_method}
+                                  >
+                                    {item.purchase_price_method.includes('faktury') ? 'Faktura' : 'Tabela'}
+                                  </span>
+                                )}
                               </div>
                             ) : (
                               <span
@@ -2137,10 +2558,22 @@ const PosPage = () => {
                     icon: "fas fa-ticket-alt",
                     color: "#6f42c1",
                   },
+                  {
+                    value: "dzielona",
+                    label: "Dzielona",
+                    icon: "fas fa-coins",
+                    color: "#fd7e14",
+                  },
                 ].map((method) => (
                   <button
                     key={method.value}
-                    onClick={() => setPaymentMethod(method.value)}
+                    onClick={() => {
+                      if (method.value === 'dzielona') {
+                        setShowSplitPaymentModal(true);
+                      } else {
+                        setPaymentMethod(method.value);
+                      }
+                    }}
                     style={{
                       padding: "0.75rem",
                       fontSize: "0.75rem",
@@ -2278,10 +2711,26 @@ const PosPage = () => {
               </button>
             </div>
 
+            {/* DEBUG INFO */}
+            <div style={{ fontSize: "0.7rem", color: "red", marginBottom: "0.5rem" }}>
+              DEBUG: Koszyk={cart.length}, Loading={loading.toString()}, Zmiana={!!currentShift ? "TAK" : "NIE"}, 
+              Metoda={paymentMethod}, Disabled={cart.length === 0 || loading || !currentShift ? "TAK" : "NIE"}
+            </div>
+            
             {/* Przyciski płatności - kompaktowe */}
             <div style={{ display: "flex", gap: "0.5rem" }}>
               <button
-                onClick={processPayment}
+                onClick={() => {
+                  alert("PRZYCISK ZAPŁAĆ KLIKNIĘTY!");
+                  console.log("🔍 BUTTON DEBUG:", {
+                    cartLength: cart.length,
+                    loading: loading,
+                    currentShift: !!currentShift,
+                    paymentMethod: paymentMethod,
+                    disabled: cart.length === 0 || loading || !currentShift
+                  });
+                  processPayment();
+                }}
                 disabled={cart.length === 0 || loading || !currentShift}
                 style={{
                   flex: 2,
@@ -2930,6 +3379,463 @@ const PosPage = () => {
           onClose={() => setShowCorrectionModal(false)}
           transaction={correctionTransaction}
         />
+      )}
+
+      {/* Modal płatności kuponem */}
+      {showCouponPaymentModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1050,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "2rem",
+              borderRadius: "12px",
+              width: "90%",
+              maxWidth: "500px",
+              boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+            }}
+          >
+            <div style={{ textAlign: "center", marginBottom: "1.5rem" }}>
+              <h4 style={{ margin: 0, color: "#6f42c1" }}>
+                <i className="fas fa-ticket-alt" style={{ marginRight: "0.5rem" }}></i>
+                Płatność kuponem
+              </h4>
+              <div style={{ fontSize: "1.2rem", fontWeight: "600", color: "#495057", marginTop: "0.5rem" }}>
+                Do zapłaty: {getFinalTotal().toFixed(2)} zł
+              </div>
+            </div>
+
+            <div style={{ marginBottom: "1.5rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "500" }}>
+                Kod kuponu:
+              </label>
+              <input
+                type="text"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value.toUpperCase())}
+                placeholder="Wprowadź kod kuponu"
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "2px solid #e9ecef",
+                  borderRadius: "8px",
+                  fontSize: "1rem",
+                  textAlign: "center",
+                  letterSpacing: "2px",
+                  fontWeight: "600",
+                }}
+                autoFocus
+                disabled={couponValidating}
+              />
+            </div>
+
+            <div style={{ display: "flex", gap: "1rem" }}>
+              <button
+                onClick={resetCouponPaymentModal}
+                disabled={couponValidating}
+                style={{
+                  flex: 1,
+                  padding: "0.75rem 1.5rem",
+                  border: "2px solid #6c757d",
+                  borderRadius: "6px",
+                  backgroundColor: "white",
+                  color: "#6c757d",
+                  cursor: couponValidating ? "not-allowed" : "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                }}
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleCouponPayment}
+                disabled={!couponCode || couponCode.length < 4 || couponValidating}
+                style={{
+                  flex: 2,
+                  padding: "0.75rem 1.5rem",
+                  border: "none",
+                  borderRadius: "6px",
+                  backgroundColor: couponCode && couponCode.length >= 4 && !couponValidating ? "#6f42c1" : "#6c757d",
+                  color: "white",
+                  cursor: couponCode && couponCode.length >= 4 && !couponValidating ? "pointer" : "not-allowed",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                }}
+              >
+                <i className="fas fa-check" style={{ marginRight: "0.5rem" }}></i>
+                {couponValidating ? "Sprawdzam..." : "Sprawdź i zapłać"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal płatności gotówkowej */}
+      {showCashPaymentModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 1050,
+          }}
+          onClick={resetCashPaymentModal}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              padding: "2rem",
+              borderRadius: "8px",
+              boxShadow: "0 4px 6px rgba(0, 0, 0, 0.1)",
+              width: "90%",
+              maxWidth: "400px",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", marginBottom: "1.5rem" }}>
+              <i className="fas fa-money-bill-wave" style={{ color: "#198754", fontSize: "1.25rem" }}></i>
+              <h3 style={{ margin: 0, color: "#198754", fontWeight: "600" }}>
+                Płatność gotówkowa
+              </h3>
+            </div>
+
+            {/* Kwota do zapłaty */}
+            <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
+              <div style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.25rem" }}>
+                Kwota do zapłaty:
+              </div>
+              <div style={{ fontSize: "1.25rem", fontWeight: "700", color: "#198754" }}>
+                {getFinalTotal().toFixed(2)} zł
+              </div>
+            </div>
+
+            {/* Pole kwoty otrzymanej */}
+            <div style={{ marginBottom: "1rem" }}>
+              <label style={{ display: "block", marginBottom: "0.5rem", fontSize: "0.875rem", fontWeight: "500" }}>
+                Kwota otrzymana:
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min={getFinalTotal()}
+                value={cashReceived}
+                onChange={(e) => {
+                  setCashReceived(e.target.value);
+                  const received = parseFloat(e.target.value) || 0;
+                  const change = received - getFinalTotal();
+                  setCashChange(Math.max(0, change));
+                }}
+                placeholder={getFinalTotal().toFixed(2)}
+                style={{
+                  width: "100%",
+                  padding: "0.75rem",
+                  border: "1px solid #ced4da",
+                  borderRadius: "6px",
+                  fontSize: "1rem",
+                }}
+                autoFocus
+              />
+            </div>
+
+            {/* Wyświetlenie reszty */}
+            {cashReceived && parseFloat(cashReceived) >= getFinalTotal() && (
+              <div style={{ marginBottom: "1rem", padding: "0.75rem", backgroundColor: "#e7f3ff", borderRadius: "6px" }}>
+                <div style={{ fontSize: "0.875rem", color: "#0d6efd", marginBottom: "0.25rem" }}>
+                  Reszta do wydania:
+                </div>
+                <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#0d6efd" }}>
+                  {cashChange.toFixed(2)} zł
+                </div>
+              </div>
+            )}
+
+            {/* Przyciski szybkiej kwoty */}
+            <div style={{ marginBottom: "1rem" }}>
+              <div style={{ fontSize: "0.75rem", color: "#6c757d", marginBottom: "0.5rem", textTransform: "uppercase" }}>
+                Szybkie kwoty:
+              </div>
+              <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap" }}>
+                {[
+                  Math.ceil(getFinalTotal()),
+                  Math.ceil(getFinalTotal() / 10) * 10,
+                  Math.ceil(getFinalTotal() / 20) * 20,
+                  Math.ceil(getFinalTotal() / 50) * 50,
+                ].filter((amount, index, arr) => arr.indexOf(amount) === index && amount >= getFinalTotal())
+                .slice(0, 4)
+                .map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => {
+                      setCashReceived(amount.toString());
+                      setCashChange(amount - getFinalTotal());
+                    }}
+                    style={{
+                      padding: "0.5rem 0.75rem",
+                      border: "1px solid #ced4da",
+                      borderRadius: "4px",
+                      backgroundColor: "white",
+                      cursor: "pointer",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    {amount} zł
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Przyciski akcji */}
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={resetCashPaymentModal}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  border: "1px solid #ced4da",
+                  borderRadius: "6px",
+                  backgroundColor: "white",
+                  color: "#6c757d",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                }}
+              >
+                Anuluj
+              </button>
+              <button
+                onClick={handleCashPayment}
+                disabled={!cashReceived || parseFloat(cashReceived) < getFinalTotal()}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  border: "none",
+                  borderRadius: "6px",
+                  backgroundColor: parseFloat(cashReceived) >= getFinalTotal() ? "#198754" : "#6c757d",
+                  color: "white",
+                  cursor: parseFloat(cashReceived) >= getFinalTotal() ? "pointer" : "not-allowed",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                }}
+              >
+                <i className="fas fa-check" style={{ marginRight: "0.5rem" }}></i>
+                Zapłać
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal płatności dzielonej */}
+      {showSplitPaymentModal && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 1000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowSplitPaymentModal(false);
+              resetSplitPayments();
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "12px",
+              padding: "2rem",
+              minWidth: "500px",
+              maxWidth: "90vw",
+              maxHeight: "90vh",
+              overflow: "auto",
+              boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Nagłówek */}
+            <div style={{ display: "flex", alignItems: "center", marginBottom: "1.5rem" }}>
+              <i className="fas fa-coins" style={{ color: "#fd7e14", fontSize: "1.5rem", marginRight: "0.75rem" }}></i>
+              <h3 style={{ margin: 0, color: "#fd7e14", fontWeight: "600" }}>
+                Płatność dzielona
+              </h3>
+            </div>
+
+            {/* Kwota do zapłaty */}
+            <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div>
+                  <div style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.25rem" }}>
+                    Kwota do zapłaty:
+                  </div>
+                  <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#fd7e14" }}>
+                    {getFinalTotal().toFixed(2)} zł
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.25rem" }}>
+                    Suma płatności:
+                  </div>
+                  <div style={{ 
+                    fontSize: "1.25rem", 
+                    fontWeight: "600", 
+                    color: Math.abs(getTotalSplitAmount() - getFinalTotal()) < 0.01 ? "#198754" : "#dc3545" 
+                  }}>
+                    {getTotalSplitAmount().toFixed(2)} zł
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Metody płatności */}
+            <div style={{ marginBottom: "1.5rem" }}>
+              {splitPayments.map((payment) => (
+                <div key={payment.method} style={{ 
+                  marginBottom: "1rem", 
+                  padding: "1rem", 
+                  border: "1px solid #e9ecef", 
+                  borderRadius: "8px",
+                  borderLeft: `4px solid ${payment.color}`
+                }}>
+                  <div style={{ display: "flex", alignItems: "center", marginBottom: "0.75rem" }}>
+                    <i className={payment.icon} style={{ color: payment.color, marginRight: "0.5rem" }}></i>
+                    <span style={{ fontWeight: "500", fontSize: "0.875rem" }}>{payment.label}</span>
+                  </div>
+                  
+                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="number"
+                        placeholder="0.00"
+                        min="0"
+                        step="0.01"
+                        value={payment.amount || ''}
+                        onChange={(e) => updateSplitPaymentAmount(payment.method, e.target.value)}
+                        style={{
+                          width: "100%",
+                          padding: "0.5rem",
+                          border: "1px solid #ced4da",
+                          borderRadius: "6px",
+                          fontSize: "0.875rem"
+                        }}
+                      />
+                    </div>
+                    
+                    {payment.method === 'kupon' && (
+                      <div style={{ flex: 1 }}>
+                        <input
+                          type="text"
+                          placeholder="Kod kuponu"
+                          value={payment.couponCode || ''}
+                          onChange={(e) => updateSplitPaymentCouponCode(e.target.value)}
+                          style={{
+                            width: "100%",
+                            padding: "0.5rem",
+                            border: "1px solid #ced4da",
+                            borderRadius: "6px",
+                            fontSize: "0.875rem"
+                          }}
+                        />
+                      </div>
+                    )}
+                    
+                    <button
+                      onClick={() => updateSplitPaymentAmount(payment.method, getFinalTotal() - getTotalSplitAmount() + (payment.amount || 0))}
+                      style={{
+                        padding: "0.5rem 0.75rem",
+                        border: "1px solid #ced4da",
+                        borderRadius: "6px",
+                        backgroundColor: "white",
+                        cursor: "pointer",
+                        fontSize: "0.75rem"
+                      }}
+                      title="Wypełnij resztę"
+                    >
+                      <i className="fas fa-fill"></i>
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Błąd */}
+            {splitPaymentError && (
+              <div style={{ 
+                marginBottom: "1rem", 
+                padding: "0.75rem", 
+                backgroundColor: "#f8d7da", 
+                color: "#721c24", 
+                borderRadius: "6px",
+                fontSize: "0.875rem"
+              }}>
+                <i className="fas fa-exclamation-triangle" style={{ marginRight: "0.5rem" }}></i>
+                {splitPaymentError}
+              </div>
+            )}
+
+            {/* Przyciski */}
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+              <button
+                onClick={() => {
+                  setShowSplitPaymentModal(false);
+                  resetSplitPayments();
+                }}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  border: "1px solid #ced4da",
+                  borderRadius: "6px",
+                  backgroundColor: "white",
+                  color: "#495057",
+                  cursor: "pointer",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                }}
+              >
+                <i className="fas fa-times" style={{ marginRight: "0.5rem" }}></i>
+                Anuluj
+              </button>
+              <button
+                onClick={processSplitPayment}
+                disabled={Math.abs(getTotalSplitAmount() - getFinalTotal()) > 0.01}
+                style={{
+                  padding: "0.75rem 1.5rem",
+                  border: "none",
+                  borderRadius: "6px",
+                  backgroundColor: Math.abs(getTotalSplitAmount() - getFinalTotal()) < 0.01 ? "#fd7e14" : "#6c757d",
+                  color: "white",
+                  cursor: Math.abs(getTotalSplitAmount() - getFinalTotal()) < 0.01 ? "pointer" : "not-allowed",
+                  fontSize: "0.875rem",
+                  fontWeight: "500",
+                }}
+              >
+                <i className="fas fa-check" style={{ marginRight: "0.5rem" }}></i>
+                Zapłać
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

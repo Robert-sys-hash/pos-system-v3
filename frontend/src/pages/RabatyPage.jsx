@@ -9,6 +9,8 @@ const RabatyPage = () => {
   const [editingRabat, setEditingRabat] = useState(null);
   const [stats, setStats] = useState({});
   const [selectedView, setSelectedView] = useState('lista'); // 'lista', 'raporty', 'stats'
+  const [transakcjeZRabatami, setTransakcjeZRabatami] = useState([]);
+  const [loadingRaporty, setLoadingRaporty] = useState(false);
 
   const [formData, setFormData] = useState({
     nazwa: '',
@@ -27,12 +29,34 @@ const RabatyPage = () => {
     maksimum_koszyka: ''
   });
 
-  const API_BASE = 'http://localhost:5002/api';
+  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
 
   useEffect(() => {
     loadRabaty();
     loadStats();
   }, []);
+
+  useEffect(() => {
+    if (selectedView === 'raporty') {
+      loadTransakcjeZRabatami();
+    }
+  }, [selectedView]);
+
+  const loadTransakcjeZRabatami = async () => {
+    setLoadingRaporty(true);
+    try {
+      const response = await fetch(`${API_BASE}/transactions?status=all&limit=100`);
+      if (response.ok) {
+        const data = await response.json();
+        const transakcje = data.data?.transactions || data.transactions || [];
+        setTransakcjeZRabatami(transakcje.filter(t => t.rabat_kwota > 0 || t.rabat_procent > 0));
+      }
+    } catch (error) {
+      console.error('Błąd ładowania transakcji z rabatami:', error);
+    } finally {
+      setLoadingRaporty(false);
+    }
+  };
 
   const loadRabaty = async () => {
     try {
@@ -370,10 +394,77 @@ const RabatyPage = () => {
 
               {/* Raporty */}
               {selectedView === 'raporty' && (
-                <div className="text-center py-5">
-                  <FaCalendarAlt className="fa-3x text-muted mb-3" />
-                  <h5 className="text-muted">Raporty rabatów</h5>
-                  <p className="text-muted">Funkcjonalność raportów będzie dostępna wkrótce</p>
+                <div>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <h5 className="mb-0">Historia transakcji z rabatami</h5>
+                    <button 
+                      className="btn btn-outline-primary btn-sm"
+                      onClick={loadTransakcjeZRabatami}
+                      disabled={loadingRaporty}
+                    >
+                      {loadingRaporty ? 'Ładowanie...' : 'Odśwież'}
+                    </button>
+                  </div>
+                  
+                  {loadingRaporty ? (
+                    <div className="text-center py-4">
+                      <div className="spinner-border text-primary" role="status">
+                        <span className="visually-hidden">Ładowanie...</span>
+                      </div>
+                    </div>
+                  ) : transakcjeZRabatami.length === 0 ? (
+                    <div className="text-center py-5">
+                      <FaCalendarAlt className="fa-3x text-muted mb-3" />
+                      <h5 className="text-muted">Brak transakcji z rabatami</h5>
+                      <p className="text-muted">Nie znaleziono żadnych transakcji z zastosowanymi rabatami</p>
+                    </div>
+                  ) : (
+                    <div className="table-responsive">
+                      <table className="table table-striped table-hover">
+                        <thead className="table-dark">
+                          <tr>
+                            <th>Nr transakcji</th>
+                            <th>Data</th>
+                            <th>Kasjer</th>
+                            <th className="text-end">Wartość brutto</th>
+                            <th className="text-center">Rabat %</th>
+                            <th className="text-end">Rabat kwota</th>
+                            <th className="text-end">Po rabacie</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {transakcjeZRabatami.map((t) => (
+                            <tr key={t.id}>
+                              <td><code>{t.numer_transakcji || t.numer_paragonu || `#${t.id}`}</code></td>
+                              <td>{t.data_transakcji || t.created_at?.split('T')[0]}</td>
+                              <td>{t.kasjer_login || t.kasjer || '-'}</td>
+                              <td className="text-end">{(t.suma_brutto || 0).toFixed(2)} zł</td>
+                              <td className="text-center">
+                                {t.rabat_procent > 0 && (
+                                  <span className="badge bg-info">{t.rabat_procent}%</span>
+                                )}
+                              </td>
+                              <td className="text-end text-danger fw-bold">
+                                -{(t.rabat_kwota || 0).toFixed(2)} zł
+                              </td>
+                              <td className="text-end text-success fw-bold">
+                                {((t.suma_brutto || 0) - (t.rabat_kwota || 0)).toFixed(2)} zł
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                        <tfoot className="table-secondary">
+                          <tr>
+                            <td colSpan="5" className="text-end fw-bold">Suma rabatów:</td>
+                            <td className="text-end text-danger fw-bold">
+                              -{transakcjeZRabatami.reduce((sum, t) => sum + (t.rabat_kwota || 0), 0).toFixed(2)} zł
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
+                      </table>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

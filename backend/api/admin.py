@@ -1509,3 +1509,133 @@ def save_company_data():
     except Exception as e:
         print(f"Błąd zapisywania danych firmy: {e}")
         return error_response("Wystąpił błąd podczas zapisywania danych firmy", 500)
+
+# ==========================================
+# CELE SPRZEDAŻY - SALES TARGETS
+# ==========================================
+
+@admin_bp.route('/admin/sales-targets', methods=['GET'])
+def get_sales_targets():
+    """
+    Pobierz cele sprzedaży dla wszystkich lokalizacji
+    """
+    print("🎯 GET_SALES_TARGETS: Function called!")
+    try:
+        print("🎯 GET_SALES_TARGETS: Starting function")
+        # Sprawdź czy tabela istnieje
+        check_table_sql = """
+        CREATE TABLE IF NOT EXISTS sales_targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location_id INTEGER,
+            year INTEGER NOT NULL,
+            month INTEGER NOT NULL,
+            target_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(location_id, year, month)
+        )
+        """
+        execute_query(check_table_sql)
+        
+        # Pobierz cele dla bieżącego miesiąca
+        current_date = datetime.now()
+        targets_sql = """
+        SELECT 
+            st.*,
+            l.nazwa as location_name
+        FROM sales_targets st
+        LEFT JOIN locations l ON st.location_id = l.id
+        WHERE st.year = ? AND st.month = ?
+        ORDER BY l.nazwa ASC
+        """
+        
+        print(f"🎯 GET_SALES_TARGETS: Executing SQL query for year={current_date.year}, month={current_date.month}")
+        
+        results = execute_query(targets_sql, [current_date.year, current_date.month])
+        
+        if results is None:
+            results = []
+            
+        return success_response({
+            'targets': results,
+            'year': current_date.year,
+            'month': current_date.month
+        }, f"Znaleziono {len(results)} celów sprzedaży")
+        
+    except Exception as e:
+        print(f"Błąd pobierania celów sprzedaży: {e}")
+        return error_response("Wystąpił błąd podczas pobierania celów sprzedaży", 500)
+
+@admin_bp.route('/admin/sales-targets', methods=['POST'])
+def set_sales_target():
+    """
+    Ustaw cel sprzedaży dla lokalizacji
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return error_response("Brak danych w żądaniu", 400)
+            
+        required_fields = ['location_id', 'year', 'month', 'target_amount']
+        for field in required_fields:
+            if field not in data:
+                return error_response(f"Brak wymaganego pola: {field}", 400)
+        
+        # Sprawdź czy tabela istnieje
+        check_table_sql = """
+        CREATE TABLE IF NOT EXISTS sales_targets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            location_id INTEGER,
+            year INTEGER NOT NULL,
+            month INTEGER NOT NULL,
+            target_amount DECIMAL(10,2) NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(location_id, year, month)
+        )
+        """
+        execute_query(check_table_sql)
+        
+        # Wstaw lub zaktualizuj cel
+        upsert_sql = """
+        INSERT OR REPLACE INTO sales_targets 
+        (location_id, year, month, target_amount, updated_at)
+        VALUES (?, ?, ?, ?, datetime('now'))
+        """
+        
+        success = execute_insert(upsert_sql, [
+            data['location_id'],
+            data['year'],
+            data['month'],
+            float(data['target_amount'])
+        ])
+        
+        if success:
+            return success_response({
+                'target': data
+            }, "Cel sprzedaży został zapisany")
+        else:
+            return error_response("Błąd zapisywania celu sprzedaży", 500)
+            
+    except Exception as e:
+        print(f"Błąd zapisywania celu sprzedaży: {e}")
+        return error_response("Wystąpił błąd podczas zapisywania celu sprzedaży", 500)
+
+@admin_bp.route('/admin/sales-targets/<int:target_id>', methods=['DELETE'])
+def delete_sales_target(target_id):
+    """
+    Usuń cel sprzedaży
+    """
+    try:
+        delete_sql = "DELETE FROM sales_targets WHERE id = ?"
+        success = execute_insert(delete_sql, [target_id])
+        
+        if success:
+            return success_response(None, "Cel sprzedaży został usunięty")
+        else:
+            return error_response("Błąd usuwania celu sprzedaży", 500)
+            
+    except Exception as e:
+        print(f"Błąd usuwania celu sprzedaży: {e}")
+        return error_response("Wystąpił błąd podczas usuwania celu sprzedaży", 500)

@@ -54,7 +54,7 @@ const Messenger = forwardRef(({ onMessageSent }, ref) => {
   const loadMessages = async () => {
     try {
       console.log('🔍 Messenger: Ładowanie wiadomości...');
-      const response = await fetch('http://localhost:5002/api/messenger/messages?limit=50&debug=fullchat');
+      const response = await fetch('http://localhost:8000/api/messenger/messages?limit=50&debug=fullchat');
       console.log('📡 Messenger: Response status:', response.status);
       console.log('📡 Messenger: Response headers:', Object.fromEntries(response.headers.entries()));
       
@@ -87,7 +87,7 @@ const Messenger = forwardRef(({ onMessageSent }, ref) => {
 
   const loadOnlineUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/messenger/users/online');
+      const response = await fetch('http://localhost:8000/api/messenger/users/online');
       const data = await response.json();
       
       if (data.success) {
@@ -100,7 +100,7 @@ const Messenger = forwardRef(({ onMessageSent }, ref) => {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/messenger/stats');
+      const response = await fetch('http://localhost:8000/api/messenger/stats');
       const data = await response.json();
       
       if (data.success) {
@@ -113,7 +113,7 @@ const Messenger = forwardRef(({ onMessageSent }, ref) => {
 
   const updateUserStatus = async () => {
     try {
-      await fetch('http://localhost:5002/api/messenger/users/online', {
+      await fetch('http://localhost:8000/api/messenger/users/online', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -135,7 +135,7 @@ const Messenger = forwardRef(({ onMessageSent }, ref) => {
     
     try {
       console.log('📤 Messenger: Wysyłam wiadomość:', newMessage.trim());
-      const response = await fetch('http://localhost:5002/api/messenger/messages', {
+      const response = await fetch('http://localhost:8000/api/messenger/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -179,7 +179,7 @@ const Messenger = forwardRef(({ onMessageSent }, ref) => {
     setError('');
     
     try {
-      const response = await fetch('http://localhost:5002/api/messenger/broadcast', {
+      const response = await fetch('http://localhost:8000/api/messenger/broadcast', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

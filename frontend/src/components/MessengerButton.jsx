@@ -20,7 +20,7 @@ const MessengerButton = ({ onToggle }) => {
 
   const loadUnreadCount = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/messenger/stats');
+      const response = await fetch('http://localhost:8000/api/messenger/stats');
       const data = await response.json();
       
       if (data.success) {

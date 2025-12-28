@@ -107,7 +107,7 @@ const FiscalPrinterTab = () => {
 
   // Raport dobowy
   const generateDailyReport = async () => {
-    if (!confirm('Czy na pewno chcesz wykonać raport dobowy (Z)? Ta operacja zamknie dzień fiskalny.')) {
+    if (!window.confirm('Czy na pewno chcesz wykonać raport dobowy (Z)? Ta operacja zamknie dzień fiskalny.')) {
       return;
     }
     

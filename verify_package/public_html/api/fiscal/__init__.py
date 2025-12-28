@@ -1,0 +1,1 @@
+# Moduł obsługi urządzeń fiskalnych

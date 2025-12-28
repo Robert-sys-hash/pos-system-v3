@@ -20,14 +20,19 @@ export const LocationProvider = ({ children }) => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('http://localhost:5002/api/locations/');
+      console.log('🔄 LocationContext: Fetching locations...');
+      const response = await fetch('http://localhost:8000/api/locations/');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      const locationsArray = data.data || data;
+      console.log('📊 LocationContext: Response data:', data);
+      
+      // API zwraca {success: true, data: {count: 6, locations: [...]}}
+      const locationsArray = data.data?.locations || data.data || [];
+      console.log('📍 LocationContext: Locations array:', locationsArray);
       setAvailableLocations(locationsArray);
     } catch (error) {
       console.error('❌ Error fetching locations:', error);
@@ -38,10 +43,15 @@ export const LocationProvider = ({ children }) => {
   }, []);
 
   const changeLocation = useCallback((locationId) => {
+    console.log('🔄 LocationContext: changeLocation called with:', locationId);
     const location = availableLocations.find(loc => loc.id === parseInt(locationId));
+    console.log('📍 LocationContext: Found location:', location);
     if (location) {
       setSelectedLocation(location);
       localStorage.setItem('selectedLocation', JSON.stringify(location));
+      console.log('✅ LocationContext: Location changed to:', location.nazwa);
+    } else {
+      console.warn('⚠️ LocationContext: Location not found for ID:', locationId);
     }
   }, [availableLocations]);
 

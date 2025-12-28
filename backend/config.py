@@ -6,7 +6,7 @@ import os
 class Config:
     """Bazowa konfiguracja"""
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-2024'
-    DATABASE_PATH = os.environ.get('DATABASE_PATH') or os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'kupony.db'))
+    DATABASE_PATH = os.environ.get('DATABASE_PATH') or os.path.abspath(os.path.join(os.path.dirname(__file__), 'kupony.db'))
 
 class DevelopmentConfig(Config):
     """Konfiguracja dla środowiska deweloperskiego"""
@@ -33,9 +33,20 @@ class ProductionConfig(Config):
                 f'http://www.{domain}'
             ]
 
+class DirectAdminConfig(Config):
+    """Konfiguracja dla DirectAdmin"""
+    DEBUG = False
+    CORS_ORIGINS = [
+        'http://panelv3.pl',
+        'https://panelv3.pl',
+        'http://www.panelv3.pl',
+        'https://www.panelv3.pl'
+    ]
+
 # Mapa konfiguracji
 config = {
     'development': DevelopmentConfig,
     'production': ProductionConfig,
+    'directadmin': DirectAdminConfig,
     'default': DevelopmentConfig
 }

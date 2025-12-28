@@ -1,0 +1,1080 @@
+"""
+API endpoint dla funkcji POS
+Transakcje, koszyk, płatności, statystyki sprzedaży, rabaty
+"""
+
+from flask import Blueprint, request, jsonify
+from utils.database import execute_query, execute_insert, success_response, error_response, not_found_response
+from utils.document_numbering import generate_document_number
+from datetime import datetime
+import uuid
+
+pos_bp = Blueprint('pos', __name__)
+
+@pos_bp.route('/pos/stats', methods=['GET'])
+def get_pos_stats():
+    """
+    Pobierz statystyki POS - sprzedaż dzisiaj, w tym tygodniu, miesiącu
+    """
+    try:
+        print("🔍 DEBUG: Starting POS stats")
+        
+        stats_query = """
+        SELECT 
+            COUNT(*) as total_transactions,
+            COALESCE(SUM(suma_brutto), 0) as total_revenue,
+            COALESCE(AVG(suma_brutto), 0) as average_transaction,
+            COUNT(CASE WHEN DATE(data_transakcji) = DATE('now') THEN 1 END) as today_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) = DATE('now') THEN suma_brutto ELSE 0 END), 0) as today_revenue,
+            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days') THEN 1 END) as week_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days') THEN suma_brutto ELSE 0 END), 0) as week_revenue,
+            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days') THEN 1 END) as month_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days') THEN suma_brutto ELSE 0 END), 0) as month_revenue
+        FROM pos_transakcje
+        WHERE status = 'zakonczony'
+        """
+        
+        print("🔍 DEBUG: Executing query...")
+        results = execute_query(stats_query)
+        print(f"🔍 DEBUG: Query results: {results}")
+        
+        if results is None:
+            print("❌ DEBUG: results is None")
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        stats = results[0] if results else {
+            'total_transactions': 0,
+            'total_revenue': 0,
+            'average_transaction': 0,
+            'today_transactions': 0,
+            'today_revenue': 0,
+            'week_transactions': 0,
+            'week_revenue': 0,
+            'month_transactions': 0,
+            'month_revenue': 0
+        }
+        
+        print(f"✅ DEBUG: Final stats: {stats}")
+        return success_response(stats, "Statystyki POS pobrane pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania statystyk POS: {e}")
+        return error_response("Wystąpił błąd podczas pobierania statystyk", 500)
+
+@pos_bp.route('/pos/transactions', methods=['GET'])
+def get_recent_transactions():
+    """
+    Pobierz ostatnie transakcje
+    Parametry: limit (default=10), date_from, date_to
+    """
+    try:
+        limit = int(request.args.get('limit', 10))
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        
+        sql_query = """
+        SELECT 
+            t.id,
+            t.customer_id,
+            c.name as customer_name,
+            t.total_amount,
+            t.tax_amount,
+            t.payment_method,
+            t.status,
+            t.created_at,
+            t.updated_at
+        FROM transactions t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        WHERE 1=1
+        """
+        
+        params = []
+        
+        if date_from:
+            sql_query += " AND DATE(t.created_at) >= ?"
+            params.append(date_from)
+            
+        if date_to:
+            sql_query += " AND DATE(t.created_at) <= ?"
+            params.append(date_to)
+            
+        sql_query += " ORDER BY t.created_at DESC LIMIT ?"
+        params.append(limit)
+        
+        results = execute_query(sql_query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        return success_response({
+            'transactions': results,
+            'total': len(results),
+            'limit': limit
+        }, f"Pobrano {len(results)} transakcji")
+        
+    except ValueError:
+        return error_response("Parametr 'limit' musi być liczbą", 400)
+    except Exception as e:
+        print(f"Błąd pobierania transakcji: {e}")
+        return error_response("Wystąpił błąd podczas pobierania transakcji", 500)
+
+@pos_bp.route('/pos/transaction', methods=['POST'])
+def create_transaction():
+    """
+    Utwórz nową transakcję
+    Body: {
+        customer_id: int (optional),
+        items: [{product_id: int, quantity: int, price: float}],
+        payment_method: string,
+        notes: string (optional)
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return error_response("Brak danych JSON", 400)
+            
+        items = data.get('items', [])
+        customer_id = data.get('customer_id')
+        payment_method = data.get('payment_method', 'cash')
+        notes = data.get('notes', '')
+        
+        if not items:
+            return error_response("Lista produktów nie może być pusta", 400)
+            
+        # Oblicz sumy
+        total_amount = 0
+        tax_amount = 0
+        
+        for item in items:
+            if not all(k in item for k in ['product_id', 'quantity', 'price']):
+                return error_response("Każdy produkt musi mieć product_id, quantity i price", 400)
+                
+            item_total = item['quantity'] * item['price']
+            total_amount += item_total
+            
+            # Pobierz stawkę VAT produktu
+            product_query = "SELECT tax_rate FROM products WHERE id = ?"
+            product_result = execute_query(product_query, [item['product_id']])
+            
+            if product_result:
+                tax_rate = product_result[0]['tax_rate'] or 0
+                tax_amount += item_total * (tax_rate / 100)
+        
+        # Utwórz transakcję
+        transaction_query = """
+        INSERT INTO transactions (customer_id, total_amount, tax_amount, payment_method, status, notes, created_at)
+        VALUES (?, ?, ?, ?, 'completed', ?, datetime('now'))
+        """
+        
+        transaction_id = execute_insert(transaction_query, [
+            customer_id, total_amount, tax_amount, payment_method, notes
+        ])
+        
+        if not transaction_id:
+            return error_response("Błąd tworzenia transakcji", 500)
+            
+        # Dodaj pozycje transakcji
+        for item in items:
+            item_query = """
+            INSERT INTO transaction_items (transaction_id, product_id, quantity, unit_price, total_price)
+            VALUES (?, ?, ?, ?, ?)
+            """
+            
+            item_total = item['quantity'] * item['price']
+            execute_insert(item_query, [
+                transaction_id, item['product_id'], item['quantity'], item['price'], item_total
+            ])
+        
+        return success_response({
+            'transaction_id': transaction_id,
+            'total_amount': round(total_amount, 2),
+            'tax_amount': round(tax_amount, 2),
+            'payment_method': payment_method,
+            'status': 'completed'
+        }, "Transakcja utworzona pomyślnie", 201)
+        
+    except Exception as e:
+        print(f"Błąd tworzenia transakcji: {e}")
+        return error_response("Wystąpił błąd podczas tworzenia transakcji", 500)
+
+@pos_bp.route('/pos/transaction/<int:transaction_id>', methods=['GET'])
+def get_transaction(transaction_id):
+    """
+    Pobierz szczegóły transakcji wraz z pozycjami
+    """
+    try:
+        # Pobierz transakcję
+        transaction_query = """
+        SELECT 
+            t.id,
+            t.customer_id,
+            c.name as customer_name,
+            t.total_amount,
+            t.tax_amount,
+            t.payment_method,
+            t.status,
+            t.notes,
+            t.created_at,
+            t.updated_at
+        FROM transactions t
+        LEFT JOIN customers c ON t.customer_id = c.id
+        WHERE t.id = ?
+        """
+        
+        transaction_result = execute_query(transaction_query, [transaction_id])
+        
+        if not transaction_result:
+            return not_found_response(f"Transakcja o ID {transaction_id} nie została znaleziona")
+            
+        transaction = transaction_result[0]
+        
+        # Pobierz pozycje transakcji
+        items_query = """
+        SELECT 
+            ti.id,
+            ti.product_id,
+            p.name as product_name,
+            ti.quantity,
+            ti.unit_price,
+            ti.total_price
+        FROM transaction_items ti
+        LEFT JOIN products p ON ti.product_id = p.id
+        WHERE ti.transaction_id = ?
+        ORDER BY ti.id
+        """
+        
+        items_result = execute_query(items_query, [transaction_id])
+        transaction['items'] = items_result or []
+        
+        return success_response(transaction, "Szczegóły transakcji pobrane pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania transakcji: {e}")
+        return error_response("Wystąpił błąd podczas pobierania transakcji", 500)
+
+@pos_bp.route('/pos/transaction/<int:transaction_id>/complete', methods=['POST'])
+def complete_transaction(transaction_id):
+    """
+    Finalizuje transakcję i automatycznie odejmuje stany magazynowe
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Pobierz transakcję i jej pozycje
+        transaction_query = """
+        SELECT 
+            t.id,
+            t.status,
+            t.suma_brutto as total_amount,
+            t.rabat_kwota
+        FROM pos_transakcje t
+        WHERE t.id = ?
+        """
+        
+        transaction_result = execute_query(transaction_query, [transaction_id])
+        
+        if not transaction_result:
+            return not_found_response(f"Transakcja o ID {transaction_id} nie została znaleziona")
+            
+        transaction = transaction_result[0]
+        
+        if transaction['status'] == 'zakonczony':
+            return error_response("Transakcja już została sfinalizowana", 400)
+        
+        # Pobierz pozycje transakcji
+        items_query = """
+        SELECT 
+            ti.id,
+            ti.product_id as product_id,
+            ti.ilosc as quantity,
+            ti.cena_jednostkowa as unit_price,
+            p.nazwa as product_name
+        FROM pos_pozycje ti
+        LEFT JOIN produkty p ON ti.product_id = p.id
+        WHERE ti.transakcja_id = ?
+        """
+        
+        items = execute_query(items_query, [transaction_id]) or []
+        
+        if not items:
+            return error_response("Nie znaleziono pozycji dla tej transakcji", 400)
+        
+        # Sprawdź stany magazynowe przed sprzedażą
+        stock_check_errors = []
+        for item in items:
+            product_id = item['product_id']
+            required_quantity = item['quantity']
+            
+            # Sprawdź aktualny stan z warehouse_stock
+            stock_query = "SELECT current_stock as stock FROM warehouse_stock WHERE product_id = ?"
+            
+            current_stock = 0
+            try:
+                stock_result = execute_query(stock_query, [product_id])
+                if stock_result and stock_result[0]['stock'] is not None:
+                    current_stock = stock_result[0]['stock']
+            except:
+                # Jeśli nie ma wpisu w stanach, przyjmij że jest 0
+                current_stock = 0
+            
+            if current_stock < required_quantity:
+                stock_check_errors.append({
+                    'product_id': product_id,
+                    'product_name': item['product_name'],
+                    'required': required_quantity,
+                    'available': current_stock,
+                    'shortfall': required_quantity - current_stock
+                })
+        
+        # Jeśli są błędy stanów, zwróć błąd
+        if stock_check_errors:
+            return error_response({
+                'message': 'Niewystarczające stany magazynowe',
+                'stock_errors': stock_check_errors
+            }, 400)
+        
+        # Aktualizuj stany magazynowe
+        stock_updates = []
+        for item in items:
+            product_id = item['product_id']
+            sold_quantity = item['quantity']
+            
+            # Zaktualizuj stan w tabeli warehouse_stock
+            update_query = """
+            UPDATE warehouse_stock 
+            SET current_stock = COALESCE(current_stock, 0) - ?,
+                data_ostatniej_zmiany = datetime('now')
+            WHERE product_id = ?
+            """
+            
+            try:
+                result = execute_insert(update_query, [sold_quantity, product_id])
+                if result:
+                    stock_updates.append({
+                        'product_id': product_id,
+                        'product_name': item['product_name'],
+                        'quantity_sold': sold_quantity
+                    })
+            except Exception as e:
+                print(f"Błąd aktualizacji stanu dla produktu {product_id}: {e}")
+                
+            # Zapisz ruch magazynowy (jeśli tabela istnieje)
+            try:
+                # Pobierz stan przed zmianą
+                current_stock_before = execute_query("SELECT current_stock FROM warehouse_stock WHERE product_id = ?", [product_id])
+                stan_przed = current_stock_before[0]['current_stock'] if current_stock_before else 0
+                stan_po = stan_przed - sold_quantity
+                
+                movement_sql = """
+                INSERT INTO pos_ruchy_magazynowe 
+                (product_id, typ_ruchu, ilosc, stan_przed, stan_po, data_ruchu, czas_ruchu, user_login, uwagi)
+                VALUES (?, 'wydanie', ?, ?, ?, date('now'), time('now'), ?, ?)
+                """
+                execute_insert(movement_sql, [
+                    product_id, 
+                    sold_quantity,
+                    stan_przed,
+                    stan_po,
+                    data.get('user', 'system'),
+                    f"Sprzedaż - transakcja #{transaction_id}"
+                ])
+            except Exception as e:
+                print(f"Błąd zapisu ruchu magazynowego: {e}")
+                pass
+        
+        # Aktualizuj status transakcji na 'zakonczony'
+        payment_method = data.get('payment_method', 'gotowka')
+        amount_paid = data.get('amount_paid', transaction['total_amount'])
+        amount_change = data.get('amount_change', 0)
+        
+        status_update_sql = """
+        UPDATE pos_transakcje 
+        SET status = 'zakonczony',
+            forma_platnosci = ?,
+            kwota_otrzymana = ?,
+            kwota_reszty = ?
+        WHERE id = ?
+        """
+        
+        transaction_updated = execute_insert(status_update_sql, [
+            payment_method, amount_paid, amount_change, transaction_id
+        ])
+        
+        if not transaction_updated:
+            return error_response("Błąd aktualizacji statusu transakcji", 500)
+        
+        # Dodaj operację do kasa_operacje
+        try:
+            payment_type_mapping = {
+                'cash': 'gotowka',
+                'card': 'karta', 
+                'transfer': 'przelew',
+                'blik': 'blik',
+                'gotowka': 'gotowka',
+                'karta': 'karta',
+                'przelew': 'przelew'
+            }
+            typ_platnosci = payment_type_mapping.get(payment_method, 'gotowka')
+            
+            kasa_operacja_sql = """
+            INSERT INTO kasa_operacje 
+            (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
+             numer_dokumentu, data_operacji, utworzyl)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            opis = f"Sprzedaż - transakcja #{transaction_id}"
+            # Użyj kwoty otrzymanej jako kwotę końcową (po rabacie)
+            final_amount = amount_paid
+            
+            print(f"DEBUG kasa_operacje: payment_method={payment_method}, typ_platnosci={typ_platnosci}, final_amount={final_amount}")
+            
+            execute_insert(kasa_operacja_sql, (
+                'KP',  # Kasa Przyjmie
+                typ_platnosci,
+                final_amount,
+                opis,
+                'sprzedaz',
+                f"TRANS-{transaction_id}",
+                datetime.now().date().isoformat(),
+                data.get('user', 'system')
+            ))
+        except Exception as e:
+            # Loguj błąd ale nie przerywaj procesu
+            print(f"Błąd dodawania operacji kasa/bank: {str(e)}")
+            pass
+        
+        return success_response({
+            'transaction_id': transaction_id,
+            'status': 'completed',
+            'stock_updates': stock_updates,
+            'total_amount': transaction['total_amount'],
+            'items_count': len(items),
+            'completed_at': datetime.now().isoformat()
+        }, "Transakcja sfinalizowana pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd finalizacji transakcji: {e}")
+        import traceback
+        traceback.print_exc()
+        return error_response(f"Wystąpił błąd podczas finalizacji transakcji: {str(e)}", 500)
+
+@pos_bp.route('/pos/inventory/update-after-sale', methods=['POST'])
+def update_inventory_after_sale():
+    """
+    Endpoint specjalnie do odejmowania stanów po sprzedaży
+    Body: {"items": [{"product_id": 1, "quantity": 2}]}
+    """
+    try:
+        data = request.get_json()
+        if not data or 'items' not in data:
+            return error_response("Brak danych o sprzedanych produktach", 400)
+        
+        items = data['items']
+        if not isinstance(items, list):
+            return error_response("Items musi być listą", 400)
+        
+        updates = []
+        errors = []
+        
+        for item in items:
+            try:
+                product_id = item.get('product_id')
+                quantity = item.get('quantity', 0)
+                
+                if not product_id or quantity <= 0:
+                    errors.append({
+                        'error': 'Nieprawidłowe dane produktu',
+                        'item': item
+                    })
+                    continue
+                
+                # Sprawdź aktualny stan
+                stock_queries = [
+                    "SELECT stan_magazynowy as stock, nazwa as name FROM produkty WHERE id = ?",
+                    "SELECT stock_quantity as stock, name FROM products WHERE id = ?"
+                ]
+                
+                product_info = None
+                for query in stock_queries:
+                    try:
+                        result = execute_query(query, [product_id])
+                        if result:
+                            product_info = result[0]
+                            break
+                    except:
+                        continue
+                
+                if not product_info:
+                    errors.append({
+                        'error': f'Produkt {product_id} nie został znaleziony',
+                        'item': item
+                    })
+                    continue
+                
+                current_stock = product_info['stock'] or 0
+                
+                if current_stock < quantity:
+                    errors.append({
+                        'error': f'Niewystarczający stan dla produktu {product_info["name"]}',
+                        'item': item,
+                        'available': current_stock,
+                        'required': quantity
+                    })
+                    continue
+                
+                # Odejmij stan
+                update_queries = [
+                    """
+                    UPDATE produkty 
+                    SET stan_magazynowy = stan_magazynowy - ?,
+                        data_modyfikacji = datetime('now')
+                    WHERE id = ?
+                    """,
+                    """
+                    UPDATE products 
+                    SET stock_quantity = stock_quantity - ?,
+                        updated_at = datetime('now')
+                    WHERE id = ?
+                    """
+                ]
+                
+                updated = False
+                for update_query in update_queries:
+                    try:
+                        result = execute_insert(update_query, [quantity, product_id])
+                        if result:
+                            updated = True
+                            break
+                    except:
+                        continue
+                
+                if updated:
+                    updates.append({
+                        'product_id': product_id,
+                        'product_name': product_info['name'],
+                        'old_stock': current_stock,
+                        'new_stock': current_stock - quantity,
+                        'quantity_sold': quantity
+                    })
+                else:
+                    errors.append({
+                        'error': f'Błąd aktualizacji stanu dla produktu {product_id}',
+                        'item': item
+                    })
+                    
+            except Exception as e:
+                errors.append({
+                    'error': str(e),
+                    'item': item
+                })
+        
+        response_data = {
+            'successful_updates': len(updates),
+            'failed_updates': len(errors),
+            'updates': updates,
+            'errors': errors
+        }
+        
+        if errors and not updates:
+            return error_response(response_data, 400)
+        elif errors:
+            return jsonify({
+                'success': True,
+                'data': response_data,
+                'message': f"Zaktualizowano {len(updates)} produktów, {len(errors)} błędów"
+            }), 207  # Multi-Status
+        else:
+            return success_response(response_data, f"Pomyślnie zaktualizowano stany {len(updates)} produktów")
+            
+    except Exception as e:
+        return error_response(f"Błąd aktualizacji stanów po sprzedaży: {str(e)}", 500)
+
+# ==================== NOWE ENDPOINTY POS Z KOSZYKIEM I RABATAMI ====================
+
+@pos_bp.route('/pos/cart/new', methods=['POST'])
+def create_cart():
+    """
+    Utwórz nowy koszyk (transakcję w_trakcie)
+    """
+    try:
+        data = request.get_json() or {}
+        
+        kasjer_login = data.get('kasjer_id', 'admin')  # Zmiana z kasjer_id na kasjer_login
+        location_id = data.get('location_id', 1)
+        shift_id = data.get('shift_id')
+        
+        # Generuj unikalny numer transakcji
+        now = datetime.now()
+        numer_transakcji = f"T{now.strftime('%Y%m%d%H%M%S')}{str(uuid.uuid4())[:4]}"
+        
+        query = """
+        INSERT INTO pos_transakcje (
+            numer_transakcji, data_transakcji, czas_transakcji, 
+            kasjer_login, status, suma_brutto, suma_netto, suma_vat
+        ) VALUES (?, ?, ?, ?, 'w_trakcie', 0, 0, 0)
+        """
+        
+        transakcja_id = execute_insert(query, (
+            numer_transakcji, 
+            now.strftime('%Y-%m-%d'), 
+            now.strftime('%H:%M:%S'),
+            kasjer_login
+        ))
+        
+        if transakcja_id:
+            return success_response("Koszyk utworzony", {
+                "transakcja_id": transakcja_id,
+                "numer_transakcji": numer_transakcji
+            })
+        else:
+            return error_response("Nie udało się utworzyć koszyka", 500)
+            
+    except Exception as e:
+        print(f"Błąd create_cart: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+@pos_bp.route('/pos/cart/<int:transakcja_id>/items', methods=['POST'])
+def add_item_to_cart(transakcja_id):
+    """
+    Dodaj produkt do koszyka
+    """
+    try:
+        data = request.get_json()
+        
+        if not data or 'product_id' not in data:
+            return error_response("Pole product_id jest wymagane", 400)
+            
+        product_id = data['product_id']
+        ilosc = float(data.get('ilosc', 1))
+        
+        # Sprawdź czy transakcja istnieje i jest w trakcie
+        transakcja = execute_query("SELECT status FROM pos_transakcje WHERE id = ?", (transakcja_id,))
+        if not transakcja:
+            return error_response("Transakcja nie została znaleziona", 404)
+            
+        if transakcja[0]['status'] != 'w_trakcie':
+            return error_response("Można dodawać produkty tylko do transakcji w trakcie", 400)
+        
+        # Pobierz informacje o produkcie
+        product = execute_query("""
+            SELECT *, cena_sprzedazy_brutto as aktualna_cena
+            FROM produkty
+            WHERE id = ?
+        """, (product_id,))
+        
+        if not product:
+            return error_response("Produkt nie został znaleziony", 404)
+            
+        product = product[0]
+        
+        # Sprawdź czy pozycja już istnieje w koszyku
+        existing_item = execute_query("""
+            SELECT id, ilosc FROM pos_transakcje_pozycje 
+            WHERE transakcja_id = ? AND product_id = ?
+        """, (transakcja_id, product_id))
+        
+        cena_jednostkowa_brutto = float(product['aktualna_cena'])
+        stawka_vat = float(product.get('stawka_vat', 23))
+        cena_jednostkowa_netto = cena_jednostkowa_brutto / (1 + stawka_vat / 100)
+        
+        if existing_item:
+            # Aktualizuj istniejącą pozycję
+            nowa_ilosc = existing_item[0]['ilosc'] + ilosc
+            wartosc_brutto = nowa_ilosc * cena_jednostkowa_brutto
+            wartosc_netto = nowa_ilosc * cena_jednostkowa_netto
+            wartosc_vat = wartosc_brutto - wartosc_netto
+            
+            query = """
+            UPDATE pos_transakcje_pozycje 
+            SET ilosc = ?, wartosc_netto = ?, wartosc_vat = ?, wartosc_brutto = ?
+            WHERE id = ?
+            """
+            
+            result = execute_query(query, (nowa_ilosc, wartosc_netto, wartosc_vat, wartosc_brutto, existing_item[0]['id']))
+            pozycja_id = existing_item[0]['id']
+        else:
+            # Dodaj nową pozycję
+            wartosc_brutto = ilosc * cena_jednostkowa_brutto
+            wartosc_netto = ilosc * cena_jednostkowa_netto
+            wartosc_vat = wartosc_brutto - wartosc_netto
+            
+            # Pobierz kolejność
+            kolejnosc_query = execute_query("""
+                SELECT COALESCE(MAX(kolejnosc), 0) + 1 as kolejnosc 
+                FROM pos_transakcje_pozycje WHERE transakcja_id = ?
+            """, (transakcja_id,))
+            kolejnosc = kolejnosc_query[0]['kolejnosc'] if kolejnosc_query else 1
+            
+            query = """
+            INSERT INTO pos_transakcje_pozycje (
+                transakcja_id, product_id, ilosc, 
+                cena_jednostkowa_netto, cena_jednostkowa_brutto, stawka_vat,
+                wartosc_netto, wartosc_vat, wartosc_brutto, kolejnosc
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            
+            pozycja_id = execute_insert(query, (
+                transakcja_id, product_id, ilosc,
+                cena_jednostkowa_netto, cena_jednostkowa_brutto, stawka_vat,
+                wartosc_netto, wartosc_vat, wartosc_brutto, kolejnosc
+            ))
+            
+        if pozycja_id:
+            return success_response("Produkt dodany do koszyka", {"pozycja_id": pozycja_id})
+        else:
+            return error_response("Nie udało się dodać produktu do koszyka", 500)
+            
+    except Exception as e:
+        print(f"Błąd add_item_to_cart: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+@pos_bp.route('/pos/cart/<int:transakcja_id>', methods=['GET'])
+def get_cart(transakcja_id):
+    """
+    Pobierz zawartość koszyka z informacjami o rabatach
+    """
+    try:
+        # Pobierz transakcję
+        transakcja = execute_query("""
+            SELECT t.*, 
+                   COALESCE(SUM(ru.kwota_rabatu), 0) as suma_rabatow_obliczona,
+                   COUNT(ru.id) as ilosc_rabatow_obliczona
+            FROM pos_transakcje t
+            LEFT JOIN rabaty_uzycie ru ON t.id = ru.transakcja_id
+            WHERE t.id = ?
+            GROUP BY t.id
+        """, (transakcja_id,))
+        
+        if not transakcja:
+            return error_response("Transakcja nie została znaleziona", 404)
+            
+        transakcja = transakcja[0]
+        
+        # Pobierz pozycje koszyka
+        pozycje = execute_query("""
+            SELECT 
+                tp.*,
+                p.nazwa, p.kod_produktu, p.ean, p.jednostka,
+                pr.nazwa as producent_nazwa
+            FROM pos_transakcje_pozycje tp
+            JOIN products p ON tp.product_id = p.id
+            LEFT JOIN producenci pr ON p.producent_id = pr.id
+            WHERE tp.transakcja_id = ?
+            ORDER BY tp.kolejnosc
+        """, (transakcja_id,))
+        
+        # Pobierz zastosowane rabaty
+        rabaty = execute_query("""
+            SELECT ru.*, r.nazwa as rabat_nazwa, r.typ_rabatu, r.wartosc as rabat_wartosc
+            FROM rabaty_uzycie ru
+            JOIN rabaty r ON ru.rabat_id = r.id
+            WHERE ru.transakcja_id = ?
+            ORDER BY ru.data_zastosowania
+        """, (transakcja_id,))
+        
+        return success_response("Koszyk pobrany", {
+            "transakcja": transakcja,
+            "pozycje": pozycje,
+            "rabaty": rabaty
+        })
+        
+    except Exception as e:
+        print(f"Błąd get_cart: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+@pos_bp.route('/pos/cart/<int:transakcja_id>/items/<int:pozycja_id>', methods=['PUT'])
+def update_cart_item(transakcja_id, pozycja_id):
+    """
+    Aktualizuj pozycję w koszyku (ilość)
+    """
+    try:
+        data = request.get_json()
+        
+        if 'ilosc' not in data:
+            return error_response("Pole ilosc jest wymagane", 400)
+            
+        nowa_ilosc = float(data['ilosc'])
+        
+        if nowa_ilosc <= 0:
+            return error_response("Ilość musi być większa od 0", 400)
+            
+        # Sprawdź czy pozycja istnieje
+        pozycja = execute_query("""
+            SELECT tp.*, p.stawka_vat FROM pos_transakcje_pozycje tp
+            JOIN products p ON tp.product_id = p.id
+            WHERE tp.id = ? AND tp.transakcja_id = ?
+        """, (pozycja_id, transakcja_id))
+        
+        if not pozycja:
+            return error_response("Pozycja nie została znaleziona", 404)
+            
+        pozycja = pozycja[0]
+        
+        # Przelicz wartości
+        cena_jednostkowa_brutto = pozycja['cena_jednostkowa_brutto']
+        wartosc_brutto = nowa_ilosc * cena_jednostkowa_brutto
+        wartosc_netto = nowa_ilosc * pozycja['cena_jednostkowa_netto']
+        wartosc_vat = wartosc_brutto - wartosc_netto
+        
+        query = """
+        UPDATE pos_transakcje_pozycje 
+        SET ilosc = ?, wartosc_netto = ?, wartosc_vat = ?, wartosc_brutto = ?
+        WHERE id = ?
+        """
+        
+        result = execute_query(query, (nowa_ilosc, wartosc_netto, wartosc_vat, wartosc_brutto, pozycja_id))
+        
+        if result is not None:
+            return success_response("Pozycja zaktualizowana")
+        else:
+            return error_response("Nie udało się zaktualizować pozycji", 500)
+            
+    except Exception as e:
+        print(f"Błąd update_cart_item: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+@pos_bp.route('/pos/cart/<int:transakcja_id>/items/<int:pozycja_id>', methods=['DELETE'])
+def remove_cart_item(transakcja_id, pozycja_id):
+    """
+    Usuń pozycję z koszyka
+    """
+    try:
+        # Sprawdź czy pozycja istnieje
+        pozycja = execute_query("""
+            SELECT id FROM pos_transakcje_pozycje 
+            WHERE id = ? AND transakcja_id = ?
+        """, (pozycja_id, transakcja_id))
+        
+        if not pozycja:
+            return error_response("Pozycja nie została znaleziona", 404)
+            
+        result = execute_query("DELETE FROM pos_transakcje_pozycje WHERE id = ?", (pozycja_id,))
+        
+        if result is not None:
+            return success_response("Pozycja usunięta z koszyka")
+        else:
+            return error_response("Nie udało się usunąć pozycji", 500)
+            
+    except Exception as e:
+        print(f"Błąd remove_cart_item: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+@pos_bp.route('/pos/cart/<int:transakcja_id>/discount', methods=['POST'])
+def apply_discount_to_cart(transakcja_id):
+    """
+    Zastosuj rabat do koszyka
+    """
+    try:
+        data = request.get_json()
+        
+        if 'rabat_id' not in data:
+            return error_response("Pole rabat_id jest wymagane", 400)
+            
+        rabat_id = data['rabat_id']
+        user_id = data.get('user_id', 'unknown')
+        
+        # Pobierz aktualną sumę koszyka
+        suma_query = execute_query("""
+            SELECT suma_brutto FROM pos_transakcje WHERE id = ? AND status = 'w_trakcie'
+        """, (transakcja_id,))
+        
+        if not suma_query:
+            return error_response("Transakcja nie została znaleziona lub nie jest w trakcie", 404)
+            
+        kwota_koszyka = float(suma_query[0]['suma_brutto'])
+        
+        if kwota_koszyka <= 0:
+            return error_response("Koszyk jest pusty", 400)
+            
+        # Oblicz rabat
+        calc_response = execute_query("""
+            SELECT 
+                r.*,
+                CASE 
+                    WHEN r.typ_rabatu = 'procentowy' THEN (? * r.wartosc) / 100
+                    ELSE MIN(r.wartosc, ?)
+                END as kwota_rabatu
+            FROM rabaty r
+            WHERE r.id = ? AND r.aktywny = 1
+        """, (kwota_koszyka, kwota_koszyka, rabat_id))
+        
+        if not calc_response:
+            return error_response("Rabat nie został znaleziony lub jest nieaktywny", 404)
+            
+        rabat_info = calc_response[0]
+        
+        # Sprawdź warunki rabatu
+        if kwota_koszyka < rabat_info['minimum_koszyka']:
+            return error_response(f"Minimalna wartość koszyka: {rabat_info['minimum_koszyka']} zł", 400)
+            
+        if rabat_info['maksimum_koszyka'] and kwota_koszyka > rabat_info['maksimum_koszyka']:
+            return error_response(f"Maksymalna wartość koszyka: {rabat_info['maksimum_koszyka']} zł", 400)
+        
+        kwota_rabatu = float(rabat_info['kwota_rabatu'])
+        kwota_po_rabacie = kwota_koszyka - kwota_rabatu
+        
+        # Zapisz użycie rabatu
+        query = """
+        INSERT INTO rabaty_uzycie (
+            rabat_id, transakcja_id, user_id, kwota_przed_rabatem, 
+            kwota_rabatu, kwota_po_rabacie, notatka, ip_address
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        uzycie_id = execute_insert(query, (
+            rabat_id, transakcja_id, user_id, kwota_koszyka,
+            kwota_rabatu, kwota_po_rabacie, 
+            data.get('notatka', ''), request.remote_addr
+        ))
+        
+        # Aktualizuj kolumny rabatowe w transakcji
+        if rabat_info['typ_rabatu'] == 'procentowy':
+            rabat_procent = rabat_info['wartosc']
+        else:
+            rabat_procent = 0
+            
+        update_transaction_query = """
+        UPDATE pos_transakcje 
+        SET rabat_kwota = ?, rabat_procent = ?
+        WHERE id = ?
+        """
+        execute_insert(update_transaction_query, (kwota_rabatu, rabat_procent, transakcja_id))
+        
+        if uzycie_id:
+            return success_response("Rabat zastosowany do koszyka", {
+                "uzycie_id": uzycie_id,
+                "kwota_rabatu": kwota_rabatu,
+                "kwota_po_rabacie": kwota_po_rabacie,
+                "rabat_nazwa": rabat_info['nazwa']
+            })
+        else:
+            return error_response("Nie udało się zastosować rabatu", 500)
+            
+    except Exception as e:
+        print(f"Błąd apply_discount_to_cart: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+@pos_bp.route('/pos/cart/<int:transakcja_id>/complete', methods=['POST'])
+def complete_cart_transaction(transakcja_id):
+    """
+    Zakończ transakcję (finalizuj sprzedaż)
+    """
+    try:
+        data = request.get_json() or {}
+        
+        # Sprawdź czy transakcja istnieje i jest w trakcie
+        transakcja = execute_query("""
+            SELECT * FROM pos_transakcje WHERE id = ? AND status = 'w_trakcie'
+        """, (transakcja_id,))
+        
+        if not transakcja:
+            return error_response("Transakcja nie została znaleziona lub nie jest w trakcie", 404)
+            
+        transakcja = transakcja[0]
+        
+        # Sprawdź czy są pozycje w koszyku
+        pozycje_count = execute_query("""
+            SELECT COUNT(*) as count FROM pos_transakcje_pozycje WHERE transakcja_id = ?
+        """, (transakcja_id,))
+        
+        if not pozycje_count or pozycje_count[0]['count'] == 0:
+            return error_response("Nie można finalizować pustego koszyka", 400)
+            
+        # Aktualizuj dane płatności
+        metoda_platnosci = data.get('metoda_platnosci', 'gotowka')
+        kwota_otrzymana = data.get('kwota_otrzymana')
+        notatka = data.get('notatka', '')
+        
+        # Oblicz resztę
+        kwota_reszty = 0
+        if kwota_otrzymana and metoda_platnosci == 'gotowka':
+            # Oblicz finalną kwotę po rabacie
+            rabat_kwota = transakcja.get('rabat_kwota', 0) or 0
+            final_amount = transakcja['suma_brutto'] - rabat_kwota
+            kwota_reszty = max(0, float(kwota_otrzymana) - final_amount)
+        
+        # Wygeneruj numer paragonu jeśli nie istnieje
+        numer_paragonu = transakcja.get('numer_paragonu')
+        if not numer_paragonu:
+            numer_paragonu = generate_document_number('paragon', 'M001')
+            if not numer_paragonu:
+                print("⚠️ Nie udało się wygenerować numeru paragonu, używam domyślnego")
+                numer_paragonu = f"PA-{transakcja_id}-{datetime.now().strftime('%m-%Y')}-M001"
+        
+        # Zaktualizuj transakcję
+        update_query = """
+        UPDATE pos_transakcje 
+        SET status = 'zakonczony',
+            forma_platnosci = ?,
+            kwota_otrzymana = ?,
+            kwota_reszty = ?,
+            uwagi = ?,
+            numer_paragonu = ?
+        WHERE id = ?
+        """
+        
+        result = execute_insert(update_query, (
+            metoda_platnosci, kwota_otrzymana, kwota_reszty, notatka, numer_paragonu, transakcja_id
+        ))
+        
+        if result is not None:
+            # Dodaj operację do kasa_operacje
+            try:
+                payment_type_mapping = {
+                    'cash': 'gotowka',
+                    'card': 'karta', 
+                    'transfer': 'przelew',
+                    'blik': 'blik',
+                    'gotowka': 'gotowka',
+                    'karta': 'karta',
+                    'przelew': 'przelew'
+                }
+                typ_platnosci = payment_type_mapping.get(metoda_platnosci, 'gotowka')
+                
+                kasa_operacja_sql = """
+                INSERT INTO kasa_operacje 
+                (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
+                 numer_dokumentu, data_operacji, utworzyl)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                
+                opis = f"Sprzedaż - transakcja #{transakcja_id}"
+                
+                # Użyj kwoty otrzymanej jako kwotę końcową (po rabacie)
+                final_amount = kwota_otrzymana
+                
+                print(f"DEBUG kasa_operacje (cart): metoda_platnosci={metoda_platnosci}, typ_platnosci={typ_platnosci}, final_amount={final_amount}")
+                
+                execute_insert(kasa_operacja_sql, (
+                    'KP',  # Kasa Przyjmie
+                    typ_platnosci,
+                    final_amount,  # Używaj kwoty otrzymanej (po rabacie)
+                    opis,
+                    'sprzedaz',
+                    f"TRANS-{transakcja_id}",
+                    datetime.now().date().isoformat(),
+                    'system'
+                ))
+            except Exception as e:
+                # Loguj błąd ale nie przerywaj procesu
+                print(f"Błąd dodawania operacji kasa/bank: {str(e)}")
+                pass
+            
+            return success_response("Transakcja zakończona pomyślnie", {
+                "transakcja_id": transakcja_id,
+                "numer_transakcji": transakcja['numer_transakcji'],
+                "numer_paragonu": numer_paragonu,
+                "suma_brutto": transakcja['suma_brutto'],
+                "rabat_kwota": transakcja['rabat_kwota'],
+                "kwota_otrzymana": kwota_otrzymana,
+                "kwota_reszty": kwota_reszty
+            })
+        else:
+            return error_response("Nie udało się zakończyć transakcji", 500)
+            
+    except Exception as e:
+        print(f"Błąd complete_transaction: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)

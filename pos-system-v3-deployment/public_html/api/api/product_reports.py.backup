@@ -1,0 +1,522 @@
+"""
+API endpoint dla raportów produktowych w systemie POS
+Raporty rotacji produktów, bestsellery, estymacje sprzedaży
+"""
+
+from flask import Blueprint, request, jsonify
+from utils.database import execute_query, success_response, error_response
+from datetime import datetime, timedelta
+import math
+
+product_reports_bp = Blueprint('product_reports', __name__)
+
+@product_reports_bp.route('/reports/products/rotation/highest', methods=['GET'])
+def get_highest_rotation_products():
+    """
+    Najbardziej rotujące produkty (najczęściej sprzedawane)
+    Parametry: limit (default=10), days (default=30), location_id
+    """
+    try:
+        limit = int(request.args.get('limit', 10))
+        days = int(request.args.get('days', 30))
+        location_id = request.args.get('location_id')
+        
+        # Podstawowe zapytanie
+        query = """
+        SELECT 
+            p.id,
+            p.nazwa,
+            p.kod_produktu,
+            p.ean,
+            p.cena_sprzedazy_brutto,
+            pr.nazwa as producent_nazwa,
+            k.nazwa as kategoria_nazwa,
+            SUM(pp.ilosc) as total_quantity_sold,
+            COUNT(DISTINCT pt.id) as transactions_count,
+            AVG(pp.cena_jednostkowa) as avg_price,
+            SUM(pp.wartosc_brutto) as total_revenue,
+            SUM(pp.ilosc) / ? as avg_daily_sales,
+            (SUM(pp.ilosc) * 100.0 / total_sales.total) as percentage_of_total_sales
+        FROM pos_pozycje pp
+        JOIN produkty p ON pp.produkt_id = p.id
+        JOIN pos_transakcje pt ON pp.transakcja_id = pt.id
+        LEFT JOIN producenci pr ON p.producent_id = pr.id
+        LEFT JOIN kategorie_produktow k ON p.kategoria_id = k.id
+        CROSS JOIN (
+            SELECT SUM(ilosc) as total
+            FROM pos_pozycje pp2
+            JOIN pos_transakcje pt2 ON pp2.transakcja_id = pt2.id
+            WHERE pt2.status = 'zakonczony'
+            AND pt2.data_transakcji >= date('now', '-{} days')
+        ) total_sales
+        WHERE pt.status = 'zakonczony'
+        AND pt.data_transakcji >= date('now', '-{} days')
+        """.format(days, days)
+        
+        params = [days]
+        
+        if location_id:
+            query += " AND pt.location_id = ?"
+            params.append(location_id)
+            
+        query += """
+        GROUP BY p.id, p.nazwa, p.kod_produktu, p.ean, p.cena_sprzedazy_brutto, 
+                 pr.nazwa, k.nazwa, total_sales.total
+        ORDER BY total_quantity_sold DESC
+        LIMIT ?
+        """
+        params.append(limit)
+        
+        results = execute_query(query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        # Dodaj ranking
+        for i, product in enumerate(results):
+            product['ranking'] = i + 1
+            product['rotation_index'] = round(product['avg_daily_sales'], 2)
+            
+        return success_response(results, f"Najbardziej rotujące produkty (top {limit})")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania raportów rotacji: {str(e)}", 500)
+
+@product_reports_bp.route('/reports/products/rotation/lowest', methods=['GET'])
+def get_lowest_rotation_products():
+    """
+    Najmniej rotujące produkty (najrzadziej sprzedawane)
+    Parametry: limit (default=10), days (default=30), location_id
+    """
+    try:
+        limit = int(request.args.get('limit', 10))
+        days = int(request.args.get('days', 30))
+        location_id = request.args.get('location_id')
+        
+        # Zapytanie dla produktów z bardzo niską sprzedażą lub brakiem sprzedaży
+        query = """
+        SELECT 
+            p.id,
+            p.nazwa,
+            p.kod_produktu,
+            p.ean,
+            p.cena_sprzedazy_brutto,
+            pr.nazwa as producent_nazwa,
+            k.nazwa as kategoria_nazwa,
+            COALESCE(sales_data.total_quantity_sold, 0) as total_quantity_sold,
+            COALESCE(sales_data.transactions_count, 0) as transactions_count,
+            COALESCE(sales_data.avg_price, p.cena_sprzedazy_brutto) as avg_price,
+            COALESCE(sales_data.total_revenue, 0) as total_revenue,
+            COALESCE(sales_data.total_quantity_sold, 0) / ? as avg_daily_sales,
+            p.stan_magazynowy,
+            p.data_ostatniej_sprzedazy,
+            CASE 
+                WHEN sales_data.total_quantity_sold IS NULL THEN 0
+                ELSE (sales_data.total_quantity_sold * 100.0 / NULLIF(total_sales.total, 0))
+            END as percentage_of_total_sales
+        FROM produkty p
+        LEFT JOIN producenci pr ON p.producent_id = pr.id
+        LEFT JOIN kategorie_produktow k ON p.kategoria_id = k.id
+        LEFT JOIN (
+            SELECT 
+                pp.produkt_id,
+                SUM(pp.ilosc) as total_quantity_sold,
+                COUNT(DISTINCT pt.id) as transactions_count,
+                AVG(pp.cena_jednostkowa) as avg_price,
+                SUM(pp.wartosc_brutto) as total_revenue
+            FROM pos_pozycje pp
+            JOIN pos_transakcje pt ON pp.transakcja_id = pt.id
+            WHERE pt.status = 'zakonczony'
+            AND pt.data_transakcji >= date('now', '-{} days')
+            {} 
+            GROUP BY pp.produkt_id
+        ) sales_data ON p.id = sales_data.produkt_id
+        CROSS JOIN (
+            SELECT COALESCE(SUM(ilosc), 1) as total
+            FROM pos_pozycje pp2
+            JOIN pos_transakcje pt2 ON pp2.transakcja_id = pt2.id
+            WHERE pt2.status = 'zakonczony'
+            AND pt2.data_transakcji >= date('now', '-{} days')
+        ) total_sales
+        WHERE p.aktywny = 1
+        """.format(days, 
+                  "AND pt.location_id = ?" if location_id else "", 
+                  days)
+        
+        params = [days]
+        if location_id:
+            params.append(location_id)
+            
+        query += """
+        ORDER BY COALESCE(sales_data.total_quantity_sold, 0) ASC,
+                 p.data_ostatniej_sprzedazy ASC NULLS FIRST
+        LIMIT ?
+        """
+        params.append(limit)
+        
+        results = execute_query(query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        # Dodaj ranking i oznaczenia
+        for i, product in enumerate(results):
+            product['ranking'] = i + 1
+            product['rotation_index'] = round(product['avg_daily_sales'], 2)
+            
+            # Oznaczenia problemów
+            if product['total_quantity_sold'] == 0:
+                product['issue'] = 'Brak sprzedaży'
+            elif product['avg_daily_sales'] < 0.1:
+                product['issue'] = 'Bardzo niska rotacja'
+            elif product['stan_magazynowy'] > product['avg_daily_sales'] * 90:
+                product['issue'] = 'Nadmierny stan magazynowy'
+            else:
+                product['issue'] = 'Niska rotacja'
+                
+        return success_response(results, f"Najmniej rotujące produkty (top {limit})")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania raportów rotacji: {str(e)}", 500)
+
+@product_reports_bp.route('/reports/products/bestsellers', methods=['GET'])
+def get_bestselling_products():
+    """
+    Top najlepiej sprzedających się produktów
+    Parametry: limit (default=10), days (default=30), metric (quantity|revenue), location_id
+    """
+    try:
+        limit = int(request.args.get('limit', 10))
+        days = int(request.args.get('days', 30))
+        metric = request.args.get('metric', 'quantity')  # quantity, revenue
+        location_id = request.args.get('location_id')
+        
+        # Wybierz metrykę sortowania
+        if metric == 'revenue':
+            order_by = "total_revenue DESC"
+            metric_label = "przychodu"
+        else:
+            order_by = "total_quantity_sold DESC"
+            metric_label = "ilości"
+            
+        query = """
+        SELECT 
+            p.id,
+            p.nazwa,
+            p.kod_produktu,
+            p.ean,
+            p.cena_sprzedazy_brutto,
+            pr.nazwa as producent_nazwa,
+            k.nazwa as kategoria_nazwa,
+            SUM(pp.ilosc) as total_quantity_sold,
+            COUNT(DISTINCT pt.id) as transactions_count,
+            COUNT(DISTINCT pt.kasjer_login) as unique_cashiers,
+            AVG(pp.cena_jednostkowa) as avg_price,
+            MIN(pp.cena_jednostkowa) as min_price,
+            MAX(pp.cena_jednostkowa) as max_price,
+            SUM(pp.wartosc_brutto) as total_revenue,
+            SUM(pp.wartosc_netto) as total_net_revenue,
+            SUM(pp.kwota_vat) as total_vat,
+            SUM(pp.ilosc) / ? as avg_daily_sales,
+            SUM(pp.wartosc_brutto) / ? as avg_daily_revenue,
+            (SUM(pp.ilosc) * 100.0 / total_sales.total_qty) as percentage_of_total_quantity,
+            (SUM(pp.wartosc_brutto) * 100.0 / total_sales.total_rev) as percentage_of_total_revenue
+        FROM pos_pozycje pp
+        JOIN produkty p ON pp.produkt_id = p.id
+        JOIN pos_transakcje pt ON pp.transakcja_id = pt.id
+        LEFT JOIN producenci pr ON p.producent_id = pr.id
+        LEFT JOIN kategorie_produktow k ON p.kategoria_id = k.id
+        CROSS JOIN (
+            SELECT 
+                SUM(pp2.ilosc) as total_qty,
+                SUM(pp2.wartosc_brutto) as total_rev
+            FROM pos_pozycje pp2
+            JOIN pos_transakcje pt2 ON pp2.transakcja_id = pt2.id
+            WHERE pt2.status = 'zakonczony'
+            AND pt2.data_transakcji >= date('now', '-{} days')
+        ) total_sales
+        WHERE pt.status = 'zakonczony'
+        AND pt.data_transakcji >= date('now', '-{} days')
+        """.format(days, days)
+        
+        params = [days, days]
+        
+        if location_id:
+            query += " AND pt.location_id = ?"
+            params.append(location_id)
+            
+        query += f"""
+        GROUP BY p.id, p.nazwa, p.kod_produktu, p.ean, p.cena_sprzedazy_brutto, 
+                 pr.nazwa, k.nazwa, total_sales.total_qty, total_sales.total_rev
+        ORDER BY {order_by}
+        LIMIT ?
+        """
+        params.append(limit)
+        
+        results = execute_query(query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        # Dodaj ranking i dodatkowe metryki
+        for i, product in enumerate(results):
+            product['ranking'] = i + 1
+            product['profit_margin'] = round(((product['avg_price'] - (product['avg_price'] * 0.77)) / product['avg_price']) * 100, 2) # Zakładając 23% VAT
+            
+            # Trend ocena (uproszczona)
+            if product['avg_daily_sales'] > 1:
+                product['trend'] = 'Wysoka'
+            elif product['avg_daily_sales'] > 0.5:
+                product['trend'] = 'Średnia'
+            else:
+                product['trend'] = 'Niska'
+                
+        return success_response({
+            'products': results,
+            'metric': metric,
+            'metric_label': metric_label,
+            'period_days': days
+        }, f"Top {limit} produktów według {metric_label}")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania bestsellerów: {str(e)}", 500)
+
+@product_reports_bp.route('/reports/products/forecast', methods=['GET'])
+def get_sales_forecast():
+    """
+    Estymacja sprzedaży produktów na przyszły miesiąc
+    Parametry: product_id (opcjonalnie), location_id, forecast_days (default=30)
+    """
+    try:
+        product_id = request.args.get('product_id')
+        location_id = request.args.get('location_id')
+        forecast_days = int(request.args.get('forecast_days', 30))
+        
+        # Okres analizy historycznej (domyślnie 90 dni)
+        analysis_days = int(request.args.get('analysis_days', 90))
+        
+        base_query = """
+        SELECT 
+            p.id,
+            p.nazwa,
+            p.kod_produktu,
+            p.ean,
+            p.cena_sprzedazy_brutto,
+            pr.nazwa as producent_nazwa,
+            k.nazwa as kategoria_nazwa,
+            p.stan_magazynowy as current_stock,
+            historical_sales.avg_daily_sales,
+            historical_sales.total_quantity_sold,
+            historical_sales.sales_trend,
+            historical_sales.sales_variance,
+            historical_sales.last_30_days_avg,
+            historical_sales.last_7_days_avg,
+            historical_sales.seasonality_factor
+        FROM produkty p
+        LEFT JOIN producenci pr ON p.producent_id = pr.id
+        LEFT JOIN kategorie_produktow k ON p.kategoria_id = k.id
+        JOIN (
+            SELECT 
+                pp.produkt_id,
+                AVG(daily_sales.daily_qty) as avg_daily_sales,
+                SUM(pp.ilosc) as total_quantity_sold,
+                COUNT(DISTINCT DATE(pt.data_transakcji)) as active_days,
+                
+                -- Trend (porównanie ostatnich 30 dni z poprzednimi 30 dniami)
+                CASE 
+                    WHEN AVG(CASE WHEN pt.data_transakcji >= date('now', '-30 days') THEN pp.ilosc END) > 
+                         AVG(CASE WHEN pt.data_transakcji BETWEEN date('now', '-60 days') AND date('now', '-30 days') THEN pp.ilosc END)
+                    THEN 'wzrostowy'
+                    WHEN AVG(CASE WHEN pt.data_transakcji >= date('now', '-30 days') THEN pp.ilosc END) < 
+                         AVG(CASE WHEN pt.data_transakcji BETWEEN date('now', '-60 days') AND date('now', '-30 days') THEN pp.ilosc END)
+                    THEN 'spadkowy'
+                    ELSE 'stabilny'
+                END as sales_trend,
+                
+                -- Wariancja sprzedaży
+                (MAX(daily_sales.daily_qty) - MIN(daily_sales.daily_qty)) as sales_variance,
+                
+                -- Średnia z ostatnich 30 dni
+                AVG(CASE WHEN pt.data_transakcji >= date('now', '-30 days') THEN pp.ilosc END) as last_30_days_avg,
+                
+                -- Średnia z ostatnich 7 dni
+                AVG(CASE WHEN pt.data_transakcji >= date('now', '-7 days') THEN pp.ilosc END) as last_7_days_avg,
+                
+                -- Współczynnik sezonowości (uproszczony)
+                1.0 as seasonality_factor
+                
+            FROM pos_pozycje pp
+            JOIN pos_transakcje pt ON pp.transakcja_id = pt.id
+            LEFT JOIN (
+                SELECT 
+                    DATE(pt2.data_transakcji) as sale_date,
+                    pp2.produkt_id,
+                    SUM(pp2.ilosc) as daily_qty
+                FROM pos_pozycje pp2
+                JOIN pos_transakcje pt2 ON pp2.transakcja_id = pt2.id
+                WHERE pt2.status = 'zakonczony'
+                AND pt2.data_transakcji >= date('now', '-{} days')
+                GROUP BY DATE(pt2.data_transakcji), pp2.produkt_id
+            ) daily_sales ON pp.produkt_id = daily_sales.produkt_id
+            WHERE pt.status = 'zakonczony'
+            AND pt.data_transakcji >= date('now', '-{} days')
+        """.format(analysis_days, analysis_days)
+        
+        params = []
+        
+        if location_id:
+            base_query += " AND pt.location_id = ?"
+            params.append(location_id)
+            
+        base_query += """
+            GROUP BY pp.produkt_id
+            HAVING total_quantity_sold > 0
+        ) historical_sales ON p.id = historical_sales.produkt_id
+        WHERE p.aktywny = 1
+        """
+        
+        if product_id:
+            base_query += " AND p.id = ?"
+            params.append(product_id)
+            
+        base_query += """
+        ORDER BY historical_sales.avg_daily_sales DESC
+        LIMIT 50
+        """
+        
+        results = execute_query(base_query, params)
+        
+        if results is None:
+            return error_response("Błąd połączenia z bazą danych", 500)
+            
+        # Oblicz prognozy dla każdego produktu
+        forecasts = []
+        for product in results:
+            # Algorytm prognozowania (uproszczony)
+            base_forecast = product['avg_daily_sales'] or 0
+            
+            # Uwzględnij trend
+            trend_multiplier = 1.0
+            if product['sales_trend'] == 'wzrostowy':
+                trend_multiplier = 1.1
+            elif product['sales_trend'] == 'spadkowy':
+                trend_multiplier = 0.9
+                
+            # Uwzględnij ostatnie dni (większa waga)
+            if product['last_7_days_avg']:
+                recent_weight = 0.4
+                historical_weight = 0.6
+                weighted_avg = (product['last_7_days_avg'] * recent_weight + 
+                              base_forecast * historical_weight)
+            else:
+                weighted_avg = base_forecast
+                
+            # Oblicz prognozę
+            daily_forecast = weighted_avg * trend_multiplier * product['seasonality_factor']
+            total_forecast = daily_forecast * forecast_days
+            
+            # Oblicz zapotrzebowanie na magazyn
+            safety_stock = max(daily_forecast * 7, product['sales_variance'] or 0)  # 7 dni bezpieczeństwa
+            recommended_stock = total_forecast + safety_stock
+            
+            # Sprawdź czy wystarcza aktualny stan
+            stock_sufficiency = product['current_stock'] - total_forecast
+            
+            forecast_data = {
+                'product_id': product['id'],
+                'product_name': product['nazwa'],
+                'product_code': product['kod_produktu'],
+                'manufacturer': product['producent_nazwa'],
+                'category': product['kategoria_nazwa'],
+                'current_price': product['cena_sprzedazy_brutto'],
+                'current_stock': product['current_stock'],
+                'historical_data': {
+                    'avg_daily_sales': round(product['avg_daily_sales'] or 0, 2),
+                    'total_sales_period': product['total_quantity_sold'],
+                    'sales_trend': product['sales_trend'],
+                    'last_30_days_avg': round(product['last_30_days_avg'] or 0, 2),
+                    'last_7_days_avg': round(product['last_7_days_avg'] or 0, 2)
+                },
+                'forecast': {
+                    'period_days': forecast_days,
+                    'daily_forecast': round(daily_forecast, 2),
+                    'total_forecast': round(total_forecast, 2),
+                    'confidence_level': 'średni' if product['sales_variance'] < 5 else 'niski',
+                    'trend_factor': trend_multiplier
+                },
+                'inventory_recommendations': {
+                    'safety_stock': round(safety_stock, 2),
+                    'recommended_stock': round(recommended_stock, 2),
+                    'stock_sufficiency': round(stock_sufficiency, 2),
+                    'reorder_needed': stock_sufficiency < 0,
+                    'suggested_order_quantity': max(0, round(recommended_stock - product['current_stock'], 2))
+                },
+                'revenue_forecast': {
+                    'estimated_revenue': round(total_forecast * product['cena_sprzedazy_brutto'], 2),
+                    'daily_revenue': round(daily_forecast * product['cena_sprzedazy_brutto'], 2)
+                }
+            }
+            
+            forecasts.append(forecast_data)
+            
+        return success_response({
+            'forecasts': forecasts,
+            'analysis_period': analysis_days,
+            'forecast_period': forecast_days,
+            'generated_at': datetime.now().isoformat(),
+            'total_products': len(forecasts)
+        }, f"Prognoza sprzedaży na {forecast_days} dni")
+        
+    except Exception as e:
+        return error_response(f"Błąd generowania prognozy: {str(e)}", 500)
+
+@product_reports_bp.route('/reports/products/summary', methods=['GET'])
+def get_products_summary_report():
+    """
+    Raport podsumowujący wszystkie metryki produktowe
+    """
+    try:
+        days = int(request.args.get('days', 30))
+        location_id = request.args.get('location_id')
+        
+        # Ogólne statystyki
+        stats_query = """
+        SELECT 
+            COUNT(DISTINCT p.id) as total_products,
+            COUNT(DISTINCT CASE WHEN sales.total_qty > 0 THEN p.id END) as products_with_sales,
+            COUNT(DISTINCT CASE WHEN sales.total_qty = 0 OR sales.total_qty IS NULL THEN p.id END) as products_without_sales,
+            SUM(CASE WHEN p.stan_magazynowy > 0 THEN 1 ELSE 0 END) as products_in_stock,
+            SUM(p.stan_magazynowy) as total_stock_quantity,
+            AVG(p.cena_sprzedazy_brutto) as avg_product_price,
+            COALESCE(SUM(sales.total_qty), 0) as total_quantity_sold,
+            COALESCE(SUM(sales.total_revenue), 0) as total_revenue
+        FROM produkty p
+        LEFT JOIN (
+            SELECT 
+                pp.produkt_id,
+                SUM(pp.ilosc) as total_qty,
+                SUM(pp.wartosc_brutto) as total_revenue
+            FROM pos_pozycje pp
+            JOIN pos_transakcje pt ON pp.transakcja_id = pt.id
+            WHERE pt.status = 'zakonczony'
+            AND pt.data_transakcji >= date('now', '-{} days')
+            {} 
+            GROUP BY pp.produkt_id
+        ) sales ON p.id = sales.produkt_id
+        WHERE p.aktywny = 1
+        """.format(days, "AND pt.location_id = ?" if location_id else "")
+        
+        params = []
+        if location_id:
+            params.append(location_id)
+            
+        summary_stats = execute_query(stats_query, params)
+        
+        return success_response({
+            'summary': summary_stats[0] if summary_stats else {},
+            'period_days': days,
+            'generated_at': datetime.now().isoformat()
+        }, "Podsumowanie raportów produktowych")
+        
+    except Exception as e:
+        return error_response(f"Błąd generowania podsumowania: {str(e)}", 500)

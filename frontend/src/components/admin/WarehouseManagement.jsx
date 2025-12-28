@@ -43,7 +43,7 @@ const WarehouseManagement = () => {
   
   const [employeeForm, setEmployeeForm] = useState({
     warehouse_id: '',
-    user_id: '',
+    user_login: '',
     rola: 'pracownik',
     uprawnienia: ''
   });
@@ -57,14 +57,33 @@ const WarehouseManagement = () => {
     try {
       const [warehousesRes, usersRes, locationsRes] = await Promise.all([
         multiWarehouseService.getWarehouses(),
-        // Używamy bezpośrednio fetch tak jak w AdminPage
-        fetch('http://localhost:5002/api/admin/users'),
-        // Pobierz lokalizacje
-        fetch('http://localhost:5002/api/locations/')
+        fetch('http://localhost:8000/api/admin/users'),
+        fetch('http://localhost:8000/api/locations/')
       ]);
 
       if (warehousesRes.success) {
-        setWarehouses(warehousesRes.data || []);
+        const warehouses = warehousesRes.data || [];
+        setWarehouses(warehouses);
+        
+        // Utwórz listę wszystkich przypisanych pracowników
+        const allEmployees = [];
+        warehouses.forEach(warehouse => {
+          if (warehouse.assigned_users) {
+            warehouse.assigned_users.forEach(assignment => {
+              allEmployees.push({
+                id: `${warehouse.id}-${assignment.user_login}`,
+                login: assignment.user_login,
+                rola: assignment.rola,
+                warehouseId: warehouse.id,
+                warehouseName: warehouse.nazwa,
+                data_od: assignment.data_od,
+                data_do: assignment.data_do,
+                aktywny: assignment.aktywny
+              });
+            });
+          }
+        });
+        setEmployees(allEmployees);
       }
 
       if (usersRes.ok) {
@@ -74,7 +93,7 @@ const WarehouseManagement = () => {
 
       if (locationsRes.ok) {
         const locationsData = await locationsRes.json();
-        setLocations(locationsData.data || []);
+        setLocations(locationsData.data?.locations || []);
       }
     } catch (err) {
       setError('Błąd podczas ładowania danych');
@@ -122,7 +141,7 @@ const WarehouseManagement = () => {
     try {
       const result = await multiWarehouseService.assignEmployee(
         employeeForm.warehouse_id,
-        employeeForm.user_id,
+        employeeForm.user_login,
         employeeForm.rola,
         employeeForm.uprawnienia
       );
@@ -216,7 +235,7 @@ const WarehouseManagement = () => {
   const resetEmployeeForm = () => {
     setEmployeeForm({
       warehouse_id: '',
-      user_id: '',
+      user_login: '',
       rola: 'pracownik',
       uprawnienia: ''
     });
@@ -488,8 +507,13 @@ const WarehouseManagement = () => {
                               fontSize: '0.75rem',
                               fontWeight: '500'
                             }}>
-                              {warehouse.liczba_pracownikow || 0}
+                              {warehouse.assigned_users ? warehouse.assigned_users.length : 0}
                             </span>
+                            {warehouse.assigned_users && warehouse.assigned_users.length > 0 && (
+                              <div style={{ marginTop: '0.25rem', fontSize: '0.75rem', color: '#6c757d' }}>
+                                {warehouse.assigned_users.map(user => user.user_login).join(', ')}
+                              </div>
+                            )}
                           </td>
                           <td style={{ padding: '0.75rem' }}>
                             <span style={{
@@ -1047,12 +1071,12 @@ const WarehouseManagement = () => {
                     outline: 'none',
                     backgroundColor: 'white'
                   }}
-                  value={employeeForm.user_id}
-                  onChange={(e) => setEmployeeForm({...employeeForm, user_id: e.target.value})}
+                  value={employeeForm.user_login}
+                  onChange={(e) => setEmployeeForm({...employeeForm, user_login: e.target.value})}
                 >
                   <option value="">Wybierz użytkownika</option>
                   {users.map(user => (
-                    <option key={user.id} value={user.id}>
+                    <option key={user.id} value={user.login}>
                       {user.login} ({user.role})
                     </option>
                   ))}

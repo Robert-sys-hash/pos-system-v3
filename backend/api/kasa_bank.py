@@ -21,12 +21,13 @@ class KasaBankManager:
         """Połączenie z bazą danych"""
         return get_db_connection()
     
-    def get_saldo(self):
-        """Pobierz aktualne salda kont"""
+    def get_saldo(self, location_id=None):
+        """Pobierz aktualne salda kont z filtrowaniem według lokalizacji"""
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
+            
+            query = """
                 SELECT 
                     typ_platnosci,
                     SUM(CASE 
@@ -35,9 +36,17 @@ class KasaBankManager:
                         ELSE 0 
                     END) as saldo
                 FROM kasa_operacje 
-                GROUP BY typ_platnosci
-                ORDER BY typ_platnosci
-            """)
+                WHERE 1=1
+            """
+            
+            params = []
+            if location_id:
+                query += " AND location_id = ?"
+                params.append(location_id)
+                
+            query += " GROUP BY typ_platnosci ORDER BY typ_platnosci"
+            
+            cursor.execute(query, params)
             
             salda = cursor.fetchall()
             result = {}
@@ -117,8 +126,8 @@ class KasaBankManager:
             cursor.execute("""
                 INSERT INTO kasa_operacje 
                 (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
-                 numer_dokumentu, kontrahent, data_operacji, utworzyl, uwagi)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 numer_dokumentu, kontrahent, data_operacji, utworzyl, uwagi, location_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data.get('typ_operacji', 'KP'),
                 data.get('typ_platnosci', 'gotowka'),
@@ -129,7 +138,8 @@ class KasaBankManager:
                 data.get('kontrahent', ''),
                 data.get('data_operacji', datetime.now().date().isoformat()),
                 data.get('utworzyl', 'admin'),
-                data.get('uwagi', '')
+                data.get('uwagi', ''),
+                data.get('location_id')
             ))
             
             operacja_id = cursor.lastrowid
@@ -187,7 +197,7 @@ class KasaBankManager:
             'inne'
         ]
     
-    def get_daily_summary(self, target_date=None):
+    def get_daily_summary(self, target_date=None, location_id=None):
         """Podsumowanie dzienne operacji"""
         if not target_date:
             target_date = date.today().isoformat()
@@ -197,15 +207,26 @@ class KasaBankManager:
             cursor = conn.cursor()
             
             # Wpływy i wydatki dzienne
-            cursor.execute("""
-                SELECT 
-                    typ_platnosci,
-                    typ_operacji,
-                    SUM(kwota) as suma
-                FROM kasa_operacje 
-                WHERE date(data_operacji) = ? 
-                GROUP BY typ_platnosci, typ_operacji
-            """, (target_date,))
+            if location_id:
+                cursor.execute("""
+                    SELECT 
+                        typ_platnosci,
+                        typ_operacji,
+                        SUM(kwota) as suma
+                    FROM kasa_operacje 
+                    WHERE date(data_operacji) = ? AND location_id = ?
+                    GROUP BY typ_platnosci, typ_operacji
+                """, (target_date, location_id))
+            else:
+                cursor.execute("""
+                    SELECT 
+                        typ_platnosci,
+                        typ_operacji,
+                        SUM(kwota) as suma
+                    FROM kasa_operacje 
+                    WHERE date(data_operacji) = ? 
+                    GROUP BY typ_platnosci, typ_operacji
+                """, (target_date,))
             
             summary = cursor.fetchall()
             
@@ -236,7 +257,7 @@ class KasaBankManager:
         finally:
             conn.close()
     
-    def get_monthly_stats(self, year=None, month=None):
+    def get_monthly_stats(self, year=None, month=None, location_id=None):
         """Statystyki miesięczne"""
         if not year:
             year = date.today().year
@@ -248,19 +269,52 @@ class KasaBankManager:
             cursor = conn.cursor()
             
             # Statystyki miesięczne
-            cursor.execute("""
-                SELECT 
-                    strftime('%d', data_operacji) as day,
-                    typ_operacji,
-                    SUM(kwota) as suma
-                FROM kasa_operacje 
-                WHERE strftime('%Y', data_operacji) = ? 
-                AND strftime('%m', data_operacji) = ?
-                GROUP BY strftime('%d', data_operacji), typ_operacji
-                ORDER BY day
-            """, (str(year), str(month).zfill(2)))
+            if location_id:
+                cursor.execute("""
+                    SELECT 
+                        strftime('%d', data_operacji) as day,
+                        typ_operacji,
+                        SUM(kwota) as suma
+                    FROM kasa_operacje 
+                    WHERE strftime('%Y', data_operacji) = ? 
+                    AND strftime('%m', data_operacji) = ?
+                    AND location_id = ?
+                    GROUP BY strftime('%d', data_operacji), typ_operacji
+                    ORDER BY day
+                """, (str(year), str(month).zfill(2), location_id))
+            else:
+                cursor.execute("""
+                    SELECT 
+                        strftime('%d', data_operacji) as day,
+                        typ_operacji,
+                        SUM(kwota) as suma
+                    FROM kasa_operacje 
+                    WHERE strftime('%Y', data_operacji) = ? 
+                    AND strftime('%m', data_operacji) = ?
+                    GROUP BY strftime('%d', data_operacji), typ_operacji
+                    ORDER BY day
+                """, (str(year), str(month).zfill(2)))
             
             monthly_data = cursor.fetchall()
+            
+            # Dodatkowe zapytanie dla liczby transakcji
+            if location_id:
+                cursor.execute("""
+                    SELECT COUNT(*) as total_transactions
+                    FROM kasa_operacje 
+                    WHERE strftime('%Y', data_operacji) = ? 
+                    AND strftime('%m', data_operacji) = ?
+                    AND location_id = ?
+                """, (str(year), str(month).zfill(2), location_id))
+            else:
+                cursor.execute("""
+                    SELECT COUNT(*) as total_transactions
+                    FROM kasa_operacje 
+                    WHERE strftime('%Y', data_operacji) = ? 
+                    AND strftime('%m', data_operacji) = ?
+                """, (str(year), str(month).zfill(2)))
+            
+            transaction_count = cursor.fetchone()['total_transactions']
             
             # Organizuj dane
             result = {
@@ -268,7 +322,8 @@ class KasaBankManager:
                 'month': month,
                 'daily_data': {},
                 'total_income': 0,
-                'total_expense': 0
+                'total_expense': 0,
+                'total_transactions': transaction_count
             }
             
             for row in monthly_data:
@@ -357,7 +412,7 @@ class KasaBankManager:
         finally:
             conn.close()
     
-    def get_kp_documents(self, limit=50, offset=0, date_from=None, date_to=None):
+    def get_kp_documents(self, limit=50, offset=0, date_from=None, date_to=None, location_id=None):
         """Pobierz dokumenty KP (Kasa Przyjmie)"""
         conn = self.get_connection()
         try:
@@ -387,6 +442,10 @@ class KasaBankManager:
             if date_to:
                 query += " AND date(data_operacji) <= ?"
                 params.append(date_to)
+                
+            if location_id:
+                query += " AND location_id = ?"
+                params.append(location_id)
             
             query += " ORDER BY data_operacji DESC, id DESC LIMIT ? OFFSET ?"
             params.extend([limit, offset])
@@ -416,7 +475,7 @@ class KasaBankManager:
         finally:
             conn.close()
     
-    def get_kw_documents(self, limit=50, offset=0, date_from=None, date_to=None):
+    def get_kw_documents(self, limit=50, offset=0, date_from=None, date_to=None, location_id=None):
         """Pobierz dokumenty KW (Kasa Wydaje)"""
         conn = self.get_connection()
         try:
@@ -446,6 +505,10 @@ class KasaBankManager:
             if date_to:
                 query += " AND date(data_operacji) <= ?"
                 params.append(date_to)
+                
+            if location_id:
+                query += " AND location_id = ?"
+                params.append(location_id)
             
             query += " ORDER BY data_operacji DESC, id DESC LIMIT ? OFFSET ?"
             params.extend([limit, offset])
@@ -478,18 +541,19 @@ class KasaBankManager:
 # Inicjalizacja managera
 kasa_bank_manager = KasaBankManager()
 
-@kasa_bank_bp.route('/saldo')
+@kasa_bank_bp.route('/kasa-bank/saldo')
 def get_saldo():
-    """Pobierz aktualne salda"""
+    """Pobierz aktualne salda z filtrowaniem według lokalizacji"""
     try:
-        salda = kasa_bank_manager.get_saldo()
+        location_id = request.args.get('location_id', type=int)
+        salda = kasa_bank_manager.get_saldo(location_id=location_id)
         return success_response(salda, "Salda pobrane pomyślnie")
         
     except Exception as e:
         print(f"Błąd pobierania salda: {e}")
         return error_response(f'Błąd pobierania salda: {str(e)}', 500)
 
-@kasa_bank_bp.route('/operacje')
+@kasa_bank_bp.route('/kasa-bank/operacje')
 def get_operacje():
     """Pobierz operacje finansowe z filtrowaniem według lokalizacji"""
     try:
@@ -518,7 +582,7 @@ def get_operacje():
         print(f"Błąd pobierania operacji: {e}")
         return error_response(f'Błąd pobierania operacji: {str(e)}', 500)
 
-@kasa_bank_bp.route('/operacje', methods=['POST'])
+@kasa_bank_bp.route('/kasa-bank/operacje', methods=['POST'])
 def create_operacja():
     """Utwórz nową operację finansową"""
     try:
@@ -559,7 +623,7 @@ def create_operacja():
             'error': f'Błąd tworzenia operacji: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/operacje/<int:operacja_id>', methods=['PUT'])
+@kasa_bank_bp.route('/kasa-bank/operacje/<int:operacja_id>', methods=['PUT'])
 def update_operacja(operacja_id):
     """Aktualizuj operację"""
     try:
@@ -584,7 +648,7 @@ def update_operacja(operacja_id):
             'error': f'Błąd aktualizacji operacji: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/kategorie')
+@kasa_bank_bp.route('/kasa-bank/kategorie')
 def get_kategorie():
     """Pobierz kategorie operacji"""
     try:
@@ -601,12 +665,13 @@ def get_kategorie():
             'error': f'Błąd pobierania kategorii: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/summary/daily')
+@kasa_bank_bp.route('/kasa-bank/summary/daily')
 def get_daily_summary():
     """Podsumowanie dzienne"""
     try:
         target_date = request.args.get('date')
-        summary = kasa_bank_manager.get_daily_summary(target_date)
+        location_id = request.args.get('location_id', type=int)
+        summary = kasa_bank_manager.get_daily_summary(target_date, location_id)
         
         return jsonify({
             'success': True,
@@ -619,14 +684,15 @@ def get_daily_summary():
             'error': f'Błąd pobierania podsumowania: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/stats/monthly')
+@kasa_bank_bp.route('/kasa-bank/stats/monthly')
 def get_monthly_stats():
     """Statystyki miesięczne"""
     try:
         year = request.args.get('year', type=int)
         month = request.args.get('month', type=int)
+        location_id = request.args.get('location_id', type=int)
         
-        stats = kasa_bank_manager.get_monthly_stats(year, month)
+        stats = kasa_bank_manager.get_monthly_stats(year, month, location_id)
         
         return jsonify({
             'success': True,
@@ -639,7 +705,7 @@ def get_monthly_stats():
             'error': f'Błąd pobierania statystyk: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/payments/by-type')
+@kasa_bank_bp.route('/kasa-bank/payments/by-type')
 def get_payments_by_type():
     """Płatności pogrupowane według typu"""
     try:
@@ -659,7 +725,7 @@ def get_payments_by_type():
             'error': f'Błąd pobierania płatności według typu: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/documents/kp')
+@kasa_bank_bp.route('/kasa-bank/documents/kp')
 def get_kp_documents():
     """Dokumenty KP (Kasa Przyjmie)"""
     try:
@@ -667,8 +733,9 @@ def get_kp_documents():
         offset = request.args.get('offset', 0, type=int)
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
+        location_id = request.args.get('location_id', type=int)
         
-        documents = kasa_bank_manager.get_kp_documents(limit, offset, date_from, date_to)
+        documents = kasa_bank_manager.get_kp_documents(limit, offset, date_from, date_to, location_id)
         
         return jsonify({
             'success': True,
@@ -682,7 +749,7 @@ def get_kp_documents():
             'error': f'Błąd pobierania dokumentów KP: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/documents/kw')
+@kasa_bank_bp.route('/kasa-bank/documents/kw')
 def get_kw_documents():
     """Dokumenty KW (Kasa Wydaje)"""
     try:
@@ -690,8 +757,9 @@ def get_kw_documents():
         offset = request.args.get('offset', 0, type=int)
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
+        location_id = request.args.get('location_id', type=int)
         
-        documents = kasa_bank_manager.get_kw_documents(limit, offset, date_from, date_to)
+        documents = kasa_bank_manager.get_kw_documents(limit, offset, date_from, date_to, location_id)
         
         return jsonify({
             'success': True,
@@ -705,7 +773,7 @@ def get_kw_documents():
             'error': f'Błąd pobierania dokumentów KW: {str(e)}'
         }), 500
 
-@kasa_bank_bp.route('/health')
+@kasa_bank_bp.route('/kasa-bank/health')
 def health_check():
     """Sprawdzenie stanu modułu"""
     return jsonify({

@@ -11,8 +11,8 @@ import sys
 # Dodaj ścieżki do modułów
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
-warehouse_pricing_bp = Blueprint('warehouse_pricing', __name__)
-location_pricing_bp = warehouse_pricing_bp  # Alias dla kompatybilności
+location_pricing_bp = Blueprint('location_pricing', __name__)
+location_pricing_bp = location_pricing_bp  # Alias dla kompatybilności
 
 class WarehousePricingManager:
     def __init__(self, db_path=None):

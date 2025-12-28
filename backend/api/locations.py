@@ -1,3 +1,4 @@
+print("🔥 LOCATIONS MODULE LOADED")
 """
 API modułu Locations - zarządzanie lokalizacjami i sklepami
 """
@@ -12,13 +13,14 @@ import sys
 sys.path.append(os.path.join(os.path.dirname(__file__), '..', '..'))
 
 locations_bp = Blueprint('locations', __name__)
+print(f"🔥 LOCATIONS BLUEPRINT CREATED: {locations_bp}")
 
 class LocationsManager:
     def __init__(self, db_path=None):
         if db_path is None:
             # Bezwzględna ścieżka do bazy danych
             current_dir = os.path.dirname(os.path.abspath(__file__))
-            self.db_path = os.path.join(current_dir, '..', '..', 'kupony.db')
+            self.db_path = os.path.join(current_dir, '..', 'kupony.db')
         else:
             self.db_path = db_path
     
@@ -395,7 +397,8 @@ class LocationsManager:
 # Inicjalizacja managera
 locations_manager = LocationsManager()
 
-@locations_bp.route('/')
+@locations_bp.route('/locations')
+@locations_bp.route('/locations/')
 def get_locations():
     """Pobierz wszystkie lokalizacje"""
     try:
@@ -414,7 +417,7 @@ def get_locations():
             'error': f'Błąd pobierania lokalizacji: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>')
+@locations_bp.route('/locations/<int:location_id>')
 def get_location(location_id):
     """Pobierz szczegóły lokalizacji"""
     try:
@@ -437,7 +440,8 @@ def get_location(location_id):
             'error': f'Błąd pobierania lokalizacji: {str(e)}'
         }), 500
 
-@locations_bp.route('/', methods=['POST'])
+@locations_bp.route('/locations/', methods=['POST'])
+@locations_bp.route('/locations', methods=['POST'])
 def create_location():
     """Utwórz nową lokalizację"""
     try:
@@ -464,7 +468,7 @@ def create_location():
             'error': f'Błąd tworzenia lokalizacji: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>', methods=['PUT'])
+@locations_bp.route('/locations/<int:location_id>', methods=['PUT'])
 def update_location(location_id):
     """Aktualizuj lokalizację"""
     try:
@@ -501,7 +505,7 @@ def update_location(location_id):
             'error': f'Błąd aktualizacji lokalizacji: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>', methods=['DELETE'])
+@locations_bp.route('/locations/<int:location_id>', methods=['DELETE'])
 def delete_location(location_id):
     """Usuń lokalizację"""
     try:
@@ -524,7 +528,7 @@ def delete_location(location_id):
             'error': f'Błąd usuwania lokalizacji: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>/stats')
+@locations_bp.route('/locations/<int:location_id>/stats')
 def get_location_stats(location_id):
     """Pobierz statystyki lokalizacji"""
     try:
@@ -541,7 +545,7 @@ def get_location_stats(location_id):
             'error': f'Błąd pobierania statystyk: {str(e)}'
         }), 500
 
-@locations_bp.route('/search')
+@locations_bp.route('/locations/search')
 def search_locations():
     """Wyszukaj lokalizacje"""
     try:
@@ -567,7 +571,7 @@ def search_locations():
             'error': f'Błąd wyszukiwania: {str(e)}'
         }), 500
 
-@locations_bp.route('/health')
+@locations_bp.route('/locations/health')
 def health_check():
     """Sprawdzenie stanu modułu"""
     return jsonify({
@@ -578,8 +582,9 @@ def health_check():
 
 # === ENDPOINTS ZARZĄDZANIA PRACOWNIKAMI W LOKALIZACJACH ===
 
-@locations_bp.route('/<int:location_id>/employees', methods=['GET'])
+@locations_bp.route('/locations/<int:location_id>/employees', methods=['GET'])
 def get_location_employees(location_id):
+    print(f"🔥 GET_LOCATION_EMPLOYEES called with location_id: {location_id}")
     """Pobierz pracowników przypisanych do lokalizacji"""
     try:
         employees = locations_manager.get_location_employees(location_id)
@@ -596,7 +601,7 @@ def get_location_employees(location_id):
             'error': f'Błąd pobierania pracowników: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>/employees', methods=['POST'])
+@locations_bp.route('/locations/<int:location_id>/employees', methods=['POST'])
 def assign_employee_to_location(location_id):
     """Przypisz pracownika do lokalizacji"""
     try:
@@ -631,7 +636,7 @@ def assign_employee_to_location(location_id):
             'error': f'Błąd przypisywania pracownika: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>/employees/<int:assignment_id>', methods=['PUT'])
+@locations_bp.route('/locations/<int:location_id>/employees/<int:assignment_id>', methods=['PUT'])
 def update_employee_assignment(location_id, assignment_id):
     """Aktualizuj przypisanie pracownika do lokalizacji"""
     try:
@@ -657,7 +662,7 @@ def update_employee_assignment(location_id, assignment_id):
             'error': f'Błąd aktualizacji przypisania: {str(e)}'
         }), 500
 
-@locations_bp.route('/<int:location_id>/employees/<int:assignment_id>', methods=['DELETE'])
+@locations_bp.route('/locations/<int:location_id>/employees/<int:assignment_id>', methods=['DELETE'])
 def remove_employee_from_location(location_id, assignment_id):
     """Usuń pracownika z lokalizacji"""
     try:

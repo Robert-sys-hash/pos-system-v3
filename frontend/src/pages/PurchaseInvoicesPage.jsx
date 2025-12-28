@@ -28,7 +28,7 @@ const PurchaseInvoicesPage = () => {
   const loadMenuStats = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/purchase-invoices/menu');
+      const response = await fetch('http://localhost:8000/api/purchase-invoices/menu');
       const data = await response.json();
       
       if (data.success) {
@@ -45,7 +45,12 @@ const PurchaseInvoicesPage = () => {
   };
 
   const handleFileUpload = async (type, file) => {
-    if (!file) return;
+    console.log('🚀 handleFileUpload WYWOŁANA:', { type, file: file?.name });
+    
+    if (!file) {
+      console.log('❌ Brak pliku!');
+      return;
+    }
 
     const formData = new FormData();
     const fileKey = type === 'xml' ? 'xml_file' : type === 'pdf' ? 'pdf_file' : 'cennik_file';
@@ -56,7 +61,7 @@ const PurchaseInvoicesPage = () => {
         // Specjalna obsługa dla cennika - dwuetapowy proces
         
         // Krok 1: Parsowanie cennika
-        const parseResponse = await fetch('http://localhost:5002/api/purchase-invoices/import-cennik', {
+        const parseResponse = await fetch('http://localhost:8000/api/purchase-invoices/import-cennik', {
           method: 'POST',
           body: formData
         });
@@ -81,7 +86,7 @@ const PurchaseInvoicesPage = () => {
         
         console.log('Payload do zapisania:', savePayload);
 
-        const saveResponse = await fetch('http://localhost:5002/api/purchase-invoices/save-cennik', {
+        const saveResponse = await fetch('http://localhost:8000/api/purchase-invoices/save-cennik', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -102,7 +107,7 @@ const PurchaseInvoicesPage = () => {
         
       } else {
         // Standardowa obsługa dla XML/PDF faktury
-        const endpoint = `http://localhost:5002/api/purchase-invoices/import-${type}`;
+        const endpoint = `http://localhost:8000/api/purchase-invoices/import-${type}`;
           
         const response = await fetch(endpoint, {
           method: 'POST',

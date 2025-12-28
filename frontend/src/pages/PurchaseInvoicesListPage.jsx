@@ -59,7 +59,7 @@ const PurchaseInvoicesListPage = () => {
         ...filters
       });
       
-      const response = await fetch(`http://localhost:5002/api/purchase-invoices?${params}`);
+      const response = await fetch(`http://localhost:8000/api/purchase-invoices?${params}`);
       const data = await response.json();
       
       if (data.success) {

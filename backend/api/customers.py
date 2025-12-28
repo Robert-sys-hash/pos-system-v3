@@ -200,7 +200,6 @@ def get_all_customers():
             return error_response("Błąd pobierania klientów z bazy danych", 500)
         
         return success_response(customers, f"Pobrano {len(customers)} klientów")
-        
     except Exception as e:
         return error_response(f"Błąd pobierania klientów: {str(e)}", 500)
 

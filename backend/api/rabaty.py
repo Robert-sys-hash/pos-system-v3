@@ -19,6 +19,7 @@ def get_rabaty():
         # Sprawdź filtry
         aktywny = request.args.get('aktywny', '1')
         user_id = request.args.get('user_id', '')
+        location_id = request.args.get('location_id', None)
         
         if aktywny == '1':
             query = """
@@ -48,9 +49,16 @@ def get_rabaty():
             LEFT JOIN rabaty_limity_dzienne ld ON r.id = ld.rabat_id 
                 AND ld.user_id = ? AND ld.dzien = date('now')
             WHERE r.aktywny = 1
-            ORDER BY r.nazwa
             """
-            params = (user_id, user_id)
+            params = [user_id, user_id]
+            
+            # Filtruj po location_id jeśli podano
+            if location_id:
+                query += " AND (r.location_id IS NULL OR r.location_id = ?)"
+                params.append(int(location_id))
+                
+            query += " ORDER BY r.nazwa"
+            params = tuple(params)
         elif aktywny == '0':
             query = "SELECT * FROM rabaty WHERE aktywny = 0 ORDER BY created_at DESC"
             params = ()
@@ -62,7 +70,7 @@ def get_rabaty():
         if results is None:
             return error_response("Błąd bazy danych", 500)
             
-        return success_response("Pobrano rabaty", {"rabaty": results})
+        return success_response({"rabaty": results}, "Pobrano rabaty")
         
     except Exception as e:
         print(f"Błąd get_rabaty: {e}")
@@ -100,8 +108,8 @@ def create_rabat():
             nazwa, typ_rabatu, wartosc, opis, kod_rabatu, wymagane_uprawnienie,
             limit_miesieczny_aktywny, limit_miesieczny_kwota, limit_miesieczny_ilosc,
             limit_dzienny_aktywny, limit_dzienny_kwota, limit_dzienny_ilosc,
-            minimum_koszyka, maksimum_koszyka, created_by
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            minimum_koszyka, maksimum_koszyka, created_by, location_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         params = (
@@ -119,7 +127,8 @@ def create_rabat():
             data.get('limit_dzienny_ilosc', 0),
             data.get('minimum_koszyka', 0),
             data.get('maksimum_koszyka', None),
-            data.get('created_by', 'admin')
+            data.get('created_by', 'admin'),
+            data.get('location_id', None)
         )
         
         rabat_id = execute_insert(query, params)
@@ -167,7 +176,7 @@ def update_rabat(rabat_id):
             'nazwa', 'typ_rabatu', 'wartosc', 'opis', 'kod_rabatu', 'wymagane_uprawnienie',
             'aktywny', 'limit_miesieczny_aktywny', 'limit_miesieczny_kwota', 'limit_miesieczny_ilosc',
             'limit_dzienny_aktywny', 'limit_dzienny_kwota', 'limit_dzienny_ilosc',
-            'minimum_koszyka', 'maksimum_koszyka'
+            'minimum_koszyka', 'maksimum_koszyka', 'location_id'
         ]
         
         for field in updatable_fields:
@@ -195,7 +204,7 @@ def update_rabat(rabat_id):
 @rabaty_bp.route('/rabaty/<int:rabat_id>', methods=['DELETE'])
 def delete_rabat(rabat_id):
     """
-    Usuń rabat (soft delete - ustaw aktywny = 0)
+    Usuń rabat z bazy danych (hard delete)
     """
     try:
         # Sprawdź czy rabat istnieje
@@ -203,13 +212,13 @@ def delete_rabat(rabat_id):
         if not existing:
             return not_found_response("Rabat nie został znaleziony")
             
-        # Soft delete
-        result = execute_insert("UPDATE rabaty SET aktywny = 0 WHERE id = ?", (rabat_id,))
+        # Hard delete - całkowite usunięcie z bazy
+        result = execute_insert("DELETE FROM rabaty WHERE id = ?", (rabat_id,))
         
         if result:
-            return success_response("Rabat został dezaktywowany")
+            return success_response("Rabat został usunięty")
         else:
-            return error_response("Nie udało się dezaktywować rabatu", 500)
+            return error_response("Nie udało się usunąć rabatu", 500)
             
     except Exception as e:
         print(f"Błąd delete_rabat: {e}")

@@ -45,10 +45,14 @@ def create_transaction():
         transaction_type = data.get('type', 'draft')
         items = data.get('items', [])
         payment_method = data.get('payment_method', 'gotowka')
+        split_payments = data.get('split_payments', [])  # Lista płatności dzielonych
         discount_amount = data.get('discount_amount', 0)
         total_gross = data.get('total_gross', 0)  # Kwota brutto przed rabatem
         final_amount = data.get('total_amount', 0)  # Kwota końcowa po rabacie
         location_id = data.get('location_id', 5)  # Domyślnie Kalisz
+        
+        # Przetwarzanie kuponów w płatnościach dzielonych
+        coupon_data = data.get('coupon_code')  # Dla pojedynczej płatności kuponem
         
         # Mapowanie typów transakcji dla kompatybilności
         type_mapping = {
@@ -220,43 +224,43 @@ def create_transaction():
         # Jeśli typ to 'sale'/'sprzedaz', automatycznie zaktualizuj stany magazynowe
         if transaction_type in ['sale', 'sprzedaz'] and status == 'zakonczony':
             for item in items:
-                # Sprawdź czy produkt ma stan w magazynie głównym (id=1)
+                # Sprawdź czy produkt ma stan w magazynie dla danej lokalizacji
                 check_stock_sql = """
                 SELECT id, stan_aktualny FROM pos_magazyn 
-                WHERE produkt_id = ?
+                WHERE produkt_id = ? AND lokalizacja = ?
                 """
-                stock_result = execute_query(check_stock_sql, (item['product_id'],))
+                stock_result = execute_query(check_stock_sql, (item['product_id'], str(location_id)))
                 
                 if stock_result:
-                    # Aktualizuj istniejący stan
+                    # Aktualizuj istniejący stan dla tej lokalizacji
                     current_stock = stock_result[0]['stan_aktualny'] or 0
-                    new_stock = max(0, current_stock - item['quantity'])  # Nie pozwalaj na ujemny stan
+                    new_stock = current_stock - item['quantity']  # Pozwól na ujemny stan
                     
                     update_stock_sql = """
                     UPDATE pos_magazyn 
                     SET stan_aktualny = ?, ostatnia_aktualizacja = datetime('now')
-                    WHERE produkt_id = ?
+                    WHERE id = ?
                     """
-                    execute_insert(update_stock_sql, (new_stock, item['product_id']))
+                    execute_insert(update_stock_sql, (new_stock, stock_result[0]['id']))
                 else:
-                    # Utwórz nowy wpis stanu (z ujemnym stanem początkowym jeśli brak towaru)
+                    # Utwórz nowy wpis stanu dla tej lokalizacji
                     initial_stock = -item['quantity']  # Pokazuje że został sprzedany towar, którego nie było
                     
                     insert_stock_sql = """
                     INSERT INTO pos_magazyn 
-                    (produkt_id, stan_aktualny, stan_minimalny, stan_maksymalny)
-                    VALUES (?, ?, 0, 0)
+                    (produkt_id, stan_aktualny, stan_minimalny, stan_maksymalny, lokalizacja)
+                    VALUES (?, ?, 0, 0, ?)
                     """
-                    execute_insert(insert_stock_sql, (item['product_id'], initial_stock))
+                    execute_insert(insert_stock_sql, (item['product_id'], initial_stock, str(location_id)))
                 
                 # Zapisz ruch magazynowy
                 try:
                     # Pobierz aktualny stan przed operacją dla ruchu magazynowego
                     current_stock_sql = """
                     SELECT stan_aktualny FROM pos_magazyn 
-                    WHERE produkt_id = ?
+                    WHERE produkt_id = ? AND lokalizacja = ?
                     """
-                    current_stock_result = execute_query(current_stock_sql, (item['product_id'],))
+                    current_stock_result = execute_query(current_stock_sql, (item['product_id'], str(location_id)))
                     stan_przed = current_stock_result[0]['stan_aktualny'] if current_stock_result else 0
                     stan_po = stan_przed - item['quantity']
                     
@@ -289,9 +293,9 @@ def create_transaction():
                     'blik': 'blik',
                     'gotowka': 'gotowka',
                     'karta': 'karta',
-                    'przelew': 'przelew'
+                    'przelew': 'przelew',
+                    'kupon': 'kupon'
                 }
-                typ_platnosci = payment_type_mapping.get(payment_method, 'gotowka')
                 
                 kasa_operacja_sql = """
                 INSERT INTO kasa_operacje 
@@ -300,23 +304,76 @@ def create_transaction():
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 
-                opis = f"Sprzedaż - transakcja #{transaction_id}"
-                
-                print(f"DEBUG kasa_operacje (transactions): payment_method={payment_method}, typ_platnosci={typ_platnosci}, final_amount={total_amount}")
-                
-                execute_insert(kasa_operacja_sql, (
-                    'KP',  # Kasa Przyjmie
-                    typ_platnosci,
-                    total_amount,  # Użyj kwoty końcowej (po rabacie)
-                    opis,
-                    'sprzedaz',
-                    f"TRANS-{transaction_id}",
-                    current_date,
-                    'system'
-                ))
+                # Obsługa płatności dzielonych
+                if split_payments and len(split_payments) > 0:
+                    print(f"DEBUG: Przetwarzanie płatności dzielonych: {split_payments}")
+                    
+                    for payment in split_payments:
+                        if payment.get('amount', 0) > 0:
+                            typ_platnosci = payment_type_mapping.get(payment['method'], 'gotowka')
+                            opis = f"Sprzedaż (płatność dzielona {payment['method']}) - transakcja #{transaction_id}"
+                            
+                            # Obsługa kuponów w płatnościach dzielonych
+                            if payment['method'] == 'kupon' and payment.get('coupon_code'):
+                                try:
+                                    from api.coupons import use_coupon
+                                    coupon_result = use_coupon(payment['coupon_code'], payment['amount'])
+                                    if not coupon_result.get('success'):
+                                        print(f"⚠️ Błąd użycia kuponu {payment['coupon_code']}: {coupon_result.get('error')}")
+                                        # Kontynuuj z zapisem operacji mimo błędu kuponu
+                                    else:
+                                        print(f"✅ Kupon {payment['coupon_code']} użyty na kwotę {payment['amount']}")
+                                        opis += f" (kupon: {payment['coupon_code']})"
+                                except Exception as e:
+                                    print(f"❌ Błąd podczas użycia kuponu: {e}")
+                            
+                            print(f"DEBUG kasa_operacje (dzielona): method={payment['method']}, typ_platnosci={typ_platnosci}, amount={payment['amount']}")
+                            
+                            execute_insert(kasa_operacja_sql, (
+                                'KP',  # Kasa Przyjmie
+                                typ_platnosci,
+                                payment['amount'],
+                                opis,
+                                'sprzedaz',
+                                f"TRANS-{transaction_id}-{payment['method'].upper()}",
+                                current_date,
+                                'system'
+                            ))
+                else:
+                    # Pojedyncza płatność - standardowa obsługa
+                    typ_platnosci = payment_type_mapping.get(payment_method, 'gotowka')
+                    opis = f"Sprzedaż - transakcja #{transaction_id}"
+                    
+                    # Obsługa kuponu dla pojedynczej płatności
+                    if payment_method == 'kupon' and coupon_data:
+                        try:
+                            from api.coupons import use_coupon
+                            coupon_result = use_coupon(coupon_data, total_amount)
+                            if coupon_result.get('success'):
+                                print(f"✅ Kupon {coupon_data} użyty na kwotę {total_amount}")
+                                opis += f" (kupon: {coupon_data})"
+                            else:
+                                print(f"⚠️ Błąd użycia kuponu {coupon_data}: {coupon_result.get('error')}")
+                        except Exception as e:
+                            print(f"❌ Błąd podczas użycia kuponu: {e}")
+                    
+                    print(f"DEBUG kasa_operacje (pojedyncza): payment_method={payment_method}, typ_platnosci={typ_platnosci}, final_amount={total_amount}")
+                    
+                    execute_insert(kasa_operacja_sql, (
+                        'KP',  # Kasa Przyjmie
+                        typ_platnosci,
+                        total_amount,  # Użyj kwoty końcowej (po rabacie)
+                        opis,
+                        'sprzedaz',
+                        f"TRANS-{transaction_id}",
+                        current_date,
+                        'system'
+                    ))
             except Exception as e:
                 # Loguj błąd ale nie przerywaj procesu
                 print(f"Błąd dodawania operacji kasa/bank: {str(e)}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
                 pass
         
         return success_response({
@@ -654,6 +711,7 @@ def get_transactions():
         SELECT 
             t.id,
             t.numer_paragonu as receipt_number,
+            t.numer_transakcji,
             t.data_transakcji as transaction_date,
             t.czas_transakcji as transaction_time,
             t.kasjer_login as cashier,
@@ -663,6 +721,8 @@ def get_transactions():
             t.forma_platnosci as payment_method,
             t.status,
             t.typ_transakcji as transaction_type,
+            t.rabat_kwota,
+            t.rabat_procent,
             t.created_at,
             t.fiskalizacja,
             COUNT(tp.id) as items_count

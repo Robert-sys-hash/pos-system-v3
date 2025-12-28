@@ -37,13 +37,28 @@ export const warehouseService = {
       }
 
       console.log('🌐 warehouseService.getInventory - wysyłam zapytanie z queryParams:', queryParams);
-      console.log('🌐 URL będzie: /api/products/inventory z params:', JSON.stringify(queryParams));
+      console.log('🌐 URL będzie: /products/inventory z params:', JSON.stringify(queryParams));
 
-      const response = await api.get('/api/products/inventory', {
+      console.log('🔍 DEBUG: Wysyłam zapytanie GET /products/inventory z params:', queryParams);
+      console.log('🔍 DEBUG: available_only =', queryParams.available_only, 'type:', typeof queryParams.available_only);
+      
+      const response = await api.get('/products/inventory', {
         params: queryParams
       });
 
-      console.log('🌐 Odpowiedź z API:', response.data);
+      console.log('🌐 Odpowiedź z API (RAW):', response);
+      console.log('🌐 Odpowiedź z API (DATA):', response.data);
+      console.log('🌐 Odpowiedź SUCCESS:', response.data?.success);
+      console.log('🌐 Odpowiedź MESSAGE:', response.data?.message);
+      console.log('🌐 Liczba produktów:', response.data?.data?.products?.length);
+      
+      // 🚨 DODATKOWE DEBUG - sprawdź stock_quantity w pierwszych produktach
+      if (response.data?.data?.products?.length > 0) {
+        console.log('🔍 STOCK DEBUG: Pierwsze 3 produkty i ich stany:');
+        response.data.data.products.slice(0, 3).forEach((product, index) => {
+          console.log(`  ${index + 1}. ${product.name} - stock_quantity: ${product.stock_quantity} (type: ${typeof product.stock_quantity})`);
+        });
+      }
 
       return {
         success: true,
@@ -63,10 +78,10 @@ export const warehouseService = {
    */
   async updateProduct(productId, productData) {
     try {
-      console.log('🔗 Sending PUT request to:', `/api/products/${productId}`);
+      console.log('🔗 Sending PUT request to:', `/products/${productId}`);
       console.log('🔗 Request data:', productData);
       
-      const response = await api.put(`/api/products/${productId}`, productData);
+      const response = await api.put(`/products/${productId}`, productData);
       
       console.log('🔗 API Response status:', response.status);
       console.log('🔗 API Response data:', response.data);
@@ -93,7 +108,7 @@ export const warehouseService = {
    */
   async updateProductStock(productId, stockData) {
     try {
-      const response = await api.put(`/api/products/${productId}/inventory`, stockData);
+      const response = await api.put(`/products/${productId}/inventory`, stockData);
       
       return {
         success: true,
@@ -113,7 +128,7 @@ export const warehouseService = {
    */
   async getProductHistory(productId, limit = 50) {
     try {
-      const response = await api.get(`/api/products/${productId}/inventory/history`, {
+      const response = await api.get(`/products/${productId}/inventory/history`, {
         params: { limit }
       });
 
@@ -135,7 +150,7 @@ export const warehouseService = {
    */
   async batchUpdateInventory(updates) {
     try {
-      const response = await api.post('/api/products/inventory/batch-update', {
+      const response = await api.post('/products/inventory/batch-update', {
         updates
       });
 
@@ -157,7 +172,7 @@ export const warehouseService = {
    */
   async getLowStockProducts(limit = 20) {
     try {
-      const response = await api.get('/api/products/low-stock', {
+      const response = await api.get('/products/low-stock', {
         params: { limit }
       });
 
@@ -184,7 +199,7 @@ export const warehouseService = {
         params.warehouse_id = warehouseId;
       }
       
-      const response = await api.get('/api/products/stats', { params });
+      const response = await api.get('/products/stats', { params });
 
       return {
         success: true,
@@ -204,7 +219,7 @@ export const warehouseService = {
    */
   async getWarehouseStats() {
     try {
-      const response = await api.get('/api/products/stats');
+      const response = await api.get('/products/stats');
 
       return {
         success: true,
@@ -257,7 +272,7 @@ export const warehouseService = {
    */
   async checkStockAvailability(productId, requiredQuantity) {
     try {
-      const response = await api.get(`/api/products/${productId}`);
+      const response = await api.get(`/products/${productId}`);
       
       if (response.data.success) {
         const product = response.data.data;
@@ -307,7 +322,7 @@ export const warehouseService = {
    */
   async getVatRates() {
     try {
-      const response = await api.get('/api/admin/vat-rates');
+      const response = await api.get('admin/vat-rates');
       
       if (response.data && response.data.success) {
         // API zwraca strukturę { success: true, data: { rates: [...] } }
@@ -336,7 +351,7 @@ export const warehouseService = {
    */
   async getPurchaseInvoices() {
     try {
-      const response = await api.get('/api/warehouse/purchase-invoices');
+      const response = await api.get('warehouse/purchase-invoices');
       return {
         success: true,
         data: response.data.data,
@@ -355,7 +370,7 @@ export const warehouseService = {
    */
   async generateExternalReceipt(invoiceId) {
     try {
-      const response = await api.post(`/api/warehouse/external-receipt/${invoiceId}`);
+      const response = await api.post(`warehouse/external-receipt/${invoiceId}`);
       return {
         success: true,
         data: response.data.data,
@@ -374,7 +389,7 @@ export const warehouseService = {
    */
   async createInternalReceipt(receiptData) {
     try {
-      const response = await api.post('/api/warehouse/internal-receipt', receiptData);
+      const response = await api.post('warehouse/internal-receipt', receiptData);
       return {
         success: true,
         data: response.data.data,
@@ -397,7 +412,26 @@ export const warehouseService = {
       if (filters.date) params.append('date', filters.date);
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       
-      const response = await api.get(`/api/warehouse/internal-receipt/list?${params}`);
+      const response = await api.get(`warehouse/internal-receipt/list?${params}`);
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message
+      };
+    }
+  },
+
+  /**
+   * Pobiera szczegóły przyjęcia wewnętrznego (PW)
+   */
+  async getInternalReceiptDetails(receiptId) {
+    try {
+      const response = await api.get(`warehouse/internal-receipt/${receiptId}`);
       return {
         success: true,
         data: response.data.data,
@@ -420,7 +454,7 @@ export const warehouseService = {
       if (filters.date) params.append('date', filters.date);
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       
-      const response = await api.get(`/api/warehouse/external-receipt/list?${params}`);
+      const response = await api.get(`warehouse/external-receipt/list?${params}`);
       return {
         success: true,
         data: response.data.data,
@@ -435,6 +469,58 @@ export const warehouseService = {
   },
 
   /**
+   * Pobiera szczegóły dokumentu PZ
+   */
+  async getExternalReceiptDetails(receiptId) {
+    try {
+      const response = await api.get(`warehouse/external-receipt/${receiptId}`);
+      return {
+        success: true,
+        data: response.data.data,
+        message: response.data.message
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message
+      };
+    }
+  },
+
+  /**
+   * Pobiera PDF dokumentu PZ
+   */
+  async downloadExternalReceiptPDF(receiptId) {
+    try {
+      const response = await api.get(`warehouse/external-receipt/${receiptId}/pdf`, {
+        responseType: 'blob'
+      });
+      
+      // Utwórz URL do pobrania
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      
+      // Utwórz link do pobrania
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `PZ_${receiptId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Zwolnij URL
+      window.URL.revokeObjectURL(url);
+      
+      return { success: true, message: 'PDF pobrany pomyślnie' };
+    } catch (error) {
+      return {
+        success: false,
+        error: error.response?.data?.error || error.message || 'Błąd pobierania PDF'
+      };
+    }
+  },
+
+  /**
    * Pobiera listę rozchodów wewnętrznych (RW)
    */
   async getInternalIssues(filters = {}) {
@@ -443,7 +529,7 @@ export const warehouseService = {
       if (filters.date) params.append('date', filters.date);
       if (filters.status && filters.status !== 'all') params.append('status', filters.status);
       
-      const response = await api.get(`/api/warehouse/internal-issue/list?${params}`);
+      const response = await api.get(`warehouse/internal-issue/list?${params}`);
       return {
         success: true,
         data: response.data.data,
@@ -462,7 +548,7 @@ export const warehouseService = {
    */
   async createInternalIssue(issueData) {
     try {
-      const response = await api.post('/api/warehouse/internal-issue', issueData);
+      const response = await api.post('warehouse/internal-issue', issueData);
       return {
         success: true,
         data: response.data.data,
@@ -481,7 +567,7 @@ export const warehouseService = {
    */
   async startInventory(params = {}) {
     try {
-      const response = await api.post('/api/warehouse/inventory/start', params);
+      const response = await api.post('warehouse/inventory/start', params);
       return {
         success: true,
         data: response.data.data,
@@ -500,7 +586,7 @@ export const warehouseService = {
    */
   async getActiveInventory() {
     try {
-      const response = await api.get('/api/warehouse/inventory/active');
+      const response = await api.get('warehouse/inventory/active');
       return {
         success: true,
         data: response.data.data,
@@ -519,7 +605,7 @@ export const warehouseService = {
    */
   async finishInventory(inventoryData) {
     try {
-      const response = await api.post('/api/warehouse/inventory/finish', inventoryData);
+      const response = await api.post('warehouse/inventory/finish', inventoryData);
       return {
         success: true,
         data: response.data.data,
@@ -542,7 +628,7 @@ export const warehouseService = {
       if (filters.date) params.append('date', filters.date);
       if (filters.status) params.append('status', filters.status);
 
-      const response = await api.get(`/api/warehouse/inventory/sessions?${params}`);
+      const response = await api.get(`warehouse/inventory/sessions?${params}`);
       return {
         success: true,
         data: response.data.data,

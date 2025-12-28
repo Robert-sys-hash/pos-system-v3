@@ -1,6 +1,4 @@
 #!/bin/bash
-echo "🚀 Uruchamianie backendu Flask na porcie 5002..."
-cd "$(dirname "$0")/backend"
-export FLASK_APP=app.py
-export FLASK_ENV=development
-/Users/robertkaczkowski/.pyenv/versions/3.7.17/bin/python app.py
+echo "🚀 Uruchamianie backendu Flask..."
+cd "$(dirname "$0")"
+python3 app_fixed.py

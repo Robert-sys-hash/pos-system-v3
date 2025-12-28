@@ -29,7 +29,7 @@ const SalesInvoicesPage = () => {
   const fetchInvoices = async () => {
     try {
       const params = currentLocationId ? `?location_id=${currentLocationId}` : '';
-      const response = await fetch(`http://localhost:5002/api/sales-invoices${params}`);
+      const response = await fetch(`http://localhost:8000/api/sales-invoices${params}`);
       const data = await response.json();
       
       if (data.success) {
@@ -45,7 +45,7 @@ const SalesInvoicesPage = () => {
   // Pobierz paragony do fakturowania
   const fetchReceipts = async () => {
     try {
-      let url = `http://localhost:5002/api/receipts-for-invoicing?limit=${receiptsLimit}&offset=${receiptsOffset}`;
+      let url = `http://localhost:8000/api/receipts-for-invoicing?limit=${receiptsLimit}&offset=${receiptsOffset}`;
       
       // Dodaj filtrowanie po lokalizacji
       if (currentLocationId) {
@@ -80,7 +80,7 @@ const SalesInvoicesPage = () => {
   // Pobierz szczegóły paragonu
   const fetchReceiptDetails = async (receiptId) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/receipt-details/${receiptId}`);
+      const response = await fetch(`http://localhost:8000/api/receipt-details/${receiptId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -99,7 +99,7 @@ const SalesInvoicesPage = () => {
   // Sprawdź możliwość wystawienia faktury dla paragonu
   const checkReceiptEligibility = async (receiptId) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/receipt-invoice-eligibility/${receiptId}`);
+      const response = await fetch(`http://localhost:8000/api/receipt-invoice-eligibility/${receiptId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -113,7 +113,7 @@ const SalesInvoicesPage = () => {
   // Pobierz listę klientów
   const fetchCustomers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/customers');
+      const response = await fetch('http://localhost:8000/api/customers');
       const data = await response.json();
       
       if (data.success) {
@@ -129,7 +129,7 @@ const SalesInvoicesPage = () => {
   // Pobierz podgląd faktury
   const previewInvoice = async (invoiceId) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/sales-invoices/${invoiceId}`);
+      const response = await fetch(`http://localhost:8000/api/sales-invoices/${invoiceId}`);
       const data = await response.json();
       
       if (data.success) {
@@ -145,7 +145,7 @@ const SalesInvoicesPage = () => {
   // Pobierz PDF faktury
   const downloadInvoicePDF = async (invoiceId, invoiceNumber) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/sales-invoices/${invoiceId}/pdf`);
+      const response = await fetch(`http://localhost:8000/api/sales-invoices/${invoiceId}/pdf`);
       
       if (response.ok) {
         const blob = await response.blob();
@@ -181,7 +181,7 @@ const SalesInvoicesPage = () => {
     if (!reason) return;
 
     try {
-      const response = await fetch(`http://localhost:5002/api/sales-invoices/${invoiceId}/correction`, {
+      const response = await fetch(`http://localhost:8000/api/sales-invoices/${invoiceId}/correction`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -205,7 +205,7 @@ const SalesInvoicesPage = () => {
   // Utwórz fakturę z paragonu
   const createInvoiceFromReceipt = async (receiptId, invoiceData) => {
     try {
-      const response = await fetch(`http://localhost:5002/api/sales-invoices/from-receipt/${receiptId}`, {
+      const response = await fetch(`http://localhost:8000/api/sales-invoices/from-receipt/${receiptId}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

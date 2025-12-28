@@ -294,6 +294,66 @@ def get_internal_receipts():
         logging.error(traceback.format_exc())
         return error_response(f"Błąd serwera: {str(e)}")
 
+@warehouse_operations_bp.route('/warehouse/internal-receipt/<int:receipt_id>', methods=['GET', 'OPTIONS'])
+def get_internal_receipt_details(receipt_id):
+    """Pobiera szczegóły przyjęcia wewnętrznego (PW)"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
+    try:
+        # Pobierz dane dokumentu
+        receipt_query = """
+        SELECT 
+            wr.id,
+            wr.document_number,
+            wr.receipt_date,
+            wr.status,
+            wr.notes,
+            wr.created_by,
+            wr.created_at
+        FROM warehouse_receipts wr
+        WHERE wr.id = ? AND wr.type = 'internal'
+        """
+        
+        receipt_result = execute_select(receipt_query, [receipt_id])
+        
+        if not receipt_result['success'] or not receipt_result['data']:
+            return error_response("Nie znaleziono dokumentu PW", 404)
+        
+        receipt = receipt_result['data'][0]
+        
+        # Pobierz pozycje dokumentu z nazwą produktu
+        items_query = """
+        SELECT 
+            wri.id,
+            wri.product_id,
+            p.nazwa as product_name,
+            wri.quantity,
+            p.jednostka as unit,
+            wri.unit_price,
+            wri.reason
+        FROM warehouse_receipt_items wri
+        LEFT JOIN produkty p ON wri.product_id = p.id
+        WHERE wri.receipt_id = ?
+        ORDER BY wri.id
+        """
+        
+        items_result = execute_select(items_query, [receipt_id])
+        
+        return success_response({
+            'receipt': receipt,
+            'items': items_result['data'] if items_result['success'] else []
+        }, "Szczegóły PW załadowane pomyślnie")
+            
+    except Exception as e:
+        logging.error(f"Błąd pobierania szczegółów PW: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
 @warehouse_operations_bp.route('/warehouse/external-receipt/list', methods=['GET', 'OPTIONS'])
 def get_external_receipts():
     """Pobiera listę przyjęć zewnętrznych (PZ)"""
@@ -347,6 +407,287 @@ def get_external_receipts():
             
     except Exception as e:
         logging.error(f"Błąd pobierania historii PZ: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/external-receipt/<int:receipt_id>', methods=['GET', 'OPTIONS'])
+def get_external_receipt_details(receipt_id):
+    """Pobiera szczegóły dokumentu PZ wraz z pozycjami"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
+    try:
+        # Pobierz nagłówek dokumentu PZ
+        header_query = """
+        SELECT 
+            wr.id,
+            wr.document_number,
+            wr.receipt_date,
+            wr.status,
+            wr.supplier_name,
+            wr.total_amount,
+            wr.created_by,
+            wr.created_at,
+            fz.numer_faktury as source_invoice_number,
+            fz.data_faktury as invoice_date
+        FROM warehouse_receipts wr
+        LEFT JOIN faktury_zakupowe fz ON wr.source_invoice_id = fz.id
+        WHERE wr.id = ? AND wr.type = 'external'
+        """
+        
+        header_result = execute_select(header_query, (receipt_id,))
+        
+        if not header_result['success'] or not header_result['data']:
+            return error_response("Nie znaleziono dokumentu PZ")
+        
+        receipt = dict(header_result['data'][0])
+        
+        # Pobierz pozycje dokumentu PZ
+        items_query = """
+        SELECT 
+            wri.id,
+            wri.product_id,
+            wri.quantity,
+            wri.unit_price,
+            wri.total_price,
+            p.nazwa as product_name,
+            p.kod_kreskowy as barcode,
+            p.jednostka_miary as unit
+        FROM warehouse_receipt_items wri
+        LEFT JOIN pos_produkty p ON wri.product_id = p.id
+        WHERE wri.receipt_id = ?
+        ORDER BY wri.id
+        """
+        
+        items_result = execute_select(items_query, (receipt_id,))
+        
+        receipt['items'] = items_result['data'] if items_result['success'] else []
+        
+        return success_response(receipt, "Szczegóły PZ pobrane pomyślnie")
+        
+    except Exception as e:
+        logging.error(f"Błąd pobierania szczegółów PZ: {str(e)}")
+        logging.error(traceback.format_exc())
+        return error_response(f"Błąd serwera: {str(e)}")
+
+@warehouse_operations_bp.route('/warehouse/external-receipt/<int:receipt_id>/pdf', methods=['GET', 'OPTIONS'])
+def get_external_receipt_pdf(receipt_id):
+    """Generuje PDF dokumentu PZ"""
+    if request.method == 'OPTIONS':
+        response = jsonify({'status': 'OK'})
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+        response.headers.add('Access-Control-Allow-Methods', 'GET,OPTIONS')
+        return response
+        
+    try:
+        from flask import make_response
+        from io import BytesIO
+        from reportlab.lib.pagesizes import A4
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import cm
+        from reportlab.lib import colors
+        from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+        from reportlab.pdfbase import pdfmetrics
+        from reportlab.pdfbase.ttfonts import TTFont
+        
+        # Rejestracja czcionki z polskimi znakami
+        import os
+        font_path = os.path.join(os.path.dirname(__file__), '..', 'fonts', 'DejaVuSans.ttf')
+        font_path_bold = os.path.join(os.path.dirname(__file__), '..', 'fonts', 'DejaVuSans-Bold.ttf')
+        
+        if os.path.exists(font_path):
+            try:
+                pdfmetrics.registerFont(TTFont('DejaVuSans', font_path))
+                if os.path.exists(font_path_bold):
+                    pdfmetrics.registerFont(TTFont('DejaVuSans-Bold', font_path_bold))
+                font_name = 'DejaVuSans'
+            except:
+                font_name = 'Helvetica'
+        else:
+            font_name = 'Helvetica'
+        
+        # Pobierz dane PZ
+        header_query = """
+        SELECT 
+            wr.id,
+            wr.document_number,
+            wr.receipt_date,
+            wr.status,
+            wr.supplier_name,
+            wr.total_amount,
+            wr.created_by,
+            wr.created_at,
+            fz.numer_faktury as source_invoice_number,
+            fz.data_faktury as invoice_date
+        FROM warehouse_receipts wr
+        LEFT JOIN faktury_zakupowe fz ON wr.source_invoice_id = fz.id
+        WHERE wr.id = ? AND wr.type = 'external'
+        """
+        
+        header_result = execute_select(header_query, (receipt_id,))
+        
+        if not header_result['success'] or not header_result['data']:
+            return error_response("Nie znaleziono dokumentu PZ")
+        
+        receipt = header_result['data'][0]
+        
+        # Pobierz pozycje
+        items_query = """
+        SELECT 
+            wri.id,
+            wri.product_id,
+            wri.quantity,
+            wri.unit_price,
+            wri.total_price,
+            p.nazwa as product_name,
+            p.kod_kreskowy as barcode,
+            p.jednostka_miary as unit
+        FROM warehouse_receipt_items wri
+        LEFT JOIN pos_produkty p ON wri.product_id = p.id
+        WHERE wri.receipt_id = ?
+        ORDER BY wri.id
+        """
+        
+        items_result = execute_select(items_query, (receipt_id,))
+        items = items_result['data'] if items_result['success'] else []
+        
+        # Generuj PDF
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, 
+                               leftMargin=1.5*cm, rightMargin=1.5*cm,
+                               topMargin=1.5*cm, bottomMargin=1.5*cm)
+        
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Style
+        title_style = ParagraphStyle(
+            'Title',
+            parent=styles['Heading1'],
+            fontName=font_name,
+            fontSize=18,
+            alignment=TA_CENTER,
+            spaceAfter=20
+        )
+        
+        normal_style = ParagraphStyle(
+            'Normal',
+            parent=styles['Normal'],
+            fontName=font_name,
+            fontSize=10
+        )
+        
+        header_style = ParagraphStyle(
+            'Header',
+            parent=styles['Normal'],
+            fontName=font_name,
+            fontSize=12,
+            spaceAfter=5
+        )
+        
+        # Tytuł
+        elements.append(Paragraph(f"PRZYJĘCIE ZEWNĘTRZNE (PZ)", title_style))
+        elements.append(Paragraph(f"<b>Numer dokumentu:</b> {receipt['document_number']}", header_style))
+        elements.append(Spacer(1, 10))
+        
+        # Informacje nagłówkowe
+        info_data = [
+            ['Data przyjęcia:', receipt['receipt_date'][:10] if receipt['receipt_date'] else '-'],
+            ['Dostawca:', receipt['supplier_name'] or '-'],
+            ['Faktura źródłowa:', receipt['source_invoice_number'] or '-'],
+            ['Status:', 'Zakończone' if receipt['status'] == 'completed' else 'Oczekujące'],
+        ]
+        
+        info_table = Table(info_data, colWidths=[4*cm, 10*cm])
+        info_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('FONTNAME', (0, 0), (0, -1), font_name),
+            ('ALIGN', (0, 0), (0, -1), 'LEFT'),
+            ('ALIGN', (1, 0), (1, -1), 'LEFT'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(info_table)
+        elements.append(Spacer(1, 20))
+        
+        # Tabela pozycji
+        elements.append(Paragraph("<b>Pozycje dokumentu:</b>", header_style))
+        elements.append(Spacer(1, 10))
+        
+        table_data = [['Lp.', 'Nazwa produktu', 'Kod', 'Ilość', 'J.m.', 'Cena netto', 'Wartość']]
+        
+        total_value = 0
+        for idx, item in enumerate(items, 1):
+            unit_price = item['unit_price'] or 0
+            total_price = item['total_price'] or (item['quantity'] * unit_price)
+            total_value += total_price
+            
+            table_data.append([
+                str(idx),
+                item['product_name'] or '-',
+                item['barcode'] or '-',
+                f"{item['quantity']:.2f}",
+                item['unit'] or 'szt',
+                f"{unit_price:.2f} zł",
+                f"{total_price:.2f} zł"
+            ])
+        
+        # Wiersz podsumowania
+        table_data.append(['', '', '', '', '', 'RAZEM:', f"{total_value:.2f} zł"])
+        
+        col_widths = [1*cm, 6*cm, 2.5*cm, 1.5*cm, 1.5*cm, 2.5*cm, 2.5*cm]
+        items_table = Table(table_data, colWidths=col_widths)
+        items_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 9),
+            ('BACKGROUND', (0, 0), (-1, 0), colors.grey),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+            ('ALIGN', (0, 0), (-1, 0), 'CENTER'),
+            ('ALIGN', (0, 1), (0, -1), 'CENTER'),  # Lp.
+            ('ALIGN', (3, 1), (3, -1), 'RIGHT'),   # Ilość
+            ('ALIGN', (5, 1), (-1, -1), 'RIGHT'),  # Ceny
+            ('GRID', (0, 0), (-1, -2), 0.5, colors.black),
+            ('LINEABOVE', (5, -1), (-1, -1), 1, colors.black),
+            ('FONTNAME', (5, -1), (-1, -1), font_name),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+            ('TOPPADDING', (0, 0), (-1, -1), 5),
+        ]))
+        elements.append(items_table)
+        
+        # Stopka
+        elements.append(Spacer(1, 30))
+        footer_data = [
+            ['Wystawił:', '_' * 30, 'Przyjął:', '_' * 30],
+        ]
+        footer_table = Table(footer_data, colWidths=[2*cm, 5*cm, 2*cm, 5*cm])
+        footer_table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), font_name),
+            ('FONTSIZE', (0, 0), (-1, -1), 10),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('TOPPADDING', (0, 0), (-1, -1), 20),
+        ]))
+        elements.append(footer_table)
+        
+        # Buduj PDF
+        doc.build(elements)
+        
+        # Zwróć PDF
+        pdf_data = buffer.getvalue()
+        buffer.close()
+        
+        response = make_response(pdf_data)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename=PZ_{receipt["document_number"]}.pdf'
+        return response
+        
+    except Exception as e:
+        logging.error(f"Błąd generowania PDF PZ: {str(e)}")
         logging.error(traceback.format_exc())
         return error_response(f"Błąd serwera: {str(e)}")
 

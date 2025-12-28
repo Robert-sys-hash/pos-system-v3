@@ -44,7 +44,7 @@ const LocationsTab = () => {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch('http://localhost:5002/api/locations/');
+      const response = await fetch('http://localhost:8000/api/locations/');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -64,7 +64,7 @@ const LocationsTab = () => {
   // Pobierz użytkowników
   const fetchUsers = async () => {
     try {
-      const response = await fetch('http://localhost:5002/api/admin/users');
+      const response = await fetch('http://localhost:8000/api/admin/users');
       if (response.ok) {
         const usersData = await response.json();
         setUsers(usersData.data?.users || []);
@@ -79,7 +79,7 @@ const LocationsTab = () => {
     if (!locationId) return;
     
     try {
-      const response = await fetch(`http://localhost:5002/api/locations/${locationId}/employees`);
+      const response = await fetch(`http://localhost:8000/api/locations/${locationId}/employees`);
       if (response.ok) {
         const data = await response.json();
         setEmployees(data.data || []);
@@ -110,8 +110,8 @@ const LocationsTab = () => {
 
     try {
       const url = editingEmployee 
-        ? `http://localhost:5002/api/locations/${selectedLocationId}/employees/${editingEmployee.id}`
-        : `http://localhost:5002/api/locations/${selectedLocationId}/employees`;
+        ? `http://localhost:8000/api/locations/${selectedLocationId}/employees/${editingEmployee.id}`
+        : `http://localhost:8000/api/locations/${selectedLocationId}/employees`;
       
       const method = editingEmployee ? 'PUT' : 'POST';
       
@@ -147,7 +147,7 @@ const LocationsTab = () => {
     }
 
     try {
-      const response = await fetch(`http://localhost:5002/api/locations/${selectedLocationId}/employees/${employeeId}`, {
+      const response = await fetch(`http://localhost:8000/api/locations/${selectedLocationId}/employees/${employeeId}`, {
         method: 'DELETE',
       });
 
@@ -175,7 +175,7 @@ const LocationsTab = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/admin/users', {
+      const response = await fetch('http://localhost:8000/api/admin/users', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -205,7 +205,7 @@ const LocationsTab = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5002/api/admin/users/${editingUser.login}`, {
+      const response = await fetch(`http://localhost:8000/api/admin/users/${editingUser.login}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +237,7 @@ const LocationsTab = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5002/api/admin/users/${login}`, {
+      const response = await fetch(`http://localhost:8000/api/admin/users/${login}`, {
         method: 'DELETE',
       });
 
@@ -265,7 +265,7 @@ const LocationsTab = () => {
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:5002/api/locations/', {
+      const response = await fetch('http://localhost:8000/api/locations/', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -310,7 +310,7 @@ const LocationsTab = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5002/api/locations/${editingLocation.id}`, {
+      const response = await fetch(`http://localhost:8000/api/locations/${editingLocation.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -342,7 +342,7 @@ const LocationsTab = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`http://localhost:5002/api/locations/${locationId}`, {
+      const response = await fetch(`http://localhost:8000/api/locations/${locationId}`, {
         method: 'DELETE',
       });
 
