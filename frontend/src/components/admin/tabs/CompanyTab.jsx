@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
 const CompanyTab = () => {
   const [companyData, setCompanyData] = useState({
     nazwa: '',
@@ -28,7 +30,7 @@ const CompanyTab = () => {
   const loadCompanyData = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/admin/company');
+      const response = await fetch(`${API_BASE}/admin/company`);
       const data = await response.json();
       
       console.log('Odpowiedź z API:', data);
@@ -59,7 +61,7 @@ const CompanyTab = () => {
       
       console.log('Zapisuję dane:', companyData);
       
-      const response = await fetch('/api/admin/company', {
+      const response = await fetch(`${API_BASE}/admin/company`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
