@@ -199,15 +199,16 @@ class LocationsManager:
             conn.close()
     
     def delete_location(self, location_id):
-        """Usuń lokalizację (soft delete)"""
+        """Usuń lokalizację (fizyczne usunięcie z bazy)"""
         conn = self.get_connection()
         try:
             cursor = conn.cursor()
-            cursor.execute("""
-                UPDATE locations 
-                SET aktywny = 0, updated_at = ?
-                WHERE id = ?
-            """, (datetime.now().isoformat(), location_id))
+            
+            # Najpierw usuń powiązane rekordy z location_employees
+            cursor.execute("DELETE FROM location_employees WHERE location_id = ?", (location_id,))
+            
+            # Usuń lokalizację fizycznie
+            cursor.execute("DELETE FROM locations WHERE id = ?", (location_id,))
             
             conn.commit()
             return cursor.rowcount > 0

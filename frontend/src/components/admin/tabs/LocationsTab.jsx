@@ -263,6 +263,15 @@ const LocationsTab = () => {
       return;
     }
 
+    // Sprawdź czy kod lokalizacji już istnieje
+    const existingLocation = locations.find(
+      loc => loc.kod_lokalizacji.toLowerCase() === newLocation.kod_lokalizacji.toLowerCase()
+    );
+    if (existingLocation) {
+      alert(`Kod lokalizacji "${newLocation.kod_lokalizacji}" już istnieje! Wybierz inny kod.`);
+      return;
+    }
+
     try {
       setLoading(true);
       const response = await fetch('http://localhost:8000/api/locations/', {
@@ -275,7 +284,13 @@ const LocationsTab = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Błąd podczas dodawania lokalizacji');
+        const errorMessage = errorData.error || errorData.message || 'Błąd podczas dodawania lokalizacji';
+        
+        // Obsługa błędu UNIQUE constraint
+        if (errorMessage.includes('UNIQUE constraint') || errorMessage.includes('kod_lokalizacji')) {
+          throw new Error(`Kod lokalizacji "${newLocation.kod_lokalizacji}" już istnieje w bazie danych. Wybierz inny kod.`);
+        }
+        throw new Error(errorMessage);
       }
 
       await fetchLocations();
