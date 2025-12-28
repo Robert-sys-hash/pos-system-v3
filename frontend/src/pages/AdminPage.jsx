@@ -5891,7 +5891,7 @@ const AdminPage = () => {
           )}
         </div>
 
-        {/* Tabs Navigation */}
+        {/* Tabs Navigation - 4 rows layout */}
         <div style={{
           backgroundColor: 'white',
           border: '1px solid #e9ecef',
@@ -5899,56 +5899,213 @@ const AdminPage = () => {
           overflow: 'hidden',
           boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
         }}>
+          {/* Row 1: System */}
           <div style={{
             display: 'flex',
+            alignItems: 'center',
             backgroundColor: '#f8f9fa',
             borderBottom: '1px solid #e9ecef',
-            overflowX: 'auto',
-            whiteSpace: 'nowrap'
+            padding: '0.5rem'
           }}>
-            {[
-              { id: 'system', icon: '🖥️', label: 'System' },
-              { id: 'company', icon: '🏢', label: 'Dane Firmy' },
-              { id: 'announcements', icon: '📢', label: 'Ogłoszenia' },
-              { id: 'fiscal-printer', icon: '🖨️', label: 'Drukarka Fiskalna' },
-              { id: 'template-editor', icon: '✏️', label: 'Szablony Faktur' },
-              { id: 'manufacturers', icon: '🏭', label: 'Producenci' },
-              { id: 'warehouses', icon: '🏪', label: 'Magazyny' },
-              { id: 'locations', icon: '🏢', label: 'Lokalizacje' },
-              { id: 'categories', icon: '🏷️', label: 'Kategorie' },
-              { id: 'discounts', icon: '🎯', label: 'Rabaty' },
-              { id: 'discount-reports', icon: '📊', label: 'Raporty' },
-              { id: 'daily-closure', icon: '🔒', label: 'Zamknięcie dnia' },
-              { id: 'document-definitions', icon: '📄', label: 'Definicje dokumentów' },
-              { id: 'document-prefixes', icon: '🏷️', label: 'Prefiksy dokumentów' },
-              { id: 'auto-backup', icon: '💾', label: 'Auto Backup' },
-              { id: 'settings', icon: '⚙️', label: 'Ustawienia' },
-              { id: 'logs', icon: '📋', label: 'Logi' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                style={{
-                  padding: '0.75rem 1rem',
-                  border: 'none',
-                  backgroundColor: activeTab === tab.id ? '#007bff' : 'transparent',
-                  color: activeTab === tab.id ? 'white' : '#495057',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '0.5rem',
-                  borderBottom: activeTab === tab.id ? '2px solid #007bff' : '2px solid transparent',
-                  transition: 'all 0.2s ease',
-                  flexShrink: 0,
-                  minWidth: 'fit-content'
-                }}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                <span>{tab.icon}</span>
-                <span>{tab.label}</span>
-              </button>
-            ))}
+            <div style={{
+              minWidth: '140px',
+              padding: '0.5rem 1rem',
+              fontWeight: '600',
+              color: '#343a40',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>🖥️</span> System
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {[
+                { id: 'system', icon: '📊', label: 'Info' },
+                { id: 'settings', icon: '⚙️', label: 'Ustawienia' },
+                { id: 'fiscal-printer', icon: '🖨️', label: 'Drukarka' },
+                { id: 'auto-backup', icon: '💾', label: 'Backup' },
+                { id: 'logs', icon: '📋', label: 'Logi' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    backgroundColor: activeTab === tab.id ? '#007bff' : '#e9ecef',
+                    color: activeTab === tab.id ? 'white' : '#495057',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 2: Firma */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            backgroundColor: '#fff',
+            borderBottom: '1px solid #e9ecef',
+            padding: '0.5rem'
+          }}>
+            <div style={{
+              minWidth: '140px',
+              padding: '0.5rem 1rem',
+              fontWeight: '600',
+              color: '#343a40',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>🏢</span> Firma
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {[
+                { id: 'company', icon: '📝', label: 'Dane Firmy' },
+                { id: 'locations', icon: '📍', label: 'Lokalizacje' },
+                { id: 'warehouses', icon: '🏪', label: 'Magazyny' },
+                { id: 'announcements', icon: '📢', label: 'Ogłoszenia' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    backgroundColor: activeTab === tab.id ? '#007bff' : '#e9ecef',
+                    color: activeTab === tab.id ? 'white' : '#495057',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 3: Produkty */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            backgroundColor: '#f8f9fa',
+            borderBottom: '1px solid #e9ecef',
+            padding: '0.5rem'
+          }}>
+            <div style={{
+              minWidth: '140px',
+              padding: '0.5rem 1rem',
+              fontWeight: '600',
+              color: '#343a40',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>📦</span> Produkty
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {[
+                { id: 'categories', icon: '🏷️', label: 'Kategorie' },
+                { id: 'manufacturers', icon: '🏭', label: 'Producenci' },
+                { id: 'discounts', icon: '🎯', label: 'Rabaty' },
+                { id: 'discount-reports', icon: '📊', label: 'Raporty' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    backgroundColor: activeTab === tab.id ? '#007bff' : '#e9ecef',
+                    color: activeTab === tab.id ? 'white' : '#495057',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Row 4: Dokumenty */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            backgroundColor: '#fff',
+            borderBottom: '1px solid #e9ecef',
+            padding: '0.5rem'
+          }}>
+            <div style={{
+              minWidth: '140px',
+              padding: '0.5rem 1rem',
+              fontWeight: '600',
+              color: '#343a40',
+              fontSize: '0.9rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem'
+            }}>
+              <span>📄</span> Dokumenty
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.25rem' }}>
+              {[
+                { id: 'template-editor', icon: '✏️', label: 'Szablony' },
+                { id: 'document-definitions', icon: '📄', label: 'Definicje' },
+                { id: 'document-prefixes', icon: '🏷️', label: 'Prefiksy' },
+                { id: 'daily-closure', icon: '🔒', label: 'Zamknięcie' }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  style={{
+                    padding: '0.4rem 0.75rem',
+                    border: 'none',
+                    borderRadius: '0.25rem',
+                    backgroundColor: activeTab === tab.id ? '#007bff' : '#e9ecef',
+                    color: activeTab === tab.id ? 'white' : '#495057',
+                    cursor: 'pointer',
+                    fontSize: '0.8rem',
+                    fontWeight: '500',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.35rem',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => setActiveTab(tab.id)}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </button>
+              ))}
+            </div>
           </div>
 
           {/* Tab Content */}
