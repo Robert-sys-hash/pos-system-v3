@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { warehouseService } from '../../services/warehouseService';
-import { productService } from '../../services/productService';
 import { useLocation } from '../../contexts/LocationContext';
 
 const InternalIssue = () => {
@@ -12,6 +11,11 @@ const InternalIssue = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showProductModal, setShowProductModal] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(false);
+  
+  // Magazyny dla lokalizacji
+  const [warehouses, setWarehouses] = useState([]);
+  const [selectedWarehouse, setSelectedWarehouse] = useState(null);
   
   // Historia RW
   const [issues, setIssues] = useState([]);
@@ -19,20 +23,37 @@ const InternalIssue = () => {
   const [dateFilter, setDateFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
 
+  // Załaduj magazyny dla lokalizacji
   useEffect(() => {
-    if (activeTab === 'new') {
-      loadProducts();
-    } else if (activeTab === 'history' && locationId) {
-      loadIssues();
-    }
-  }, [activeTab]);
-  
-  // Osobny useEffect dla zmiany lokalizacji
-  useEffect(() => {
-    if (locationId && activeTab === 'history') {
-      loadIssues();
-    }
+    const loadWarehouses = async () => {
+      if (!locationId) return;
+      
+      try {
+        const response = await fetch('http://localhost:8000/api/warehouses');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success) {
+            const locationWarehouses = data.data.filter(w => w.location_id === locationId);
+            setWarehouses(locationWarehouses);
+            // Ustaw pierwszy magazyn jako domyślny
+            if (locationWarehouses.length > 0 && !selectedWarehouse) {
+              setSelectedWarehouse(locationWarehouses[0].id);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Błąd ładowania magazynów:', err);
+      }
+    };
+    
+    loadWarehouses();
   }, [locationId]);
+
+  useEffect(() => {
+    if (activeTab === 'history' && locationId) {
+      loadIssues();
+    }
+  }, [activeTab, locationId]);
 
   const loadIssues = async () => {
     try {
@@ -55,36 +76,60 @@ const InternalIssue = () => {
     }
   }, [dateFilter, statusFilter]);
 
-  const loadProducts = async () => {
+  // Załaduj produkty z magazynu
+  const loadProducts = useCallback(async (search = '') => {
+    if (!selectedWarehouse) {
+      setProducts([]);
+      return;
+    }
+    
+    setLoadingProducts(true);
     try {
-      const result = await productService.searchProducts({ search: searchTerm });
-      let products = [];
+      // Użyj warehouseService.getInventory który zwraca produkty z magazynu wraz ze stanami
+      const result = await warehouseService.getInventory({
+        warehouse_id: selectedWarehouse,
+        search: search,
+        limit: 50,
+        available_only: true
+      });
       
-      if (result && result.data && result.data.products) {
-        products = result.data.products;
-      } else if (result && result.products) {
-        products = result.products;
+      if (result.success && result.data?.products) {
+        // Filtruj tylko produkty które mają stan > 0
+        const availableProducts = result.data.products.filter(p => 
+          (p.stock_quantity || p.quantity || 0) > 0
+        );
+        setProducts(availableProducts);
+      } else {
+        setProducts([]);
       }
-      
-      // Filtruj tylko produkty które mają stan > 0
-      const availableProducts = products.filter(p => (p.stock_quantity || 0) > 0);
-      setProducts(availableProducts);
     } catch (err) {
       console.error('Błąd ładowania produktów:', err);
       setProducts([]);
+    } finally {
+      setLoadingProducts(false);
     }
-  };
+  }, [selectedWarehouse]);
 
+  // Załaduj produkty gdy otwiera się modal lub zmienia magazyn
   useEffect(() => {
+    if (showProductModal && selectedWarehouse) {
+      loadProducts(searchTerm);
+    }
+  }, [showProductModal, selectedWarehouse]);
+
+  // Wyszukiwanie z debounce
+  useEffect(() => {
+    if (!showProductModal) return;
+    
     if (searchTerm.length >= 2) {
       const timeoutId = setTimeout(() => {
-        loadProducts();
+        loadProducts(searchTerm);
       }, 300);
       return () => clearTimeout(timeoutId);
     } else if (searchTerm.length === 0) {
-      loadProducts();
+      loadProducts('');
     }
-  }, [searchTerm]);
+  }, [searchTerm, showProductModal, loadProducts]);
 
   const addProduct = (product) => {
     const existing = selectedProducts.find(p => p.id === product.id);
@@ -93,13 +138,17 @@ const InternalIssue = () => {
       return;
     }
     
+    // stock_quantity lub quantity z API magazynowego
+    const availableQty = product.stock_quantity || product.quantity || 0;
+    
     setSelectedProducts(prev => [...prev, { 
       ...product, 
       quantity: 1,
       reason: '',
-      maxQuantity: product.stock_quantity || 0
+      maxQuantity: availableQty
     }]);
     setShowProductModal(false);
+    setSearchTerm('');
   };
 
   const updateProductQuantity = (productId, quantity) => {
@@ -490,19 +539,46 @@ const InternalIssue = () => {
                 <button 
                   type="button" 
                   className="btn-close" 
-                  onClick={() => setShowProductModal(false)}
+                  onClick={() => { setShowProductModal(false); setSearchTerm(''); }}
                 ></button>
               </div>
               <div className="modal-body">
+                {/* Wybór magazynu */}
+                <div className="mb-3">
+                  <label className="form-label">Magazyn źródłowy:</label>
+                  <select
+                    className="form-select"
+                    value={selectedWarehouse || ''}
+                    onChange={(e) => setSelectedWarehouse(parseInt(e.target.value))}
+                  >
+                    {warehouses.length === 0 ? (
+                      <option value="">Brak magazynów dla tej lokalizacji</option>
+                    ) : (
+                      warehouses.map(w => (
+                        <option key={w.id} value={w.id}>{w.name || w.nazwa}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+                
                 <div className="mb-3">
                   <input
                     type="text"
                     className="form-control"
-                    placeholder="Szukaj produktów..."
+                    placeholder="Szukaj produktów (wpisz min. 2 znaki)..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
+                
+                {loadingProducts ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="visually-hidden">Ładowanie...</span>
+                    </div>
+                    <p className="mt-2 text-muted">Ładowanie produktów...</p>
+                  </div>
+                ) : (
                 <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
                   <table className="table table-hover">
                     <thead className="sticky-top bg-white">
@@ -540,7 +616,7 @@ const InternalIssue = () => {
                             </td>
                             <td>
                               <span className="badge bg-success">
-                                {product.stock_quantity || 0} {product.unit || 'szt'}
+                                {product.stock_quantity || product.quantity || 0} {product.unit || 'szt'}
                               </span>
                             </td>
                             <td>
@@ -559,6 +635,7 @@ const InternalIssue = () => {
                     </tbody>
                   </table>
                 </div>
+                )}
               </div>
             </div>
           </div>
