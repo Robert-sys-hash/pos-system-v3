@@ -283,8 +283,10 @@ const LocationPricingPage = () => {
       setLoading(true);
       const response = await warehousePricingService.getWarehousePrices(locationId);
       if (response.success) {
-        setLocationPrices(response.data || []);
-        console.log(`Załadowano ${response.data?.length || 0} cen magazynowych dla magazynu ${locationId}`);
+        // API zwraca { prices: [...] } - potrzebujemy prices
+        const pricesArray = response.data?.prices || [];
+        setLocationPrices(pricesArray);
+        console.log(`Załadowano ${pricesArray.length} cen magazynowych dla magazynu ${locationId}`);
       }
     } catch (err) {
       setError(err.message);
@@ -397,7 +399,8 @@ const LocationPricingPage = () => {
       if (forceRefreshPrices) {
         const pricesResponse = await warehousePricingService.getWarehousePrices(selectedLocation.id);
         if (pricesResponse.success) {
-          currentLocationPrices = pricesResponse.data || [];
+          // API zwraca { prices: [...] } - potrzebujemy prices
+          currentLocationPrices = pricesResponse.data?.prices || [];
           setLocationPrices(currentLocationPrices);
           console.log(`Odświeżono ${currentLocationPrices.length} cen magazynowych`);
         }
@@ -417,30 +420,34 @@ const LocationPricingPage = () => {
       
       const productsWithPrices = products.map(product => {
         const locationPrice = currentLocationPrices.find(lp => lp.product_id === product.id);
-        // Zawsze ustawiamy hasSpecialPrice na true jeśli istnieje wpis lokalizacyjny 
-        // ALBO false jeśli go nie ma (ale nadal pokazujemy status)
-        const hasSpecialPrice = !!locationPrice;
+        // Ustawiamy hasSpecialPrice na true jeśli istnieje wpis lokalizacyjny Z ceną specjalną
+        // API zwraca: has_special_price, special_price, warehouse_price_net, standard_price
+        const hasSpecialPrice = locationPrice?.has_special_price || false;
+        
+        // Używaj prawidłowych nazw pól z API
+        const specialPriceNetto = hasSpecialPrice ? (locationPrice?.warehouse_price_net || null) : null;
+        const specialPriceBrutto = hasSpecialPrice ? (locationPrice?.special_price || locationPrice?.warehouse_price || null) : null;
         
         const defaultMargin = calculateMargin(product, false);
         const specialMargin = hasSpecialPrice ? calculateMargin({
           ...product,
           hasSpecialPrice: true,
-          specialPriceNetto: locationPrice.cena_sprzedazy_netto
+          specialPriceNetto: specialPriceNetto
         }, true) : null;
         
         const result = {
           ...product,
           hasSpecialPrice,
-          specialPriceNetto: locationPrice?.cena_sprzedazy_netto || null,
-          specialPriceBrutto: locationPrice?.cena_sprzedazy_brutto || null,
-          priceDiffPercent: hasSpecialPrice ? 
-            Math.round(((locationPrice.cena_sprzedazy_brutto - product.cena_sprzedazy_brutto) / product.cena_sprzedazy_brutto) * 100) : 0,
+          specialPriceNetto: specialPriceNetto,
+          specialPriceBrutto: specialPriceBrutto,
+          priceDiffPercent: hasSpecialPrice && specialPriceBrutto ? 
+            Math.round(((specialPriceBrutto - product.cena_sprzedazy_brutto) / product.cena_sprzedazy_brutto) * 100) : 0,
           defaultMargin,
           specialMargin
         };
         
         if (hasSpecialPrice) {
-          console.log(`Produkt ${product.nazwa} ma cenę specjalną: netto ${locationPrice.cena_sprzedazy_netto} zł, brutto ${locationPrice.cena_sprzedazy_brutto} zł`);
+          console.log(`Produkt ${product.nazwa} ma cenę specjalną: netto ${specialPriceNetto} zł, brutto ${specialPriceBrutto} zł`);
         }
         
         return result;

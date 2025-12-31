@@ -576,6 +576,7 @@ const AdminPage = () => {
   };
 
   const handleResetCounter = async (docType) => {
+    // eslint-disable-next-line no-restricted-globals
     if (!confirm(`Czy na pewno chcesz zresetować licznik dla typu "${docType}"?`)) {
       return;
     }

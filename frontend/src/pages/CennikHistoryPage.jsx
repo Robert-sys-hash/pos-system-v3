@@ -23,17 +23,6 @@ const CennikHistoryPage = () => {
   // Dodaj debug log
   console.log('CennikHistoryPage component mounted');
 
-  // Sprawdź czy wszystkie wymagane biblioteki są dostępne
-  if (!useNavigate || !useState || !useEffect) {
-    return (
-      <div className="container-fluid py-4">
-        <div className="alert alert-danger">
-          Błąd ładowania bibliotek React. Spróbuj odświeżyć stronę.
-        </div>
-      </div>
-    );
-  }
-
   useEffect(() => {
     console.log('useEffect triggered');
     loadCennikHistory();

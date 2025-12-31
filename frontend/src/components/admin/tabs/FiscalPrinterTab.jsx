@@ -145,6 +145,7 @@ const FiscalPrinterTab = () => {
 
   // Włączenie trybu testowego
   const enableTestMode = async () => {
+    // eslint-disable-next-line no-restricted-globals
     if (!confirm('Czy na pewno chcesz włączyć tryb testowy?\n\nW tym trybie fiskalizacja będzie symulowana bez rzeczywistej drukarki fiskalnej. To pozwoli na testowanie systemu wystawiania faktur do paragonów.')) {
       return;
     }
@@ -173,6 +174,7 @@ const FiscalPrinterTab = () => {
 
   // Wyłączenie trybu testowego
   const disableTestMode = async () => {
+    // eslint-disable-next-line no-restricted-globals
     if (!confirm('Czy na pewno chcesz wyłączyć tryb testowy?\n\nSystem przywróci normalną komunikację z drukarką fiskalną.')) {
       return;
     }

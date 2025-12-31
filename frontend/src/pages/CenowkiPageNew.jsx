@@ -107,8 +107,10 @@ const CenowkiPageNew = () => {
     try {
       const response = await warehousePricingService.getWarehousePrices(selectedLocation.id);
       if (response.success) {
-        setLocationPrices(response.data || []);
-        console.log('Załadowano ceny magazynowe:', response.data?.length || 0);
+        // response.data zawiera { prices: [...], warehouse_id, ... } - potrzebujemy prices
+        const pricesArray = response.data?.prices || [];
+        setLocationPrices(pricesArray);
+        console.log('Załadowano ceny magazynowe:', pricesArray.length);
       }
     } catch (err) {
       console.error('Błąd ładowania cen magazynowych:', err);
@@ -126,7 +128,8 @@ const CenowkiPageNew = () => {
       // Najpierw załaduj ceny magazynowe
       const response = await warehousePricingService.getWarehousePrices(selectedLocation.id);
       if (response.success) {
-        const newLocationPrices = response.data || [];
+        // response.data zawiera { prices: [...], warehouse_id, ... } - potrzebujemy prices
+        const newLocationPrices = response.data?.prices || [];
         setLocationPrices(newLocationPrices);
         console.log('🔄 Odświeżono ceny magazynowe:', newLocationPrices.length);
         
@@ -156,15 +159,18 @@ const CenowkiPageNew = () => {
         const productsWithPrices = filteredProducts.map(product => {
           const locationPrice = newLocationPrices.find(lp => lp.product_id === product.id);
           
-          if (locationPrice) {
-            console.log(`✅ Produkt ${product.nazwa} (ID: ${product.id}) MA cenę specjalną: ${locationPrice.cena_sprzedazy_brutto} zł`);
+          // API zwraca has_special_price, special_price, warehouse_price_net
+          const hasSpecial = locationPrice?.has_special_price || false;
+          
+          if (hasSpecial) {
+            console.log(`✅ Produkt ${product.nazwa} (ID: ${product.id}) MA cenę specjalną: ${locationPrice.special_price || locationPrice.warehouse_price} zł`);
           }
           
           return {
             ...product,
-            hasSpecialPrice: !!locationPrice,
-            specialPriceNetto: locationPrice?.cena_sprzedazy_netto || null,
-            specialPriceBrutto: locationPrice?.cena_sprzedazy_brutto || null,
+            hasSpecialPrice: hasSpecial,
+            specialPriceNetto: hasSpecial ? (locationPrice?.warehouse_price_net || locationPrice?.special_price_net || null) : null,
+            specialPriceBrutto: hasSpecial ? (locationPrice?.special_price || locationPrice?.warehouse_price || null) : null,
             // Dodaj informacje potrzebne do etykiet
             simplifiedName: simplifyProductName(product.nazwa),
             packageQuantity: extractPackageQuantity(product.nazwa, product.opis),
@@ -216,13 +222,18 @@ const CenowkiPageNew = () => {
       const productsWithPrices = filteredProducts.map(product => {
         const locationPrice = currentLocationPrices.find(lp => lp.product_id === product.id);
         
-        console.log(`Produkt ${product.nazwa} (ID: ${product.id}):`, locationPrice ? 'MA cenę specjalną' : 'BRAK ceny specjalnej');
+        // API zwraca has_special_price, special_price, warehouse_price_net
+        const hasSpecial = locationPrice?.has_special_price || false;
+        
+        if (hasSpecial) {
+          console.log(`Produkt ${product.nazwa} (ID: ${product.id}): MA cenę specjalną: ${locationPrice.special_price || locationPrice.warehouse_price} zł`);
+        }
         
         return {
           ...product,
-          hasSpecialPrice: !!locationPrice,
-          specialPriceNetto: locationPrice?.cena_sprzedazy_netto || null,
-          specialPriceBrutto: locationPrice?.cena_sprzedazy_brutto || null,
+          hasSpecialPrice: hasSpecial,
+          specialPriceNetto: hasSpecial ? (locationPrice?.warehouse_price_net || locationPrice?.special_price_net || null) : null,
+          specialPriceBrutto: hasSpecial ? (locationPrice?.special_price || locationPrice?.warehouse_price || null) : null,
           // Dodaj informacje potrzebne do etykiet
           simplifiedName: simplifyProductName(product.nazwa),
           packageQuantity: extractPackageQuantity(product.nazwa, product.opis),
@@ -545,16 +556,17 @@ const CenowkiPageNew = () => {
     if (selectedLocation && locationPrices.length > 0) {
       const locationPrice = locationPrices.find(lp => lp.product_id === product.id);
       if (locationPrice && locationPrice.has_special_price) {
+        // API zwraca: special_price, warehouse_price, standard_price
         return {
-          price: locationPrice.special_price_brutto,
+          price: locationPrice.special_price || locationPrice.warehouse_price,
           type: 'special',
-          oldPrice: locationPrice.default_price_brutto || product.cena_sprzedazy_brutto
+          oldPrice: locationPrice.standard_price || product.cena_sprzedazy_brutto
         };
       }
       // Jeśli nie ma ceny specjalnej dla lokalizacji, użyj domyślnej ceny z lokalizacji
-      if (locationPrice && locationPrice.default_price_brutto) {
+      if (locationPrice && locationPrice.standard_price) {
         return {
-          price: locationPrice.default_price_brutto,
+          price: locationPrice.standard_price,
           type: 'normal',
           oldPrice: null
         };
