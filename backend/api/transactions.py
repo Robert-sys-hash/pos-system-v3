@@ -40,6 +40,12 @@ def create_transaction():
         if not data:
             return error_response("Brak danych JSON", 400)
         
+        # DEBUG: Wypisz otrzymane dane
+        print(f"📥 TRANSAKCJA - Otrzymane dane:")
+        print(f"   payment_method: {data.get('payment_method')}")
+        print(f"   split_payments: {data.get('split_payments')}")
+        print(f"   coupon_code: {data.get('coupon_code')}")
+        
         customer_id = data.get('customer_id')
         cashier = data.get('cashier', 'system')
         transaction_type = data.get('type', 'draft')
@@ -316,8 +322,8 @@ def create_transaction():
                             # Obsługa kuponów w płatnościach dzielonych
                             if payment['method'] == 'kupon' and payment.get('coupon_code'):
                                 try:
-                                    from api.coupons import use_coupon
-                                    coupon_result = use_coupon(payment['coupon_code'], payment['amount'])
+                                    from api.coupons import use_coupon_internal
+                                    coupon_result = use_coupon_internal(payment['coupon_code'], payment['amount'], transaction_id)
                                     if not coupon_result.get('success'):
                                         print(f"⚠️ Błąd użycia kuponu {payment['coupon_code']}: {coupon_result.get('error')}")
                                         # Kontynuuj z zapisem operacji mimo błędu kuponu
@@ -347,8 +353,8 @@ def create_transaction():
                     # Obsługa kuponu dla pojedynczej płatności
                     if payment_method == 'kupon' and coupon_data:
                         try:
-                            from api.coupons import use_coupon
-                            coupon_result = use_coupon(coupon_data, total_amount)
+                            from api.coupons import use_coupon_internal
+                            coupon_result = use_coupon_internal(coupon_data, total_amount, transaction_id)
                             if coupon_result.get('success'):
                                 print(f"✅ Kupon {coupon_data} użyty na kwotę {total_amount}")
                                 opis += f" (kupon: {coupon_data})"

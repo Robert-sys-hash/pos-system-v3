@@ -219,6 +219,89 @@ def validate_coupon(code):
     except Exception as e:
         return error_response(f"Błąd walidacji kuponu: {str(e)}", 500)
 
+
+def use_coupon_internal(code, amount_used, transaction_id=None):
+    """
+    Wewnętrzna funkcja do wykorzystania kuponu (nie endpoint)
+    Używana przez pos.py i transactions.py
+    
+    Returns:
+        dict: {'success': True/False, 'error': 'message', ...}
+    """
+    try:
+        from datetime import datetime
+        
+        # Sprawdź kupon bezpośrednio w bazie
+        query = """
+        SELECT 
+            id, kod, wartosc, data_waznosci, 
+            status, data_wykorzystania
+        FROM kupony 
+        WHERE kod = ?
+        """
+        
+        result = execute_query(query, (code.upper(),))
+        
+        if not result:
+            return {'success': False, 'error': f"Kupon {code} nie został znaleziony"}
+        
+        coupon = result[0]
+        
+        # Sprawdź czy można wykorzystać
+        if coupon['status'] != 'aktywny':
+            return {'success': False, 'error': f"Kupon ma status: {coupon['status']}"}
+        
+        # Sprawdź datę ważności
+        if coupon['data_waznosci']:
+            try:
+                expiry_date = datetime.strptime(coupon['data_waznosci'], '%Y-%m-%d').date()
+                if expiry_date < datetime.now().date():
+                    return {'success': False, 'error': f"Kupon wygasł {coupon['data_waznosci']}"}
+            except ValueError:
+                return {'success': False, 'error': "Nieprawidłowa data ważności"}
+        
+        # Oblicz nową wartość kuponu po wykorzystaniu
+        current_value = float(coupon['wartosc'])
+        used_amount = float(amount_used or current_value)
+        
+        # Sprawdź czy nie próbuje się wykorzystać więcej niż wartość kuponu
+        if used_amount > current_value:
+            return {'success': False, 'error': f"Nie można wykorzystać {used_amount} zł z kuponu o wartości {current_value} zł"}
+        
+        new_value = current_value - used_amount
+        new_status = 'wykorzystany' if new_value <= 0 else 'aktywny'
+        
+        # Aktualizuj kupon: obniż wartość lub oznacz jako wykorzystany
+        update_query = """
+        UPDATE kupony 
+        SET wartosc = ?, 
+            status = ?,
+            data_wykorzystania = datetime('now'),
+            kwota_wykorzystana = COALESCE(kwota_wykorzystana, 0) + ?
+        WHERE kod = ?
+        """
+        
+        success = execute_insert(update_query, (new_value, new_status, used_amount, code.upper()))
+        
+        if success:
+            print(f"✅ Kupon {code.upper()} wykorzystany: -{used_amount} zł, pozostało: {new_value} zł, status: {new_status}")
+            return {
+                'success': True,
+                'code': code.upper(),
+                'original_value': current_value,
+                'used_amount': used_amount,
+                'remaining_value': new_value,
+                'status': new_status,
+                'transaction_id': transaction_id
+            }
+        else:
+            return {'success': False, 'error': "Błąd aktualizacji kuponu w bazie"}
+            
+    except Exception as e:
+        print(f"❌ Błąd use_coupon_internal: {e}")
+        return {'success': False, 'error': str(e)}
+
+
 @coupons_bp.route('/coupons/use/<code>', methods=['POST'])
 # @require_auth  # Wyłączono dla testów
 def use_coupon(code):

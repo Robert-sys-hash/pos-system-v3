@@ -37,10 +37,22 @@ export const transactionService = {
       
       // 4. Finalizuj transakcję jeśli status to 'zakonczony'
       if (transactionData.status === 'zakonczony') {
-        const finalizeResponse = await api.post(`/pos/cart/${transactionId}/finalize`, {
+        const finalizePayload = {
           payment_method: transactionData.payment_method || 'gotowka',
           customer_id: transactionData.customer_id
-        });
+        };
+        
+        // Dodaj split_payments jeśli istnieją
+        if (transactionData.split_payments && transactionData.split_payments.length > 0) {
+          finalizePayload.split_payments = transactionData.split_payments;
+        }
+        
+        // Dodaj coupon_code jeśli istnieje
+        if (transactionData.coupon_code) {
+          finalizePayload.coupon_code = transactionData.coupon_code;
+        }
+        
+        const finalizeResponse = await api.post(`/pos/cart/${transactionId}/finalize`, finalizePayload);
         
         if (!finalizeResponse.data.success) {
           throw new Error(`Błąd finalizacji: ${finalizeResponse.data.message}`);
@@ -173,13 +185,26 @@ export const transactionService = {
    */
   async completeTransaction(transactionId, paymentData) {
     try {
-      const response = await api.post(`/pos/cart/${transactionId}/finalize`, {
+      const requestBody = {
         payment_method: paymentData.payment_method || 'gotowka',
         customer_id: paymentData.customer_id || null,
         kwota_otrzymana: paymentData.kwota_otrzymana || paymentData.amount_paid,
         amount_change: paymentData.amount_change || 0,
         notatka: paymentData.note || ''
-      });
+      };
+      
+      // Dodaj split_payments jeśli istnieją (płatność dzielona)
+      if (paymentData.split_payments && paymentData.split_payments.length > 0) {
+        requestBody.split_payments = paymentData.split_payments;
+        requestBody.payment_method = 'dzielona'; // Nadpisz metodę na "dzielona"
+      }
+      
+      // Dodaj coupon_code jeśli istnieje
+      if (paymentData.coupon_code) {
+        requestBody.coupon_code = paymentData.coupon_code;
+      }
+      
+      const response = await api.post(`/pos/cart/${transactionId}/finalize`, requestBody);
       
       return {
         success: response.data.success !== false,

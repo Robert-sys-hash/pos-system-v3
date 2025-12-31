@@ -883,9 +883,11 @@ const PosPage = () => {
   };
 
   const updateSplitPaymentAmount = (method, amount) => {
+    // Zaokrąglij do 2 miejsc po przecinku
+    const roundedAmount = Math.round((parseFloat(amount) || 0) * 100) / 100;
     setSplitPayments(prev => prev.map(payment => 
       payment.method === method 
-        ? { ...payment, amount: parseFloat(amount) || 0 }
+        ? { ...payment, amount: roundedAmount }
         : payment
     ));
   };
@@ -1024,11 +1026,23 @@ const PosPage = () => {
           const changeAmount = paymentMethod === "gotowka" ? Math.max(0, receivedAmountFloat - finalAmount) : 0;
           
           const paymentData = {
-            payment_method: paymentMethod,
+            payment_method: splitPaymentsData ? "dzielona" : paymentMethod,
             amount_paid: finalAmount, // Kwota transakcji
             kwota_otrzymana: receivedAmountFloat, // Kwota otrzymana od klienta
             amount_change: changeAmount, // Reszta
             customer_id: selectedCustomer?.id || null, // Dodaj customer_id
+            // Dodaj płatności dzielone jeśli istnieją
+            ...(splitPaymentsData && {
+              split_payments: splitPaymentsData.filter(p => p.amount > 0).map(p => ({
+                method: p.method,
+                amount: p.amount,
+                ...(p.method === 'kupon' && p.couponCode && { coupon_code: p.couponCode })
+              }))
+            }),
+            // Dodaj kupon jeśli istnieje
+            ...(couponData && {
+              coupon_code: couponData.code
+            })
           };
 
           const completeResponse = await transactionService.completeTransaction(
@@ -1037,27 +1051,8 @@ const PosPage = () => {
           );
 
           if (completeResponse.success) {
-            // Jeśli płacono kuponem, oznacz go jako wykorzystany
-            if (couponData && paymentMethod === "kupon") {
-              try {
-                const useCouponResponse = await fetch(`http://localhost:8000/api/coupons/use/${couponData.code}`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                  },
-                  body: JSON.stringify({
-                    transaction_id: transactionId,
-                    amount_used: Math.min(couponData.value, getFinalTotal())
-                  })
-                });
-                
-                if (!useCouponResponse.ok) {
-                  console.warn('Nie udało się oznaczyć kuponu jako wykorzystany');
-                }
-              } catch (error) {
-                console.error('Błąd przy wykorzystywaniu kuponu:', error);
-              }
-            }
+            // Kupon jest automatycznie wykorzystywany przez backend w pos.py
+            // Nie trzeba już osobno wywoływać /coupons/use/
             
             setCurrentTransaction({ id: transactionId });
             clearCart();

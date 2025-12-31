@@ -583,9 +583,11 @@ def complete_transaction(transaction_id):
                 'blik': 'blik',
                 'gotowka': 'gotowka',
                 'karta': 'karta',
-                'przelew': 'przelew'
+                'przelew': 'przelew',
+                'kupon': 'kupon',
+                'coupon': 'kupon'
             }
-            typ_platnosci = payment_type_mapping.get(payment_method, 'gotowka')
+            typ_platnosci = payment_type_mapping.get(payment_method, payment_method)
             
             kasa_operacja_sql = """
             INSERT INTO kasa_operacje 
@@ -1323,6 +1325,14 @@ def complete_cart_transaction(transakcja_id):
         kwota_otrzymana = data.get('kwota_otrzymana')
         notatka = data.get('notatka', '')
         
+        # Sprawdź czy to płatność dzielona
+        split_payments = data.get('split_payments', [])
+        if split_payments and len(split_payments) > 0:
+            # Dla płatności dzielonej ustaw formę jako "dzielona" lub lista metod
+            metody = [p.get('method', '') for p in split_payments if p.get('amount', 0) > 0]
+            metoda_platnosci = 'dzielona' if len(metody) > 1 else (metody[0] if metody else 'gotowka')
+            print(f"DEBUG: Płatność dzielona wykryta, metody: {metody}, forma_platnosci: {metoda_platnosci}")
+        
         # Oblicz resztę i kwoty dla form płatności
         kwota_reszty = 0
         kwota_gotowka = 0
@@ -1482,9 +1492,10 @@ def complete_cart_transaction(transakcja_id):
                     'blik': 'blik',
                     'gotowka': 'gotowka',
                     'karta': 'karta',
-                    'przelew': 'przelew'
+                    'przelew': 'przelew',
+                    'kupon': 'kupon',
+                    'coupon': 'kupon'
                 }
-                typ_platnosci = payment_type_mapping.get(metoda_platnosci, 'gotowka')
                 
                 kasa_operacja_sql = """
                 INSERT INTO kasa_operacje 
@@ -1493,24 +1504,76 @@ def complete_cart_transaction(transakcja_id):
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 
-                opis = f"Sprzedaż - transakcja #{transakcja_id}"
+                # Pobierz split_payments z danych wejściowych
+                split_payments = data.get('split_payments', [])
                 
-                # Użyj faktycznej kwoty transakcji (już obliczonej wcześniej)
-                # final_amount jest już dostępny z linii 1313
-                
-                print(f"DEBUG kasa_operacje (cart): metoda_platnosci={metoda_platnosci}, typ_platnosci={typ_platnosci}, final_amount={final_amount}")
-                
-                execute_insert(kasa_operacja_sql, (
-                    'KP',  # Kasa Przyjmie
-                    typ_platnosci,
-                    final_amount,  # Używaj kwoty otrzymanej (po rabacie)
-                    opis,
-                    'sprzedaz',
-                    f"TRANS-{transakcja_id}",
-                    datetime.now().date().isoformat(),
-                    'system',
-                    transaction_location_id
-                ))
+                # Obsługa płatności dzielonych
+                if split_payments and len(split_payments) > 0:
+                    print(f"DEBUG: Przetwarzanie płatności dzielonych w POS: {split_payments}")
+                    
+                    for payment in split_payments:
+                        if payment.get('amount', 0) > 0:
+                            typ_platnosci = payment_type_mapping.get(payment.get('method', ''), payment.get('method', 'gotowka'))
+                            opis = f"Sprzedaż (płatność dzielona {payment.get('method')}) - transakcja #{transakcja_id}"
+                            
+                            # Obsługa kuponów w płatnościach dzielonych
+                            if payment.get('method') == 'kupon' and payment.get('coupon_code'):
+                                try:
+                                    from api.coupons import use_coupon_internal
+                                    coupon_result = use_coupon_internal(payment['coupon_code'], payment['amount'], transakcja_id)
+                                    if coupon_result.get('success'):
+                                        print(f"✅ Kupon {payment['coupon_code']} użyty na kwotę {payment['amount']}")
+                                        opis += f" (kupon: {payment['coupon_code']})"
+                                    else:
+                                        print(f"⚠️ Błąd użycia kuponu {payment['coupon_code']}: {coupon_result.get('error')}")
+                                except Exception as e:
+                                    print(f"❌ Błąd podczas użycia kuponu: {e}")
+                            
+                            print(f"DEBUG kasa_operacje (dzielona): method={payment.get('method')}, typ_platnosci={typ_platnosci}, amount={payment['amount']}")
+                            
+                            execute_insert(kasa_operacja_sql, (
+                                'KP',  # Kasa Przyjmie
+                                typ_platnosci,
+                                payment['amount'],
+                                opis,
+                                'sprzedaz',
+                                f"TRANS-{transakcja_id}-{payment.get('method', 'unknown').upper()}",
+                                datetime.now().date().isoformat(),
+                                'system',
+                                transaction_location_id
+                            ))
+                else:
+                    # Pojedyncza płatność - standardowa obsługa
+                    typ_platnosci = payment_type_mapping.get(metoda_platnosci, metoda_platnosci)
+                    opis = f"Sprzedaż - transakcja #{transakcja_id}"
+                    
+                    # Obsługa kuponu dla pojedynczej płatności kuponem
+                    coupon_code = data.get('coupon_code')
+                    if metoda_platnosci == 'kupon' and coupon_code:
+                        try:
+                            from api.coupons import use_coupon_internal
+                            coupon_result = use_coupon_internal(coupon_code, final_amount, transakcja_id)
+                            if coupon_result.get('success'):
+                                print(f"✅ Kupon {coupon_code} użyty na kwotę {final_amount}")
+                                opis += f" (kupon: {coupon_code})"
+                            else:
+                                print(f"⚠️ Błąd użycia kuponu {coupon_code}: {coupon_result.get('error')}")
+                        except Exception as e:
+                            print(f"❌ Błąd podczas użycia kuponu: {e}")
+                    
+                    print(f"DEBUG kasa_operacje (cart): metoda_platnosci={metoda_platnosci}, typ_platnosci={typ_platnosci}, final_amount={final_amount}")
+                    
+                    execute_insert(kasa_operacja_sql, (
+                        'KP',  # Kasa Przyjmie
+                        typ_platnosci,
+                        final_amount,  # Używaj kwoty otrzymanej (po rabacie)
+                        opis,
+                        'sprzedaz',
+                        f"TRANS-{transakcja_id}",
+                        datetime.now().date().isoformat(),
+                        'system',
+                        transaction_location_id
+                    ))
             except Exception as e:
                 # Loguj błąd ale nie przerywaj procesu
                 print(f"Błąd dodawania operacji kasa/bank: {str(e)}")
