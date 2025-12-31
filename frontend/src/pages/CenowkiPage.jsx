@@ -4,8 +4,7 @@ import categoriesService from '../services/categoriesService';
 import locationsService from '../services/locationsService';
 import warehousePricingService from '../services/warehousePricingService';
 import { useLocation } from '../contexts/LocationContext';
-import { FaTag, FaSearch, FaList, FaFilter, FaBoxes, FaPrint, FaCopy, FaTimes, FaTrash, FaSyncAlt, FaEye, FaHistory, FaClipboardList } from 'react-icons/fa';
-import ProductHistoryModal from '../components/ProductHistoryModal';
+import { FaTag, FaSearch, FaList, FaFilter, FaBoxes, FaPrint, FaCopy, FaTimes, FaTrash, FaSyncAlt, FaEye } from 'react-icons/fa';
 
 const CenowkiPage = () => {
   const { selectedLocation, availableLocations, changeLocation } = useLocation();
@@ -39,10 +38,6 @@ const CenowkiPage = () => {
   // Opcje powielania cenówek
   const [copyMultiplier, setCopyMultiplier] = useState(1);
   const [selectedForCopy, setSelectedForCopy] = useState(new Set());
-  
-  // Stan dla modalu historii produktu
-  const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [selectedProductForHistory, setSelectedProductForHistory] = useState(null);
 
   useEffect(() => {
     loadInitialData();
@@ -251,7 +246,6 @@ const CenowkiPage = () => {
   };
 
   const loadProducts = async () => {
-    console.log('🔍 CenowkiPage loadProducts wywołane, locationPrices:', locationPrices.length);
     // Używaj nowej funkcji z aktualnymi cenami ze stanu
     await loadProductsWithPrices(locationPrices);
   };
@@ -372,14 +366,6 @@ const CenowkiPage = () => {
 
   const handleDeselectAllForCopy = () => {
     setSelectedForCopy(new Set());
-  };
-
-  const handleShowHistory = (product) => {
-    console.log('🔍 CenowkiPage handleShowHistory wywołane:', product);
-    console.log('🔍 Cenowki Product properties:', Object.keys(product));
-    setSelectedProductForHistory(product);
-    setShowHistoryModal(true);
-    console.log('🔍 Cenowki Modal states set:', { showHistoryModal: true, productId: product.id });
   };
 
   const handlePrintLabels = () => {
@@ -556,7 +542,7 @@ const CenowkiPage = () => {
 
   const getDisplayPrice = (product) => {
     // Jeśli wybrano lokalizację, sprawdź czy są ceny specjalne dla tej lokalizacji
-    if (selectedLocation && Array.isArray(locationPrices) && locationPrices.length > 0) {
+    if (selectedLocation && locationPrices.length > 0) {
       const locationPrice = locationPrices.find(lp => lp.product_id === product.id);
       if (locationPrice && locationPrice.has_special_price) {
         return {
@@ -769,7 +755,7 @@ const CenowkiPage = () => {
                   </h6>
                 </div>
                 <div className="card-body">
-                  {(console.log('🔍 CenowkiPage products.length:', products.length), products.length === 0) ? (
+                  {products.length === 0 ? (
                     <div className="text-center py-5">
                       <FaBox className="fa-3x text-muted mb-3" />
                       <h5 className="text-muted">Brak produktów</h5>
@@ -800,13 +786,11 @@ const CenowkiPage = () => {
                             <th>Waga</th>
                             <th>Cena</th>
                             <th>Status</th>
-                            <th>Akcje</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {products.map((product, index) => {
+                          {products.map((product) => {
                             const priceInfo = getDisplayPrice(product);
-                            console.log(`🔍 Renderowanie produktu ${index}:`, product.id, product.nazwa);
                             
                             return (
                               <tr key={product.id} className={selectedProducts.has(product.id) ? 'table-primary' : ''}>
@@ -879,24 +863,6 @@ const CenowkiPage = () => {
                                   ) : (
                                     <span className="badge bg-secondary">Cena standardowa</span>
                                   )}
-                                </td>
-                                <td>
-                                  <button
-                                    className="btn btn-sm btn-success"
-                                    onClick={() => {
-                                      console.log('🔍 CenowkiPage przycisk historii kliknięty:', product);
-                                      handleShowHistory(product);
-                                    }}
-                                    title="Historia operacji produktu"
-                                    style={{ 
-                                      backgroundColor: '#28a745', 
-                                      border: '2px solid #28a745',
-                                      color: 'white',
-                                      fontWeight: 'bold'
-                                    }}
-                                  >
-                                    <FaClipboardList className="me-1" /> OPERACJE
-                                  </button>
                                 </td>
                               </tr>
                             );
@@ -1227,19 +1193,6 @@ const CenowkiPage = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal historii produktu */}
-      {showHistoryModal && selectedProductForHistory && (
-        <ProductHistoryModal
-          productId={selectedProductForHistory.id}
-          productName={selectedProductForHistory.nazwa || selectedProductForHistory.name}
-          isOpen={showHistoryModal}
-          onClose={() => {
-            setShowHistoryModal(false);
-            setSelectedProductForHistory(null);
-          }}
-        />
       )}
     </div>
   );

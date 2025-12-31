@@ -308,7 +308,6 @@ def get_purchase_invoice_details(invoice_id):
 def update_purchase_invoice(invoice_id):
     """
     Aktualizacja danych faktury zakupowej
-    Automatycznie generuje PZ gdy status zmienia się na 'zatwierdzona'
     """
     try:
         data = request.get_json()
@@ -316,15 +315,12 @@ def update_purchase_invoice(invoice_id):
         if not data:
             return error_response("Brak danych do aktualizacji", 400)
         
-        # Sprawdź czy faktura istnieje i pobierz aktualny status
-        check_sql = "SELECT id, status FROM faktury_zakupowe WHERE id = ?"
+        # Sprawdź czy faktura istnieje
+        check_sql = "SELECT id FROM faktury_zakupowe WHERE id = ?"
         existing = execute_query(check_sql, (invoice_id,))
         
         if not existing:
             return error_response("Faktura nie została znaleziona", 404)
-        
-        old_status = existing[0]['status'] if existing[0].get('status') else 'nowa'
-        new_status = data.get('status', old_status)
         
         # Przygotuj dane do aktualizacji
         allowed_fields = [
@@ -361,316 +357,14 @@ def update_purchase_invoice(invoice_id):
         
         execute_query(update_sql, update_values)
         
-        # Automatyczne generowanie PZ gdy status zmienia się na 'zatwierdzona'
-        pz_generated = False
-        pz_id = None
-        if old_status != 'zatwierdzona' and new_status == 'zatwierdzona':
-            pz_result = auto_generate_pz_for_invoice(invoice_id)
-            if pz_result.get('success'):
-                pz_generated = True
-                pz_id = pz_result.get('receipt_id')
-        
-        response_data = {
-            "id": invoice_id, 
-            "updated_fields": list(data.keys())
-        }
-        
-        if pz_generated:
-            response_data["pz_generated"] = True
-            response_data["pz_id"] = pz_id
-            return success_response(
-                response_data, 
-                f"Faktura została zaktualizowana. Automatycznie wygenerowano PZ (ID: {pz_id})"
-            )
-        
         return success_response(
-            response_data, 
+            {"id": invoice_id, "updated_fields": list(data.keys())}, 
             "Faktura została zaktualizowana"
         )
         
     except Exception as e:
         print(f"Błąd aktualizacji faktury: {e}")
         return error_response("Wystąpił błąd podczas aktualizacji faktury", 500)
-
-
-def auto_generate_pz_for_invoice(invoice_id, warehouse_id=5):
-    """
-    Automatycznie generuje dokument PZ (Przyjęcie Zewnętrzne) dla faktury zakupowej.
-    Wywołane automatycznie gdy faktura zostanie zatwierdzona.
-    
-    Args:
-        invoice_id: ID faktury zakupowej
-        warehouse_id: ID magazynu (domyślnie 5 - KALISZ)
-    
-    Returns:
-        dict: {'success': True/False, 'receipt_id': id lub None, 'message': string}
-    """
-    import sqlite3
-    import os
-    
-    try:
-        # Połączenie z bazą danych
-        db_path = os.path.join(os.path.dirname(__file__), '..', 'kupony.db')
-        conn = sqlite3.connect(db_path)
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Sprawdź czy PZ już zostało wygenerowane dla tej faktury
-        cursor.execute("""
-            SELECT id FROM warehouse_receipts 
-            WHERE source_invoice_id = ? AND type = 'external'
-        """, (invoice_id,))
-        existing = cursor.fetchone()
-        
-        if existing:
-            print(f"⚠️ PZ dla faktury {invoice_id} już istnieje (ID: {existing['id']})")
-            return {'success': False, 'receipt_id': None, 'message': 'PZ dla tej faktury już istnieje'}
-        
-        # Pobierz dane faktury
-        cursor.execute("""
-            SELECT * FROM faktury_zakupowe WHERE id = ?
-        """, (invoice_id,))
-        invoice = cursor.fetchone()
-        
-        if not invoice:
-            return {'success': False, 'receipt_id': None, 'message': 'Nie znaleziono faktury'}
-        
-        # Utwórz dokument PZ
-        pz_number = f"PZ-{invoice_id}-{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        cursor.execute("""
-            INSERT INTO warehouse_receipts 
-            (type, source_invoice_id, document_number, supplier_name, receipt_date, total_amount, status, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, ('external', invoice_id, pz_number, 
-              invoice['dostawca_nazwa'], datetime.now().isoformat(), 
-              invoice['suma_brutto'], 'completed', datetime.now().isoformat()))
-        
-        receipt_id = cursor.lastrowid
-        if not receipt_id:
-            return {'success': False, 'receipt_id': None, 'message': 'Błąd tworzenia dokumentu PZ'}
-        
-        print(f"✅ Utworzono dokument PZ: {pz_number} (ID: {receipt_id})")
-        
-        # Pobierz pozycje faktury (tylko zmapowane)
-        cursor.execute("""
-            SELECT * FROM faktury_zakupowe_pozycje 
-            WHERE faktura_id = ? AND status_mapowania = 'zmapowany' AND produkt_id IS NOT NULL
-        """, (invoice_id,))
-        items = cursor.fetchall()
-        
-        print(f"🔍 Znaleziono {len(items)} zmapowanych pozycji do przetworzenia")
-        processed_count = 0
-        
-        for item in items:
-            product_id = item['produkt_id']
-            quantity = item['ilosc'] or 0
-            
-            if not product_id or quantity <= 0:
-                print(f"⚠️ Pomijam pozycję {item['id']} - brak produktu lub ilości")
-                continue
-            
-            # Dodaj pozycję do PZ
-            cursor.execute("""
-                INSERT INTO warehouse_receipt_items 
-                (receipt_id, product_id, quantity, unit_price, total_price)
-                VALUES (?, ?, ?, ?, ?)
-            """, (receipt_id, product_id, quantity, 
-                  item['cena_netto'] or 0, item['wartosc_brutto'] or 0))
-            
-            print(f"📦 Dodano pozycję: produkt {product_id}, ilość {quantity}")
-            
-            # Aktualizuj lub utwórz stan magazynowy
-            cursor.execute("""
-                INSERT OR IGNORE INTO pos_magazyn 
-                (produkt_id, stan_aktualny, stan_minimalny, stan_maksymalny, lokalizacja)
-                VALUES (?, 0, 0, 0, ?)
-            """, (product_id, str(warehouse_id)))
-            
-            cursor.execute("""
-                UPDATE pos_magazyn 
-                SET stan_aktualny = stan_aktualny + ?, 
-                    ostatnia_aktualizacja = CURRENT_TIMESTAMP
-                WHERE produkt_id = ? AND lokalizacja = ?
-            """, (quantity, product_id, str(warehouse_id)))
-            
-            print(f"📊 Zaktualizowano stan magazynowy dla produktu {product_id} (+{quantity})")
-            
-            # Dodaj wpis do historii magazynu
-            cursor.execute("""
-                INSERT INTO warehouse_history 
-                (product_id, operation_type, quantity_change, reason, document_number, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """, (product_id, 'receipt_external', quantity, 
-                  f"PZ automatyczne - faktura {invoice['numer_faktury']}", 
-                  pz_number, datetime.now().isoformat()))
-            
-            processed_count += 1
-        
-        # Zatwierdź transakcję
-        conn.commit()
-        
-        print(f"✅ Automatyczne PZ wygenerowane pomyślnie: {pz_number}, przetworzono {processed_count} pozycji")
-        
-        return {
-            'success': True, 
-            'receipt_id': receipt_id, 
-            'message': f'PZ wygenerowane pomyślnie ({processed_count} pozycji)'
-        }
-        
-    except Exception as e:
-        if conn:
-            conn.rollback()
-        print(f"❌ Błąd automatycznego generowania PZ: {e}")
-        import traceback
-        traceback.print_exc()
-        return {'success': False, 'receipt_id': None, 'message': str(e)}
-    finally:
-        if conn:
-            conn.close()
-
-# ===========================================
-# EDYCJA I MAPOWANIE POZYCJI FAKTURY
-# ===========================================
-
-@purchase_invoices_bp.route('/purchase-invoices/<int:invoice_id>/items/<int:item_id>', methods=['PUT'])
-def update_invoice_item(invoice_id, item_id):
-    """
-    Aktualizacja pozycji faktury zakupowej
-    """
-    try:
-        data = request.get_json()
-        
-        if not data:
-            return error_response("Brak danych do aktualizacji", 400)
-        
-        # Sprawdź czy pozycja istnieje
-        check_sql = """
-        SELECT id FROM faktury_zakupowe_pozycje 
-        WHERE id = ? AND faktura_id = ?
-        """
-        existing = execute_query(check_sql, (item_id, invoice_id))
-        
-        if not existing:
-            return error_response("Pozycja faktury nie została znaleziona", 404)
-        
-        # Przygotuj dane do aktualizacji
-        allowed_fields = [
-            'ilosc', 'cena_netto', 'cena_brutto', 'wartosc_netto', 
-            'wartosc_brutto', 'stawka_vat'
-        ]
-        
-        update_fields = []
-        update_values = []
-        
-        for field in allowed_fields:
-            if field in data:
-                update_fields.append(f"{field} = ?")
-                update_values.append(data[field])
-        
-        if not update_fields:
-            return error_response("Brak pól do aktualizacji", 400)
-        
-        # Dodaj ID pozycji na końcu dla WHERE
-        update_values.append(item_id)
-        
-        # Wykonaj aktualizację
-        update_sql = f"""
-            UPDATE faktury_zakupowe_pozycje 
-            SET {', '.join(update_fields)}
-            WHERE id = ?
-        """
-        
-        execute_query(update_sql, update_values)
-        
-        # Przelicz sumy faktury
-        update_invoice_totals(invoice_id)
-        
-        return success_response(
-            {"id": item_id, "invoice_id": invoice_id}, 
-            "Pozycja faktury została zaktualizowana"
-        )
-        
-    except Exception as e:
-        print(f"Błąd aktualizacji pozycji faktury: {e}")
-        return error_response("Wystąpił błąd podczas aktualizacji pozycji", 500)
-
-@purchase_invoices_bp.route('/purchase-invoices/<int:invoice_id>/items/<int:item_id>/map', methods=['POST'])
-def map_invoice_item(invoice_id, item_id):
-    """
-    Mapowanie pozycji faktury do produktu w systemie
-    """
-    try:
-        data = request.get_json()
-        
-        if not data or 'product_id' not in data:
-            return error_response("Brak product_id w żądaniu", 400)
-        
-        product_id = data['product_id']
-        
-        # Sprawdź czy pozycja istnieje
-        check_item_sql = """
-        SELECT id, nazwa_produktu FROM faktury_zakupowe_pozycje 
-        WHERE id = ? AND faktura_id = ?
-        """
-        item = execute_query(check_item_sql, (item_id, invoice_id))
-        
-        if not item:
-            return error_response("Pozycja faktury nie została znaleziona", 404)
-        
-        # Sprawdź czy produkt istnieje
-        check_product_sql = "SELECT id, nazwa FROM produkty WHERE id = ?"
-        product = execute_query(check_product_sql, (product_id,))
-        
-        if not product:
-            return error_response("Produkt nie został znaleziony", 404)
-        
-        # Zaktualizuj mapowanie
-        update_sql = """
-        UPDATE faktury_zakupowe_pozycje 
-        SET produkt_id = ?, status_mapowania = 'zmapowany'
-        WHERE id = ?
-        """
-        
-        execute_query(update_sql, (product_id, item_id))
-        
-        return success_response(
-            {
-                "item_id": item_id,
-                "product_id": product_id,
-                "product_name": product[0]['nazwa'],
-                "invoice_id": invoice_id
-            }, 
-            f"Pozycja '{item[0]['nazwa_produktu']}' zmapowana do produktu '{product[0]['nazwa']}'"
-        )
-        
-    except Exception as e:
-        print(f"Błąd mapowania pozycji: {e}")
-        return error_response("Wystąpił błąd podczas mapowania pozycji", 500)
-
-def update_invoice_totals(invoice_id):
-    """
-    Pomocnicza funkcja do przeliczenia sum faktury
-    """
-    try:
-        totals_sql = """
-        SELECT 
-            COALESCE(SUM(wartosc_netto), 0) as suma_netto,
-            COALESCE(SUM(wartosc_brutto), 0) as suma_brutto
-        FROM faktury_zakupowe_pozycje
-        WHERE faktura_id = ?
-        """
-        
-        totals = execute_query(totals_sql, (invoice_id,))
-        
-        if totals:
-            update_sql = """
-            UPDATE faktury_zakupowe 
-            SET suma_netto = ?, suma_brutto = ?
-            WHERE id = ?
-            """
-            execute_query(update_sql, (totals[0]['suma_netto'], totals[0]['suma_brutto'], invoice_id))
-    except Exception as e:
-        print(f"Błąd przeliczania sum faktury: {e}")
 
 # ===========================================
 # IMPORT FAKTURY XML

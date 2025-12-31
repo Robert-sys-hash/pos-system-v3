@@ -23,16 +23,6 @@ const CennikHistoryPage = () => {
   // Dodaj debug log
   console.log('CennikHistoryPage component mounted');
 
-  useEffect(() => {
-    console.log('useEffect triggered');
-    loadCennikHistory();
-    
-    // Auto-refresh co 30 sekund
-    const interval = setInterval(loadCennikHistory, 30000);
-    
-    return () => clearInterval(interval);
-  }, []);
-
   // Sprawdź czy wszystkie wymagane biblioteki są dostępne
   if (!useNavigate || !useState || !useEffect) {
     return (
@@ -44,13 +34,23 @@ const CennikHistoryPage = () => {
     );
   }
 
+  useEffect(() => {
+    console.log('useEffect triggered');
+    loadCennikHistory();
+    
+    // Auto-refresh co 30 sekund
+    const interval = setInterval(loadCennikHistory, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   const loadCennikHistory = async () => {
     try {
       setLoading(true);
       setError(null);
       // Dodaj timestamp aby uniknąć cache
       const timestamp = new Date().getTime();
-      const response = await fetch(`http://localhost:8000/api/purchase-invoices/cennik-history?_t=${timestamp}`);
+      const response = await fetch(`https://panelv3.pl/api/purchase-invoices/cennik-history?_t=${timestamp}`);
       const data = await response.json();
       
       console.log('Cennik history response:', data);
@@ -77,7 +77,7 @@ const CennikHistoryPage = () => {
   const loadErrorDetails = async (historyId) => {
     try {
       setLoadingErrors(true);
-      const response = await fetch(`http://localhost:8000/api/purchase-invoices/cennik-history/${historyId}/errors`);
+      const response = await fetch(`https://panelv3.pl/api/purchase-invoices/cennik-history/${historyId}/errors`);
       const data = await response.json();
       
       if (data.success) {

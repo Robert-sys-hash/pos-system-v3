@@ -25,7 +25,7 @@ const CennikHistoryPage = () => {
       setLoading(true);
       setError(null);
       
-      const response = await fetch('http://localhost:8000/api/purchase-invoices/cennik-history');
+      const response = await fetch('https://panelv3.pl/api/purchase-invoices/cennik-history');
       console.log('📡 Response status:', response.status);
       
       if (!response.ok) {

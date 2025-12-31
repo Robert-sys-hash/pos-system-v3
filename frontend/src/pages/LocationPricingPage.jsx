@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaMapMarkerAlt, FaEdit, FaTrash, FaCopy, FaHistory, FaPlus, FaStore, FaTag, FaMoneyBill, FaSearch, FaPrint, FaEye, FaCog, FaBarcode, FaWeightHanging, FaBox, FaClipboardList } from 'react-icons/fa';
+import { FaMapMarkerAlt, FaEdit, FaTrash, FaCopy, FaHistory, FaPlus, FaStore, FaTag, FaMoneyBill, FaSearch, FaPrint, FaEye, FaCog, FaBarcode, FaWeightHanging, FaBox } from 'react-icons/fa';
 import { useLocation as useRouterLocation } from 'react-router-dom';
 import { useLocation } from '../contexts/LocationContext';
 import { warehousesService } from '../services/warehousesService';
@@ -7,9 +7,6 @@ import { warehousePricingService } from '../services/warehousePricingService';
 import { productService } from '../services/productService';
 import manufacturerService from '../services/manufacturerService';
 import { cenowkiService } from '../services/cenowkiService';
-import ProductHistoryModal from '../components/ProductHistoryModal';
-import productHistoryService from '../services/productHistoryService';
-import { useMarginCalculation, formatMargin, formatMarginAmount, getMarginColor } from '../utils/marginService';
 
 // Funkcja do inteligentnego formatowania cen - usuwanie zbędnych zer
 const formatPrice = (price, maxDecimals = 2) => {
@@ -78,16 +75,9 @@ const LocationPricingPage = () => {
   const [priceChangeMode, setPriceChangeMode] = useState('amount'); // 'amount', 'percent', 'margin'
   const [priceChangeValue, setPriceChangeValue] = useState('');
   const [priceHistory, setPriceHistory] = useState([]);
-  
-  // Hook do centralnego API marży
-  const { calculateMargin: calculateMarginAPI, calculateProductMargin } = useMarginCalculation();
   const [roundToPsychological, setRoundToPsychological] = useState(false); // .99 zaokrąglenie
   const [directPriceNetto, setDirectPriceNetto] = useState('');
   const [directPriceBrutto, setDirectPriceBrutto] = useState('');
-  
-  // Stany dla historii operacji produktu
-  const [showProductHistoryModal, setShowProductHistoryModal] = useState(false);
-  const [selectedProductForOperations, setSelectedProductForOperations] = useState(null);
 
   // Stały widok - tylko pricing
   const [currentView, setCurrentView] = useState('pricing');
@@ -151,46 +141,26 @@ const LocationPricingPage = () => {
 
   // Funkcje kalkulatora cen per 100g/per kapsułka
   const calculatePricePerUnit = (price, weight, unit) => {
-    if (!price || !weight || weight <= 0 || unit === 'nieustawiono') return null;
+    if (!price || !weight || weight <= 0 || unit === 'nieustawiono') return 0;
     
     const numPrice = parseFloat(price);
     const numWeight = parseFloat(weight);
     
-    let calculatedPrice;
-    let displayUnit;
-    
     switch(unit) {
       case 'gramy':
         // Przelicz na 100g
-        calculatedPrice = (numPrice / numWeight) * 100;
-        displayUnit = '100g';
-        break;
+        return (numPrice / numWeight) * 100;
       case 'ml':
         // Przelicz na 100ml
-        calculatedPrice = (numPrice / numWeight) * 100;
-        displayUnit = '100ml';
-        break;
+        return (numPrice / numWeight) * 100;
       case 'tabletki':
-        // Cena za jedną tabletkę
-        calculatedPrice = numPrice / numWeight;
-        displayUnit = 'tabl';
-        break;
       case 'kapsułki':
-        // Cena za jedną kapsułkę
-        calculatedPrice = numPrice / numWeight;
-        displayUnit = 'kaps';
-        break;
       case 'sztuki':
-        // Cena za jedną sztukę
-        calculatedPrice = numPrice / numWeight;
-        displayUnit = 'szt';
-        break;
+        // Cena za jedną tabletkę/kapsułkę/sztukę
+        return numPrice / numWeight;
       default:
-        return null;
+        return 0;
     }
-    
-    // Zwróć sformatowany string
-    return `${calculatedPrice.toFixed(2)} zł/${displayUnit} - ${numWeight} ${unit === 'gramy' ? 'g' : (unit === 'ml' ? 'ml' : unit)}`;
   };
 
   const calculatePriceFromUnit = (unitPrice, targetWeight, unit) => {
@@ -313,9 +283,8 @@ const LocationPricingPage = () => {
       setLoading(true);
       const response = await warehousePricingService.getWarehousePrices(locationId);
       if (response.success) {
-        const prices = response.data?.prices || [];
-        setLocationPrices(prices);
-        console.log(`Załadowano ${prices.length} cen magazynowych dla magazynu ${locationId}`);
+        setLocationPrices(response.data || []);
+        console.log(`Załadowano ${response.data?.length || 0} cen magazynowych dla magazynu ${locationId}`);
       }
     } catch (err) {
       setError(err.message);
@@ -333,80 +302,36 @@ const LocationPricingPage = () => {
     // loadAllProducts zostanie wywołane automatycznie przez useEffect
   };
 
-  // Asynchroniczna funkcja obliczania marży z API
-  const calculateMarginWithAPI = async (product, useSpecialPrice = false) => {
-    // Marża zawsze obliczana od cen NETTO
-    const sellPriceNetto = useSpecialPrice && product.hasSpecialPrice ? 
-      product.specialPriceNetto : product.cena_sprzedazy_netto;
-    
-    console.log(`🔍 MARGIN API DEBUG dla produktu ${product.id}:`, {
-      sellPriceNetto,
-      useSpecialPrice
-    });
-    
-    if (!sellPriceNetto || sellPriceNetto <= 0) {
-      console.log(`❌ Brak ceny sprzedaży dla produktu ${product.id}`);
-      return { percent: 0, amount: 0 };
-    }
-
-    // Spróbuj użyć centralnego API marży
-    try {
-      if (product.id) {
-        const apiResult = await calculateProductMargin(product.id, sellPriceNetto, selectedLocation?.id);
-        console.log(`✅ API MARGIN dla produktu ${product.id}:`, apiResult);
-        
-        return {
-          percent: Math.round(apiResult.margin_percent),
-          amount: parseFloat(apiResult.margin_amount.toFixed(2)),
-          api_used: true,
-          method: apiResult.calculation_method
-        };
-      }
-    } catch (error) {
-      console.warn(`⚠️ API marży niedostępne dla produktu ${product.id}, używam lokalnych obliczeń:`, error);
-    }
-
-    // Fallback - lokalne obliczenia
-    return calculateMarginLocal(product, useSpecialPrice);
-  };
-
-  // Synchroniczna funkcja obliczania marży (fallback)
-  const calculateMarginLocal = (product, useSpecialPrice = false) => {
+  const calculateMargin = (product, useSpecialPrice = false) => {
     // Marża zawsze obliczana od cen NETTO
     const sellPriceNetto = useSpecialPrice && product.hasSpecialPrice ? 
       product.specialPriceNetto : product.cena_sprzedazy_netto;
     const buyPriceNetto = product.cena_zakupu_netto || product.cena_zakupu || product.purchase_price || 0;
     
-    console.log(`🔍 LOCAL MARGIN DEBUG dla produktu ${product.id}:`, {
+    console.log(`🔍 MARGIN DEBUG dla produktu ${product.id}:`, {
       sellPriceNetto,
       buyPriceNetto,
+      cena_zakupu_netto: product.cena_zakupu_netto,
+      cena_zakupu: product.cena_zakupu,
+      purchase_price: product.purchase_price,
       useSpecialPrice
     });
     
     if (!buyPriceNetto || buyPriceNetto <= 0) {
       console.log(`❌ Brak ceny zakupu dla produktu ${product.id}`);
-      return { percent: 0, amount: 0, api_used: false };
-    }
-    
-    if (!sellPriceNetto || sellPriceNetto <= 0) {
-      console.log(`❌ Brak ceny sprzedaży dla produktu ${product.id}`);
-      return { percent: 0, amount: 0, api_used: false };
+      return { percent: 0, amount: 0 };
     }
     
     const marginAmount = sellPriceNetto - buyPriceNetto;
-    // POPRAWKA: Marża = (Sprzedaż - Zakup) / Sprzedaż × 100%
-    const marginPercent = Math.round((marginAmount / sellPriceNetto) * 100);
+    const marginPercent = Math.round((marginAmount / buyPriceNetto) * 100);
     
-    return {
+    const result = {
       percent: marginPercent,
-      amount: parseFloat(marginAmount.toFixed(2)),
-      api_used: false
+      amount: parseFloat(marginAmount.toFixed(2))
     };
-  };
-
-  // Główna funkcja - używana w synchronicznych kontekstach
-  const calculateMargin = (product, useSpecialPrice = false) => {
-    return calculateMarginLocal(product, useSpecialPrice);
+    
+    console.log(`✅ MARGIN RESULT dla produktu ${product.id}:`, result);
+    return result;
   };
 
   // Funkcja do inicjalizacji cen lokalizacyjnych dla wszystkich produktów
@@ -419,13 +344,10 @@ const LocationPricingPage = () => {
       const response = await productService.getProducts(1000);
       const products = response || [];
       
-      // Safety check: ensure locationPrices is an array
-      const safePrices = Array.isArray(locationPrices) ? locationPrices : [];
-      
       // Filtruj produkty - tylko te które nie mają ŻADNYCh cen magazynowych
       // lub mają tylko ceny automatyczne (created_by = 'api_user')
       const productsWithoutLocationPrices = products.filter(product => {
-        const locationPrice = safePrices.find(lp => lp.product_id === product.id);
+        const locationPrice = locationPrices.find(lp => lp.product_id === product.id);
         if (!locationPrice) {
           return true; // Brak ceny - może być zainicjalizowany
         }
@@ -471,19 +393,13 @@ const LocationPricingPage = () => {
       setLoading(true);
       
       // Jeśli wymagane odświeżenie cen, pobierz je na świeżo
-      let currentLocationPrices = locationPrices || [];
-      if (forceRefreshPrices || !locationPrices || locationPrices.length === 0) {
+      let currentLocationPrices = locationPrices;
+      if (forceRefreshPrices) {
         const pricesResponse = await warehousePricingService.getWarehousePrices(selectedLocation.id);
-        console.log('🔍 DEBUG Warehouse Prices Response:', pricesResponse);
-        if (pricesResponse && pricesResponse.success && pricesResponse.data) {
-          // pricesResponse ma strukturę: { success: true, data: { prices: [...] } }
-          currentLocationPrices = Array.isArray(pricesResponse.data.prices) ? pricesResponse.data.prices : [];
+        if (pricesResponse.success) {
+          currentLocationPrices = pricesResponse.data || [];
           setLocationPrices(currentLocationPrices);
           console.log(`Odświeżono ${currentLocationPrices.length} cen magazynowych`);
-        } else {
-          console.warn('Niepoprawna odpowiedź warehouse prices:', pricesResponse);
-          currentLocationPrices = [];
-          setLocationPrices([]);
         }
       }
       
@@ -499,110 +415,39 @@ const LocationPricingPage = () => {
       console.log('Produkty z API:', products.length);
       console.log('Ceny lokalizacyjne:', currentLocationPrices.length);
       
-      // Debug: Sprawdź dane dla produktu ID 13
-      const testProduct = products.find(p => p.id === 13);
-      const testLocationPrice = currentLocationPrices.find(lp => lp.product_id === 13);
-      if (testProduct && testLocationPrice) {
-        console.log('🔍 TEST Produkt ID 13:');
-        console.log('  Z /products - cena_zakupu_netto:', testProduct.cena_zakupu_netto);
-        console.log('  Z /products - cena_zakupu_brutto:', testProduct.cena_zakupu_brutto);
-        console.log('  Z /warehouse/prices - cena_zakupu_netto:', testLocationPrice.cena_zakupu_netto);
-        console.log('  Z /warehouse/prices - cena_zakupu_brutto:', testLocationPrice.cena_zakupu_brutto);
-        console.log('  Z /warehouse/prices - cena_sprzedazy_netto:', testLocationPrice.cena_sprzedazy_netto);
-        console.log('  Z /warehouse/prices - cena_sprzedazy_brutto:', testLocationPrice.cena_sprzedazy_brutto);
-      }
-      
       const productsWithPrices = products.map(product => {
         const locationPrice = currentLocationPrices.find(lp => lp.product_id === product.id);
-        // Używaj has_special_price z API warehouse prices (sprawdź czy nie ma problemu z type conversion)
-        const hasSpecialPrice = locationPrice ? (locationPrice.has_special_price === true || locationPrice.has_special_price === "true") : false;
+        // Zawsze ustawiamy hasSpecialPrice na true jeśli istnieje wpis lokalizacyjny 
+        // ALBO false jeśli go nie ma (ale nadal pokazujemy status)
+        const hasSpecialPrice = !!locationPrice;
         
-        // Debug: loguj pierwszych 5 produktów żeby zobaczyć problem
-        if (product.id <= 5) {
-          console.log(`🔍 DEBUG Product ${product.id}: locationPrice.has_special_price=${locationPrice?.has_special_price} (type: ${typeof locationPrice?.has_special_price}), special_price=${locationPrice?.special_price}, hasSpecialPrice=${hasSpecialPrice}`);
-        }
-        
-        // WAŻNE: Mapuj pola z warehouse prices API na nazwy oczekiwane przez kod
-        const mappedLocationPrice = locationPrice ? {
-          // Mapowanie pól z API warehouse prices
-          cena_zakupu_netto: locationPrice.purchase_price || 0,
-          cena_zakupu_brutto: locationPrice.purchase_price || 0, // API nie ma rozróżnienia netto/brutto dla zakupu
-          // POPRAWKA: Zawsze używaj warehouse_price jako podstawowej ceny, special_price tylko gdy rzeczywiście istnieje
-          cena_sprzedazy_netto: (hasSpecialPrice && locationPrice.special_price) ? 
-            (locationPrice.special_price / (1 + (locationPrice.vat_rate / 100))) : 
-            (locationPrice.warehouse_price / (1 + (locationPrice.vat_rate / 100))),
-          cena_sprzedazy_brutto: (hasSpecialPrice && locationPrice.special_price) ? locationPrice.special_price : locationPrice.warehouse_price,
-          margin: locationPrice.margin
-        } : null;
-        
-        const productWithCorrectPurchasePrice = {
+        const defaultMargin = calculateMargin(product, false);
+        const specialMargin = hasSpecialPrice ? calculateMargin({
           ...product,
-          // Nadpisz ceny zakupu danymi z warehouse prices (prawidłowo obliczone)
-          cena_zakupu_netto: mappedLocationPrice?.cena_zakupu_netto || product.cena_zakupu_netto,
-          cena_zakupu_brutto: mappedLocationPrice?.cena_zakupu_brutto || product.cena_zakupu_brutto
-        };
-        
-        // Jeśli mamy dane z warehouse prices, używaj marży z API
-        let defaultMargin, specialMargin;
-        
-        if (locationPrice) {
-          // Używaj marży bezpośrednio z API warehouse prices 
-          const marginFromAPI = locationPrice.margin || 0;
-          const marginAmount = (mappedLocationPrice.cena_sprzedazy_netto - mappedLocationPrice.cena_zakupu_netto) || 0;
-          
-          if (hasSpecialPrice) {
-            specialMargin = {
-              percent: Math.round(marginFromAPI),
-              amount: parseFloat(marginAmount.toFixed(2))
-            };
-            // Oblicz domyślną marżę dla ceny standardowej
-            const standardPriceNetto = locationPrice.standard_price / (1 + (locationPrice.vat_rate / 100));
-            const standardMarginAmount = standardPriceNetto - mappedLocationPrice.cena_zakupu_netto;
-            const standardMarginPercent = standardPriceNetto > 0 ? ((standardMarginAmount / standardPriceNetto) * 100) : 0;
-            defaultMargin = {
-              percent: Math.round(standardMarginPercent),
-              amount: parseFloat(standardMarginAmount.toFixed(2))
-            };
-          } else {
-            defaultMargin = {
-              percent: Math.round(marginFromAPI),
-              amount: parseFloat(marginAmount.toFixed(2))
-            };
-            specialMargin = null;
-          }
-        } else {
-          // Fallback do obliczania marży tradycyjną metodą
-          defaultMargin = calculateMargin(productWithCorrectPurchasePrice, false);
-          specialMargin = null;
-        }
+          hasSpecialPrice: true,
+          specialPriceNetto: locationPrice.cena_sprzedazy_netto
+        }, true) : null;
         
         const result = {
-          ...productWithCorrectPurchasePrice,
+          ...product,
           hasSpecialPrice,
-          specialPriceNetto: mappedLocationPrice?.cena_sprzedazy_netto || null,
-          specialPriceBrutto: mappedLocationPrice?.cena_sprzedazy_brutto || null,
-          priceDiffPercent: hasSpecialPrice && mappedLocationPrice ? 
-            Math.round(((mappedLocationPrice.cena_sprzedazy_brutto - product.cena_sprzedazy_brutto) / product.cena_sprzedazy_brutto) * 100) : 0,
+          specialPriceNetto: locationPrice?.cena_sprzedazy_netto || null,
+          specialPriceBrutto: locationPrice?.cena_sprzedazy_brutto || null,
+          priceDiffPercent: hasSpecialPrice ? 
+            Math.round(((locationPrice.cena_sprzedazy_brutto - product.cena_sprzedazy_brutto) / product.cena_sprzedazy_brutto) * 100) : 0,
           defaultMargin,
           specialMargin
         };
         
-        // Debug logging
-        if (locationPrice) {
-          console.log(`🔍 Produkt ${product.id}: hasSpecialPrice=${hasSpecialPrice}, margin=${locationPrice.margin}%, defaultMargin=${defaultMargin?.percent}%, specialMargin=${specialMargin?.percent}%`);
-        }
-        
         if (hasSpecialPrice) {
-          console.log(`🏷️  Produkt ${product.nazwa} ma cenę specjalną: ${locationPrice.special_price} zł (margin: ${locationPrice.margin}%)`);
+          console.log(`Produkt ${product.nazwa} ma cenę specjalną: netto ${locationPrice.cena_sprzedazy_netto} zł, brutto ${locationPrice.cena_sprzedazy_brutto} zł`);
         }
         
         return result;
       });
       
       setAllProducts(productsWithPrices);
-      console.log('✅ Załadowano produkty:', productsWithPrices.length, 'z cenami specjalnymi:', productsWithPrices.filter(p => p.hasSpecialPrice).length);
-      console.log('📊 Produkty z defaultMargin:', productsWithPrices.filter(p => p.defaultMargin).length);
-      console.log('🏷️  Produkty z specialMargin:', productsWithPrices.filter(p => p.specialMargin).length);
+      console.log('Załadowano produkty:', productsWithPrices.length, 'z cenami specjalnymi:', productsWithPrices.filter(p => p.hasSpecialPrice).length);
       
       // Ekstraktuj unikalne kategorie
       const uniqueCategories = [...new Set(productsWithPrices.map(p => p.kategoria).filter(Boolean))];
@@ -718,38 +563,13 @@ const LocationPricingPage = () => {
       
       // Pobierz dane z cenówki
       let finalName = product.nazwa_uproszczona || simplifyProductName(product.nazwa);
-      let cenowkaDataWithCalculations = null;
-      
       try {
-        const locationId = selectedLocation?.id;
-        if (locationId) {
-          const cenowkaResponse = await cenowkiService.getCenowkaByProduct(product.id, locationId);
-          const existingCenowka = cenowkaResponse?.data;
-          
-          if (existingCenowka && existingCenowka.nazwa_uproszczona) {
-            finalName = existingCenowka.nazwa_uproszczona;
-          }
-          
-          // Oblicz cenę jednostkową (tak jak w addToBuffer)
-          if (existingCenowka) {
-            const calculatedPricePerUnit = calculatePricePerUnit(
-              existingCenowka.cena_cenowkowa,
-              existingCenowka.waga,
-              existingCenowka.jednostka_wagi
-            );
-            
-            cenowkaDataWithCalculations = {
-              ...existingCenowka,
-              calculatedPricePerUnit
-            };
-            
-            console.log('🔍 DEBUG - Preview obliczam cenę:', {
-              cena: existingCenowka.cena_cenowkowa,
-              waga: existingCenowka.waga,
-              jednostka: existingCenowka.jednostka_wagi,
-              wynik: calculatedPricePerUnit
-            });
-          }
+        const locationId = selectedLocation?.location_id || selectedLocation;
+        const cenowkaResponse = await cenowkiService.getCenowkaByProduct(product.id, locationId);
+        const existingCenowka = cenowkaResponse?.data;
+        
+        if (existingCenowka && existingCenowka.nazwa_uproszczona) {
+          finalName = existingCenowka.nazwa_uproszczona;
         }
       } catch (error) {
         console.warn('Nie udało się pobrać cenówki dla podglądu:', error);
@@ -764,12 +584,10 @@ const LocationPricingPage = () => {
         weight: extractWeight(product.nazwa, product.opis),
         manufacturer: product.producent || extractManufacturer(product.nazwa),
         // Użyj prawidłowej ceny (specjalnej jeśli istnieje)
-        displayPrice: priceInfo.price,
-        // Dodaj obliczoną cenówkę
-        cenowka: cenowkaDataWithCalculations
+        displayPrice: priceInfo.price
       };
       
-      console.log('🔍 DEBUG - Preview product z cenówką:', enriched);
+      console.log('🔍 DEBUG - Preview product:', enriched);
       return enriched;
     }));
     
@@ -799,12 +617,12 @@ const LocationPricingPage = () => {
 
   const handlePrintLabels = () => {
     console.log('handlePrintLabels wywołana - LocationPricingPage');
-    console.log('previewProducts:', previewProducts);
+    console.log('allProducts:', allProducts);
     console.log('selectedProducts:', selectedProducts);
     
-    // Sprawdź czy previewProducts jest dostępne
-    if (!previewProducts || previewProducts.length === 0) {
-      alert('Brak produktów do druku. Najpierw kliknij "Podgląd" aby przygotować cenówki.');
+    // Sprawdź czy allProducts jest dostępne
+    if (!allProducts || allProducts.length === 0) {
+      alert('Brak produktów do druku. Sprawdź czy produkty zostały załadowane.');
       return;
     }
     
@@ -814,25 +632,26 @@ const LocationPricingPage = () => {
       return;
     }
     
-    // Zbierz wszystkie wybrane cenówki do druku - używaj danych z previewProducts!
+    // Zbierz wszystkie wybrane cenówki do druku
     const labelsToShow = [];
     
     selectedProducts.forEach(productId => {
-      // Szukaj w previewProducts zamiast allProducts - tam są już obliczone dane!
-      const product = previewProducts.find(p => p.id === productId);
+      const product = allProducts.find(p => p.id === productId);
       if (product) {
         try {
-          // Użyj obliczonej ceny jednostkowej z cenówki
-          const pricePerUnit = product.cenowka?.calculatedPricePerUnit || '';
+          const quantity = extractPackageQuantity(product.nazwa, product.opis);
+          const weight = extractWeight(product.nazwa, product.opis);
+          const manufacturer = extractManufacturer(product.nazwa);
+          const units = [quantity, weight].filter(Boolean).join(' - ');
           
           // Dodaj tyle kopii ile wybrano
           const copies = selectedForCopy.has(productId) ? copyMultiplier : 1;
           for (let i = 0; i < copies; i++) {
             labelsToShow.push({
-              price: `${parseFloat(product.displayPrice || product.cena_sprzedazy_brutto || 0).toFixed(2)} zł`,
-              productName: product.simplifiedName || product.nazwa || 'Brak nazwy',
-              manufacturer: product.manufacturer,
-              units: pricePerUnit  // Użyj obliczonej ceny jednostkowej zamiast quantity + weight
+              price: `${parseFloat(product.cena_sprzedazy_brutto || 0).toFixed(2)} zł`,
+              productName: product.nazwa || 'Brak nazwy',
+              manufacturer: manufacturer,
+              units: units
             });
           }
         } catch (error) {
@@ -896,7 +715,7 @@ const LocationPricingPage = () => {
             }
             
             .price {
-              font-size: 16px;
+              font-size: 12px;
               font-weight: bold;
               color: #000;
               margin-bottom: 1mm;
@@ -973,23 +792,19 @@ const LocationPricingPage = () => {
     // Jeśli nie podano danych cenówki, pobierz je z API
     if (!cenowkaData) {
       try {
-        const locationId = selectedLocation?.id;
-        if (!locationId) {
-          console.warn('Brak ID lokalizacji');
-          return;
-        }
+        const locationId = selectedLocation?.location_id || selectedLocation;
         const cenowkaResponse = await cenowkiService.getCenowkaByProduct(product.id, locationId);
         const existingCenowka = cenowkaResponse?.data;
         
         if (existingCenowka) {
           finalCenowkaData = {
             nazwa_uproszczona: existingCenowka.nazwa_uproszczona || '',
-            cena_cenowkowa: (existingCenowka.cena_cenowkowa !== null && existingCenowka.cena_cenowkowa !== undefined) ? existingCenowka.cena_cenowkowa : '',
-            cena_promocyjna: (existingCenowka.cena_promocyjna !== null && existingCenowka.cena_promocyjna !== undefined) ? existingCenowka.cena_promocyjna : '',
+            cena_cenowkowa: existingCenowka.cena_cenowkowa || '',
+            cena_promocyjna: existingCenowka.cena_promocyjna || '',
             typ_cenowki: existingCenowka.typ_cenowki || 'standardowa',
             kategoria_cenowki: existingCenowka.kategoria_cenowki || '',
             opis_cenowki: existingCenowka.opis_cenowki || '',
-            waga: (existingCenowka.waga !== null && existingCenowka.waga !== undefined) ? existingCenowka.waga : (product.gramatura || product.ilosc_jednostek || 0),
+            waga: existingCenowka.waga || product.gramatura || product.ilosc_jednostek || 0,
             jednostka_wagi: existingCenowka.jednostka_wagi || product.jednostka_wagi || 'gramy'
           };
         }
@@ -998,50 +813,19 @@ const LocationPricingPage = () => {
       }
     }
 
-    console.log('🔍 DEBUG - finalCenowkaData:', finalCenowkaData);
-    console.log('🔍 DEBUG - product.gramatura:', product.gramatura, 'product.ilosc_jednostek:', product.ilosc_jednostek);
-
     // Użyj danych z cenówki lub fallback
     const priceInfo = getDisplayPrice(product);
-    
-    // Przygotuj dane cenówki z obliczonymi wartościami
-    let cenowkaDataWithCalculations;
-    if (finalCenowkaData) {
-      const calculatedPrice = finalCenowkaData.cena_cenowkowa && finalCenowkaData.waga && parseFloat(finalCenowkaData.waga) > 0
-        ? calculatePricePerUnit(finalCenowkaData.cena_cenowkowa, finalCenowkaData.waga, finalCenowkaData.jednostka_wagi)
-        : 0;
-      
-      console.log('🔍 DEBUG - Obliczam cenę jednostkową:', {
-        cena: finalCenowkaData.cena_cenowkowa,
-        waga: finalCenowkaData.waga,
-        jednostka: finalCenowkaData.jednostka_wagi,
-        wynik: calculatedPrice
-      });
-      
-      cenowkaDataWithCalculations = {
-        ...finalCenowkaData,
-        calculatedPricePerUnit: calculatedPrice
-      };
-    } else {
-      // Fallback dla produktów bez cenówki
-      const fallbackWaga = product.gramatura || product.ilosc_jednostek || 0;
-      const fallbackJednostka = product.jednostka_wagi || 'gramy';
-      cenowkaDataWithCalculations = {
-        cena_cenowkowa: priceInfo.price,
-        waga: fallbackWaga,
-        jednostka_wagi: fallbackJednostka,
-        calculatedPricePerUnit: priceInfo.price && fallbackWaga && parseFloat(fallbackWaga) > 0
-          ? calculatePricePerUnit(priceInfo.price, fallbackWaga, fallbackJednostka)
-          : 0
-      };
-    }
-    
     const productWithCenowka = {
       ...product,
       // Używaj nazwy uproszczonej z cenówki
       nazwa_uproszczona: finalCenowkaData?.nazwa_uproszczona || product.nazwa_uproszczona || product.nazwa,
       finalName: finalCenowkaData?.nazwa_uproszczona || product.nazwa_uproszczona || product.nazwa,
-      cenowka: cenowkaDataWithCalculations,
+      cenowka: finalCenowkaData || {
+        // Używaj ceny specjalnej jeśli istnieje
+        cena_cenowkowa: priceInfo.price,
+        waga: product.gramatura || product.ilosc_jednostek || 0,
+        jednostka_wagi: product.jednostka_wagi || 'gramy'
+      },
       bufferId: Date.now() + Math.random() // Unikalny ID dla bufora
     };
 
@@ -1242,13 +1026,8 @@ const LocationPricingPage = () => {
     try {
       console.log('🔍 DEBUG - Pobieranie cenówki dla produktu:', product.id, 'magazyn:', selectedLocation);
       // Upewnij się, że używamy id z warehouse
-      const locationId = selectedLocation?.id;
+      const locationId = selectedLocation?.id || selectedLocation;
       console.log('🔍 DEBUG - Używam location_id:', locationId);
-      
-      if (!locationId) {
-        console.warn('Brak ID lokalizacji dla edycji cenówki');
-        return;
-      }
       
       const cenowkaResponse = await cenowkiService.getCenowkaByProduct(product.id, locationId);
       const existingCenowka = cenowkaResponse?.data;
@@ -1256,15 +1035,9 @@ const LocationPricingPage = () => {
       
       if (existingCenowka) {
         // Użyj danych z połączonych tabel (cenówka + warehouse_product_prices)
-        // WAŻNE: Jeśli cena_cenowkowa to 0 lub null, użyj ceny z produktu
-        const cenaProduktu = product.hasSpecialPrice ? product.specialPriceBrutto : product.cena_sprzedazy_brutto;
-        const cenaCenowkowa = (existingCenowka.cena_cenowkowa && existingCenowka.cena_cenowkowa > 0) 
-          ? existingCenowka.cena_cenowkowa 
-          : cenaProduktu || '';
-        
         const cenowkaData = {
           nazwa_uproszczona: existingCenowka.nazwa_uproszczona || '',
-          cena_cenowkowa: cenaCenowkowa,
+          cena_cenowkowa: existingCenowka.cena_cenowkowa || '', // już zawiera aktualną cenę z warehouse_product_prices
           cena_promocyjna: existingCenowka.cena_promocyjna || '',
           typ_cenowki: existingCenowka.typ_cenowki || 'standardowa',
           kategoria_cenowki: existingCenowka.kategoria_cenowki || '',
@@ -1567,14 +1340,6 @@ const LocationPricingPage = () => {
     setShowDirectPriceModal(true);
   };
 
-  const handleShowProductHistory = (product) => {
-    console.log('🔍 LocationPricingPage handleShowProductHistory wywołane:', product);
-    console.log('🔍 LocationPricing Product properties:', Object.keys(product));
-    setSelectedProductForOperations(product);
-    setShowProductHistoryModal(true);
-    console.log('🔍 LocationPricing Modal states set:', { showProductHistoryModal: true, productId: product.id });
-  };
-
   const calculatePriceFromNetto = (netto, vatRate) => {
     if (!netto || isNaN(netto)) return '';
     const brutto = parseFloat(netto) * (1 + vatRate / 100);
@@ -1690,7 +1455,7 @@ const LocationPricingPage = () => {
                 <option value="">-- Wybierz magazyn --</option>
                 {availableLocations.map((loc) => (
                   <option key={loc.id} value={loc.id}>
-                    {loc.nazwa} ({loc.kod_lokalizacji})
+                    {loc.nazwa} ({loc.kod_magazynu})
                   </option>
                 ))}
               </select>
@@ -2566,24 +2331,6 @@ const LocationPricingPage = () => {
                                       title="Dodaj do bufora cenówek"
                                     >
                                       <FaTag />
-                                    </button>
-                                    <button
-                                      className="btn btn-success"
-                                      style={{ 
-                                        fontSize: '0.65rem',
-                                        padding: '0.25rem 0.5rem',
-                                        backgroundColor: '#28a745', 
-                                        border: '2px solid #28a745',
-                                        color: 'white',
-                                        fontWeight: 'bold'
-                                      }}
-                                      onClick={() => {
-                                        console.log('🔍 LocationPricingPage przycisk OPERACJE kliknięty:', product);
-                                        handleShowProductHistory(product);
-                                      }}
-                                      title="Historia operacji produktu"
-                                    >
-                                      <FaClipboardList className="me-1" /> OPERACJE
                                     </button>
                                   </div>
                                 </td>
@@ -3662,16 +3409,8 @@ const LocationPricingPage = () => {
                 <div className="row" id="labelsToPrint">
                   {previewProducts.flatMap((product, productIndex) => {
                     const priceInfo = getDisplayPrice(product);
-                    
-                    // Użyj obliczonej ceny jednostkowej z cenówki
-                    const pricePerUnit = product.cenowka?.calculatedPricePerUnit;
-                    
-                    console.log('🔍 RENDER - Preview etykiety:', {
-                      productId: product.id,
-                      nazwa: product.nazwa,
-                      pricePerUnit: pricePerUnit,
-                      cenowka: product.cenowka
-                    });
+                    const unitPrice = product.packageQuantity && product.packageQuantity !== '1' ? 
+                      ((product.displayPrice || priceInfo.price) / parseFloat(product.packageQuantity)).toFixed(2) : null;
                     
                     // Sprawdzamy czy ten produkt jest zaznaczony do powielania
                     const isSelectedForCopy = selectedForCopy.has(product.id);
@@ -3764,7 +3503,11 @@ const LocationPricingPage = () => {
                             lineHeight: '1.1',
                             marginTop: 'auto'
                           }}>
-                            {pricePerUnit}
+                            {[
+                              unitPrice && `${unitPrice} zł/szt`,
+                              labelSettings.includeQuantity && product.packageQuantity && product.packageQuantity !== '1' && `${product.packageQuantity} szt`,
+                              labelSettings.includeWeight && product.weight && (!product.packageQuantity || product.packageQuantity === '1') && product.weight
+                            ].filter(Boolean).join(' - ')}
                           </div>
                         </div>
                       </div>
@@ -3859,19 +3602,14 @@ const LocationPricingPage = () => {
                   <div className="row" id="bufferLabelsToPrint">
                     {labelBuffer.map((product, index) => {
                       const priceInfo = getDisplayPrice(product);
-                      const unitDisplayName = getUnitDisplayName(product.cenowka?.jednostka_wagi || product.jednostka_wagi || 'gramy');
-                      
-                      // Użyj zapisanej obliczonej wartości (to jest już sformatowany string!)
-                      const pricePerUnit = product.cenowka?.calculatedPricePerUnit;
-                      
-                      console.log('🔍 RENDER - Buffer product cenowka:', {
-                        productId: product.id,
-                        cena: product.cenowka?.cena_cenowkowa,
-                        waga: product.cenowka?.waga,
-                        jednostka: product.cenowka?.jednostka_wagi,
-                        calculatedPricePerUnit: product.cenowka?.calculatedPricePerUnit,
-                        pricePerUnit: pricePerUnit
-                      });
+                      const unitDisplayName = getUnitDisplayName(product.jednostka_wagi || 'gramy');
+                      const pricePerUnit = product.cenowka ? calculatePricePerUnit(
+                        product.cenowka.cena_cenowkowa, 
+                        product.cenowka.waga, 
+                        product.cenowka.jednostka_wagi
+                      ) : 0;
+                      const unitPrice = product.packageQuantity && product.packageQuantity !== '1' ? 
+                        ((product.cenowka?.cena_cenowkowa || product.cena_sprzedazy_brutto) / parseFloat(product.packageQuantity)).toFixed(2) : null;
 
                       return (
                         <div key={product.bufferId} className="col-md-6 col-lg-4 mb-3">
@@ -3937,7 +3675,16 @@ const LocationPricingPage = () => {
                                 lineHeight: '1.1',
                                 marginTop: 'auto'
                               }}>
-                                {pricePerUnit}
+                                {[
+                                  unitPrice && `${unitPrice} zł/szt`,
+                                  pricePerUnit > 0 && 
+                                    ((product.cenowka?.jednostka_wagi || product.jednostka_wagi) === 'gramy' || (product.cenowka?.jednostka_wagi || product.jednostka_wagi) === 'ml' 
+                                      ? `${formatPrice(pricePerUnit, 4)} zł/100${unitDisplayName}`
+                                      : `${formatPrice(pricePerUnit, 4)} zł/${getUnitSingularForm(product.cenowka?.jednostka_wagi || product.jednostka_wagi || 'gramy')}`),
+                                  product.packageQuantity && product.packageQuantity !== '1' && `${product.packageQuantity} szt`,
+                                  product.gramatura && `${product.gramatura} ${unitDisplayName}`,
+                                  product.ilosc_jednostek && `${product.ilosc_jednostek} ${unitDisplayName}`
+                                ].filter(Boolean).join(' - ')}
                               </div>
                             </div>
                           </div>
@@ -4054,19 +3801,6 @@ const LocationPricingPage = () => {
             </div>
           </div>
         </div>
-      )}
-
-      {/* Modal historii operacji produktu */}
-      {showProductHistoryModal && selectedProductForOperations && (
-        <ProductHistoryModal
-          productId={selectedProductForOperations.id}
-          productName={selectedProductForOperations.nazwa}
-          isOpen={showProductHistoryModal}
-          onClose={() => {
-            setShowProductHistoryModal(false);
-            setSelectedProductForOperations(null);
-          }}
-        />
       )}
 
     </div>
