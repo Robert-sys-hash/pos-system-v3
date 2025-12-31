@@ -439,21 +439,29 @@ const WarehousePage = () => {
             display: 'flex', 
             justifyContent: 'space-between', 
             alignItems: 'center', 
-            marginBottom: '1.5rem',
-            padding: '1rem',
+            marginBottom: '1rem',
+            padding: '0.75rem 1rem',
             backgroundColor: 'white',
             borderRadius: '0.5rem',
             border: '1px solid #e9ecef',
             boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
           }}>
-            <div>
-              <h2 style={{ margin: 0, color: '#495057', fontSize: '1.5rem', fontWeight: '600' }}>
-                <i className="fas fa-warehouse text-primary me-2"></i>
-                Zarządzanie Magazynem
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+                📦 Magazyn
               </h2>
-              <p style={{ margin: '0.25rem 0 0 0', color: '#6c757d', fontSize: '0.9rem' }}>
-                Przeglądaj i zarządzaj stanem magazynowym
-              </p>
+              {selectedLocation && (
+                <span style={{ 
+                  backgroundColor: '#e3f2fd', 
+                  color: '#1565c0', 
+                  padding: '0.25rem 0.75rem', 
+                  borderRadius: '0.25rem',
+                  fontSize: '0.8rem',
+                  fontWeight: '500'
+                }}>
+                  📍 {selectedLocation.nazwa || selectedLocation.name}
+                </span>
+              )}
             </div>
             
             <div style={{ display: 'flex', gap: '0.5rem' }}>

@@ -118,10 +118,10 @@ const InvoicesPage = () => {
   if (loading) return <div className="container mt-4"><div className="text-center">Ładowanie...</div></div>;
 
   return (
-    <div className="container-fluid mt-4">
+    <div className="container-fluid mt-3">
       <div className="row">
         <div className="col-12">
-          <h2>📄 Zarządzanie Fakturami</h2>
+          <h2 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', fontWeight: '600' }}>📄 Faktury</h2>
           
           {error && (
             <div className="alert alert-danger alert-dismissible fade show" role="alert">

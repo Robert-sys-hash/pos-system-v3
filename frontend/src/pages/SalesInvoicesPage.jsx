@@ -287,16 +287,16 @@ const SalesInvoicesPage = () => {
   }
 
   return (
-    <div className="container-fluid mt-4">
+    <div className="container-fluid mt-3">
       <div className="row">
         <div className="col-12">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <h2>📧 Faktury Sprzedaży</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>📧 Faktury Sprzedaży</h2>
             
             {/* Selektor szablonów */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <label style={{ fontWeight: 'bold', whiteSpace: 'nowrap' }}>
-                🎨 Szablon PDF:
+              <label style={{ fontWeight: 'bold', whiteSpace: 'nowrap', fontSize: '0.875rem' }}>
+                🎨 Szablon:
               </label>
               <select
                 value={selectedTemplate}

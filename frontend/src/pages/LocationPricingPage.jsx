@@ -1425,16 +1425,12 @@ const LocationPricingPage = () => {
   }
 
   return (
-    <div className="container-fluid py-4">
-      <div className="row mb-4">
+    <div className="container-fluid py-3">
+      <div className="row mb-3">
         <div className="col">
-          <h2>
-            <FaTag className="me-2" style={{ color: '#007bff' }} />
-            Cennik Lokalizacyjny & Etykiety
+          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+            💲 Cennik Lokalizacyjny
           </h2>
-          <p className="text-muted">
-            Zarządzanie cenami lokalizacyjnymi i generowanie etykiet cenowych
-          </p>
         </div>
         <div className="col-auto">
         {/* Usuń przełączniki widoków - tylko widok zarządzania cenami */}

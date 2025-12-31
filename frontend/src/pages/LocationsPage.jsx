@@ -77,13 +77,11 @@ const LocationsPage = () => {
 
   return (
     <div className="container-fluid py-4">
-      <div className="row mb-4">
+      <div className="row mb-3">
         <div className="col">
-          <h2>
-            <i className="fas fa-map-marker-alt me-2"></i>
-            Lokalizacje - Zarządzanie Sklepami
+          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+            📍 Lokalizacje
           </h2>
-          <p className="text-muted">System zarządzania lokalizacjami sklepów i magazynów</p>
         </div>
       </div>
 

@@ -130,16 +130,15 @@ const ProductsPage = () => {
   }
 
   return (
-    <div style={{ padding: '2rem', backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
+    <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
       <div className="container-fluid">
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-          <h1 style={{ margin: 0, fontSize: '1.75rem', color: '#333' }}>
-            <i className="fas fa-box-open" style={{ marginRight: '0.5rem', color: '#007bff' }}></i>
-            Produkty
-          </h1>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+            📦 Produkty
+          </h2>
           <button
-            className="btn btn-primary"
+            className="btn btn-primary btn-sm"
             onClick={() => setShowAddForm(!showAddForm)}
           >
             <i className="fas fa-plus" style={{ marginRight: '0.5rem' }}></i>

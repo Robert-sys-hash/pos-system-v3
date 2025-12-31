@@ -138,45 +138,28 @@ const CustomersPage = () => {
               width: '3rem',
               height: '3rem',
               backgroundColor: '#e7f1ff',
-              borderRadius: '0.75rem',
+              borderRadius: '0.5rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid #0d6efd'
+              border: '1px solid #0d6efd'
             }}>
               <i className="fas fa-users" style={{ 
                 color: '#0d6efd', 
-                fontSize: '1.25rem' 
+                fontSize: '0.9rem' 
               }}></i>
             </div>
             <div>
-              <h1 style={{ 
-                margin: 0, 
-                fontSize: '1.4rem', 
-                fontWeight: '700',
-                color: '#212529',
-                letterSpacing: '-0.025em'
-              }}>
-                Zarządzanie Klientami
-              </h1>
-              <p style={{ 
-                margin: '0.25rem 0 0 0', 
-                fontSize: '0.875rem', 
-                color: '#6c757d',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.375rem'
-              }}>
-                <i className="fas fa-info-circle" style={{ fontSize: '0.8rem' }}></i>
-                Baza danych klientów indywidualnych i firmowych
-              </p>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+                👥 Klienci
+              </h2>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
               onClick={() => setShowAddForm(!showAddForm)}
               style={{ 
-                padding: '0.625rem 1.125rem',
+                padding: '0.5rem 1rem',
                 fontSize: '0.875rem',
                 border: '1px solid #198754',
                 borderRadius: '0.375rem',

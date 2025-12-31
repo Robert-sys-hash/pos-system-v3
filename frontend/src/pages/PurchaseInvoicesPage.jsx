@@ -190,26 +190,9 @@ const PurchaseInvoicesPage = () => {
               }} />
             </div>
             <div>
-              <h1 style={{ 
-                margin: 0, 
-                fontSize: '1.4rem', 
-                fontWeight: '700',
-                color: '#212529',
-                letterSpacing: '-0.025em'
-              }}>
-                Faktury Zakupowe
-              </h1>
-              <p style={{ 
-                margin: '0.25rem 0 0 0', 
-                fontSize: '0.875rem', 
-                color: '#6c757d',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.375rem'
-              }}>
-                <i className="fas fa-info-circle" style={{ fontSize: '0.8rem' }}></i>
-                Import i zarządzanie fakturami zakupowymi
-              </p>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+                📄 Faktury Zakupowe
+              </h2>
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>

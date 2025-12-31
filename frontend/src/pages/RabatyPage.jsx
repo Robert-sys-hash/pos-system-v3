@@ -192,22 +192,22 @@ const RabatyPage = () => {
   }
 
   return (
-    <div className="container-fluid py-4">
+    <div className="container-fluid py-3">
       <div className="row">
         <div className="col-12">
           <div className="card">
-            <div className="card-header">
+            <div className="card-header py-2">
               <div className="d-flex justify-content-between align-items-center">
-                <h5 className="mb-0">System Rabatów POS</h5>
+                <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>🏷️ Rabaty</h2>
                 <div className="d-flex gap-2">
                   {/* Navigation buttons */}
-                  <div className="btn-group" role="group">
+                  <div className="btn-group btn-group-sm" role="group">
                     <button
                       type="button"
                       className={`btn ${selectedView === 'lista' ? 'btn-primary' : 'btn-outline-primary'}`}
                       onClick={() => setSelectedView('lista')}
                     >
-                      Lista Rabatów
+                      Lista
                     </button>
                     <button
                       type="button"

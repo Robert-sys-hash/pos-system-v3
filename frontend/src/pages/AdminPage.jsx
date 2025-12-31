@@ -6510,21 +6510,9 @@ const AdminPage = () => {
           border: '1px solid #e9ecef',
           boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
         }}>
-          <h1 style={{ 
-            margin: '0 0 0.5rem 0',
-            fontSize: '1.75rem',
-            fontWeight: '600',
-            color: '#343a40'
-          }}>
+          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
             ⚙️ Panel Administratora
-          </h1>
-          <p style={{ 
-            margin: 0,
-            color: '#6c757d',
-            fontSize: '1rem'
-          }}>
-            Centralny system zarządzania sklepem
-          </p>
+          </h2>
           
           {error && (
             <div style={{ 

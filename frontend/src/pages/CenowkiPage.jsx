@@ -590,16 +590,12 @@ const CenowkiPage = () => {
   }
 
   return (
-    <div className="container-fluid py-4">
-      <div className="row mb-4">
+    <div className="container-fluid py-3">
+      <div className="row mb-3">
         <div className="col">
-          <h2>
-            <FaTag className="me-2" style={{ color: '#007bff' }} />
-            Cenówki - Etykiety Cenowe
+          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+            🏷️ Cenówki
           </h2>
-          <p className="text-muted">
-            Wyszukaj produkty i wygeneruj etykiety cenowe z cenami specjalnymi
-          </p>
         </div>
       </div>
 

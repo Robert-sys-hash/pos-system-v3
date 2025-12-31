@@ -213,45 +213,40 @@ const PurchaseInvoicesListPage = () => {
               width: '3rem',
               height: '3rem',
               backgroundColor: '#e7f1ff',
-              borderRadius: '0.75rem',
+              borderRadius: '0.5rem',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              border: '2px solid #0d6efd'
+              border: '1px solid #0d6efd'
             }}>
               <FaFileInvoice style={{ 
                 color: '#0d6efd', 
-                fontSize: '1.25rem' 
+                fontSize: '0.9rem' 
               }} />
             </div>
-            <div>
-              <h1 style={{ 
-                margin: 0, 
-                fontSize: '1.4rem', 
-                fontWeight: '700',
-                color: '#212529',
-                letterSpacing: '-0.025em'
-              }}>
-                Lista Faktur Zakupowych
-              </h1>
-              <p style={{ 
-                margin: '0.25rem 0 0 0', 
-                fontSize: '0.875rem', 
-                color: '#6c757d',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.375rem'
-              }}>
-                <i className="fas fa-info-circle" style={{ fontSize: '0.8rem' }}></i>
-                Przeglądaj i zarządzaj fakturami zakupowymi
-              </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>
+                📄 Faktury Zakupowe
+              </h2>
+              {selectedLocation && (
+                <span style={{ 
+                  backgroundColor: '#e3f2fd', 
+                  color: '#1565c0', 
+                  padding: '0.25rem 0.75rem', 
+                  borderRadius: '0.25rem',
+                  fontSize: '0.8rem',
+                  fontWeight: '500'
+                }}>
+                  📍 {selectedLocation.nazwa || selectedLocation.name}
+                </span>
+              )}
             </div>
           </div>
           <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
             <button
               onClick={() => navigate('/purchase-invoices')}
               style={{ 
-                padding: '0.625rem 1.125rem',
+                padding: '0.5rem 1rem',
                 fontSize: '0.875rem',
                 border: '1px solid #6c757d',
                 borderRadius: '0.375rem',

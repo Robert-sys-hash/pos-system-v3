@@ -128,12 +128,19 @@ const CouponsPageSimple = () => {
   return (
     <div style={{ padding: '8px 0', maxWidth: 900, margin: '0 auto', fontSize: 14, fontFamily: 'inherit' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <div>
-          <span style={{ fontWeight: 600, fontSize: 17 }}>Kupony</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <h2 style={{ margin: 0, fontSize: '1.1rem', fontWeight: '600' }}>🎟️ Kupony</h2>
           {(selectedLocation || selectedWarehouse) && (
-            <div style={{ fontSize: 12, color: '#666', marginTop: 2 }}>
-              📍 {selectedLocation?.nazwa || selectedWarehouse?.nazwa || 'Brak lokalizacji'} (ID: {currentLocationId})
-            </div>
+            <span style={{ 
+              backgroundColor: '#e3f2fd', 
+              color: '#1565c0', 
+              padding: '0.25rem 0.75rem', 
+              borderRadius: '0.25rem',
+              fontSize: '0.8rem',
+              fontWeight: '500'
+            }}>
+              📍 {selectedLocation?.nazwa || selectedWarehouse?.nazwa}
+            </span>
           )}
         </div>
         <button 
