@@ -308,14 +308,15 @@ const LocationPricingPage = () => {
     // Marża zawsze obliczana od cen NETTO
     const sellPriceNetto = useSpecialPrice && product.hasSpecialPrice ? 
       product.specialPriceNetto : product.cena_sprzedazy_netto;
-    const buyPriceNetto = product.cena_zakupu_netto || product.cena_zakupu || product.purchase_price || 0;
+    // POPRAWKA: Priorytetowo użyj purchase_price z API warehouse prices (z faktur)
+    const buyPriceNetto = product.purchase_price || product.cena_zakupu_netto || product.cena_zakupu || 0;
     
     console.log(`🔍 MARGIN DEBUG dla produktu ${product.id}:`, {
       sellPriceNetto,
       buyPriceNetto,
+      purchase_price: product.purchase_price,
       cena_zakupu_netto: product.cena_zakupu_netto,
       cena_zakupu: product.cena_zakupu,
-      purchase_price: product.purchase_price,
       useSpecialPrice
     });
     
@@ -421,16 +422,25 @@ const LocationPricingPage = () => {
       const productsWithPrices = products.map(product => {
         const locationPrice = currentLocationPrices.find(lp => lp.product_id === product.id);
         // Ustawiamy hasSpecialPrice na true jeśli istnieje wpis lokalizacyjny Z ceną specjalną
-        // API zwraca: has_special_price, special_price, warehouse_price_net, standard_price
+        // API zwraca: has_special_price, special_price, warehouse_price_net, standard_price, purchase_price
         const hasSpecialPrice = locationPrice?.has_special_price || false;
         
         // Używaj prawidłowych nazw pól z API
         const specialPriceNetto = hasSpecialPrice ? (locationPrice?.warehouse_price_net || null) : null;
         const specialPriceBrutto = hasSpecialPrice ? (locationPrice?.special_price || locationPrice?.warehouse_price || null) : null;
         
-        const defaultMargin = calculateMargin(product, false);
-        const specialMargin = hasSpecialPrice ? calculateMargin({
+        // POPRAWKA: Użyj ceny zakupu z warehouse pricing API (z faktur) zamiast z produktu
+        const purchasePriceFromAPI = locationPrice?.purchase_price || product.cena_zakupu_netto || 0;
+        
+        // Twórz obiekt produktu z ceną zakupu z API
+        const productWithPurchasePrice = {
           ...product,
+          purchase_price: purchasePriceFromAPI
+        };
+        
+        const defaultMargin = calculateMargin(productWithPurchasePrice, false);
+        const specialMargin = hasSpecialPrice ? calculateMargin({
+          ...productWithPurchasePrice,
           hasSpecialPrice: true,
           specialPriceNetto: specialPriceNetto
         }, true) : null;
@@ -443,7 +453,11 @@ const LocationPricingPage = () => {
           priceDiffPercent: hasSpecialPrice && specialPriceBrutto ? 
             Math.round(((specialPriceBrutto - product.cena_sprzedazy_brutto) / product.cena_sprzedazy_brutto) * 100) : 0,
           defaultMargin,
-          specialMargin
+          specialMargin,
+          // POPRAWKA: Dodaj cenę zakupu z API i marżę z API
+          purchase_price: purchasePriceFromAPI,
+          margin_from_api: locationPrice?.margin || null,
+          margin_method: locationPrice?.margin_method || null
         };
         
         if (hasSpecialPrice) {
@@ -2104,27 +2118,36 @@ const LocationPricingPage = () => {
                                 )}
                               </td>
                               
-                              {/* Cena zakupu */}
+                              {/* Cena zakupu - używaj purchase_price z API (z faktur) */}
                               <td style={{ 
                                 width: '120px',
                                 padding: '0.5rem'
                               }}>
                                 <div>
-                                  {product.cena_zakupu_brutto && product.cena_zakupu_brutto > 0 ? (
+                                  {product.purchase_price && product.purchase_price > 0 ? (
                                     <>
                                       <div style={{ 
                                         fontSize: '0.8rem',
                                         fontWeight: '600',
                                         color: '#fd7e14'
                                       }}>
-                                        {product.cena_zakupu_brutto.toFixed(2)} zł
+                                        {(product.purchase_price * (1 + (product.stawka_vat || 23) / 100)).toFixed(2)} zł
                                       </div>
                                       <div style={{ 
                                         fontSize: '0.7rem',
                                         color: '#6c757d'
                                       }}>
-                                        netto: {(product.cena_zakupu_netto || 0).toFixed(2)} zł
+                                        netto: {product.purchase_price.toFixed(2)} zł
                                       </div>
+                                      {product.margin_method && (
+                                        <div style={{ 
+                                          fontSize: '0.6rem',
+                                          color: '#17a2b8',
+                                          fontStyle: 'italic'
+                                        }}>
+                                          {product.margin_method.includes('faktury') ? '📄 Z faktury' : product.margin_method}
+                                        </div>
+                                      )}
                                     </>
                                   ) : (
                                     <span style={{ 
@@ -2186,13 +2209,30 @@ const LocationPricingPage = () => {
                                   )}
                                 </td>
                               
-                              {/* Marża */}
+                              {/* Marża - używaj margin_from_api z centralnego serwisu */}
                               <td style={{ 
                                 width: '80px',
                                 padding: '0.5rem'
                               }}>
                                 <div>
-                                  {product.hasSpecialPrice && product.specialMargin ? (
+                                  {/* Użyj marży z API jako głównego źródła */}
+                                  {product.margin_from_api !== null && product.margin_from_api !== undefined ? (
+                                    <div>
+                                      <div style={{ 
+                                        fontSize: '0.75rem',
+                                        fontWeight: '600',
+                                        color: product.margin_from_api >= 0 ? '#28a745' : '#dc3545'
+                                      }}>
+                                        {product.margin_from_api.toFixed(1)}%
+                                      </div>
+                                      <div style={{ 
+                                        fontSize: '0.65rem',
+                                        color: '#6c757d'
+                                      }}>
+                                        {product.hasSpecialPrice ? 'Cena spec.' : 'Cena dom.'}
+                                      </div>
+                                    </div>
+                                  ) : product.hasSpecialPrice && product.specialMargin ? (
                                     <div>
                                       <div style={{ 
                                         fontSize: '0.75rem',
@@ -2213,15 +2253,15 @@ const LocationPricingPage = () => {
                                         <div style={{ 
                                           fontSize: '0.75rem',
                                           fontWeight: '600',
-                                          color: product.defaultMargin.percent >= 0 ? '#28a745' : '#dc3545'
+                                          color: product.defaultMargin?.percent >= 0 ? '#28a745' : '#dc3545'
                                         }}>
-                                          {product.defaultMargin.percent}%
+                                          {product.defaultMargin?.percent || 0}%
                                         </div>
                                         <div style={{ 
                                           fontSize: '0.65rem',
                                           color: '#6c757d'
                                         }}>
-                                          {product.defaultMargin.amount >= 0 ? '+' : ''}{product.defaultMargin.amount.toFixed(2)} zł
+                                          {product.defaultMargin?.amount >= 0 ? '+' : ''}{(product.defaultMargin?.amount || 0).toFixed(2)} zł
                                         </div>
                                       </div>
                                     )}

@@ -108,7 +108,7 @@ class WarehousePricingManager:
                             buy_price_net=purchase_price
                         )
                         
-                        price_dict['margin'] = margin_calc.margin_percentage
+                        price_dict['margin'] = margin_calc.margin_percent
                         price_dict['margin_amount'] = margin_calc.margin_amount
                         price_dict['purchase_price'] = purchase_price  # Używamy ceny z faktury
                         price_dict['margin_method'] = method
