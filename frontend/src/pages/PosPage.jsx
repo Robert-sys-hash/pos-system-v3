@@ -10,6 +10,7 @@ import OpenShiftEnhancedModal from "../components/shifts/OpenShiftEnhancedModal"
 import CloseShiftEnhancedModal from "../components/shifts/CloseShiftEnhancedModal";
 import { useLocation } from "../contexts/LocationContext";
 import { shiftService } from "../services/shiftService";
+import { shiftEnhancedService } from "../services/shiftEnhancedService";
 import { transactionService } from "../services/transactionService";
 import { productService } from "../services/productService";
 import { customerService } from "../services/customerService";
@@ -99,6 +100,15 @@ const PosPage = () => {
   const [showCorrectionModal, setShowCorrectionModal] = useState(false);
   const [correctionTransaction, setCorrectionTransaction] = useState(null);
 
+  // Stany dla raportów zamknięć dnia
+  const [dailyClosureReports, setDailyClosureReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [selectedReport, setSelectedReport] = useState(null);
+  const [reportFilters, setReportFilters] = useState({
+    date_from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    date_to: new Date().toISOString().split('T')[0]
+  });
+
   useEffect(() => {
     loadInitialData();
   }, []);
@@ -164,6 +174,37 @@ const PosPage = () => {
       }
     } catch (err) {
       console.error("Błąd ładowania statystyk:", err);
+    }
+  };
+
+  // Ładowanie raportów zamknięć dnia
+  const loadDailyClosureReports = async () => {
+    setReportsLoading(true);
+    try {
+      const response = await shiftEnhancedService.getDailyClosureReports(reportFilters);
+      console.log('📋 Raporty zamknięć:', response);
+      if (response.success) {
+        setDailyClosureReports(response.data?.reports || response.data || []);
+      } else {
+        setDailyClosureReports([]);
+      }
+    } catch (err) {
+      console.error("Błąd ładowania raportów:", err);
+      setDailyClosureReports([]);
+    } finally {
+      setReportsLoading(false);
+    }
+  };
+
+  // Pobierz szczegóły raportu
+  const loadReportDetails = async (reportId) => {
+    try {
+      const response = await shiftEnhancedService.getDailyClosureReportDetails(reportId);
+      if (response.success) {
+        setSelectedReport(response.data);
+      }
+    } catch (err) {
+      console.error("Błąd ładowania szczegółów raportu:", err);
     }
   };
 
@@ -1175,14 +1216,18 @@ const PosPage = () => {
           >
             📄 Paragony
           </button>
+          <button
+            className={`btn ${activeTab === "raporty" ? "btn-success" : "btn-outline-light"}`}
+            style={{ fontSize: "14px" }}
+            onClick={() => {
+              setActiveTab("raporty");
+              loadDailyClosureReports();
+            }}
+          >
+            📊 Raporty
+          </button>
           <button className="btn btn-outline-light" onClick={saveDraft}>
             Zapisz szkic
-          </button>
-          <button
-            className="btn btn-outline-light"
-            onClick={() => window.open("/reports", "_blank")}
-          >
-            Raporty
           </button>
           <button
             className="btn btn-outline-light"
@@ -3090,6 +3135,276 @@ const PosPage = () => {
               </>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Sekcja Raporty zamknięć dnia */}
+      {activeTab === "raporty" && (
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div
+            style={{
+              backgroundColor: "white",
+              borderRadius: "8px",
+              padding: "1.5rem",
+              marginBottom: "1rem",
+              border: "1px solid #e9ecef",
+            }}
+          >
+            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.25rem", fontWeight: "600" }}>
+              📊 Raporty zamknięć dnia
+            </h3>
+
+            {/* Filtry dat */}
+            <div style={{ display: "flex", gap: "12px", marginBottom: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#666", fontWeight: "500" }}>
+                  Od
+                </label>
+                <input
+                  type="date"
+                  value={reportFilters.date_from}
+                  onChange={(e) => setReportFilters(prev => ({ ...prev, date_from: e.target.value }))}
+                  style={{
+                    padding: "7px 10px",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    height: "34px"
+                  }}
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#666", fontWeight: "500" }}>
+                  Do
+                </label>
+                <input
+                  type="date"
+                  value={reportFilters.date_to}
+                  onChange={(e) => setReportFilters(prev => ({ ...prev, date_to: e.target.value }))}
+                  style={{
+                    padding: "7px 10px",
+                    border: "1px solid #ddd",
+                    borderRadius: "4px",
+                    fontSize: "13px",
+                    height: "34px"
+                  }}
+                />
+              </div>
+              <button
+                onClick={loadDailyClosureReports}
+                disabled={reportsLoading}
+                style={{
+                  padding: "7px 15px",
+                  height: "34px",
+                  backgroundColor: "#007bff",
+                  color: "white",
+                  border: "none",
+                  borderRadius: "4px",
+                  fontSize: "13px",
+                  cursor: reportsLoading ? "not-allowed" : "pointer"
+                }}
+              >
+                {reportsLoading ? "Ładowanie..." : "🔍 Szukaj"}
+              </button>
+            </div>
+
+            {/* Lista raportów */}
+            {reportsLoading ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>
+                ⏳ Ładowanie raportów...
+              </div>
+            ) : dailyClosureReports.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>
+                📭 Brak raportów zamknięć w wybranym okresie
+              </div>
+            ) : (
+              <div style={{ overflowX: "auto" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                  <thead>
+                    <tr style={{ backgroundColor: "#f8f9fa" }}>
+                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Data</th>
+                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Kasjer</th>
+                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Transakcje</th>
+                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Gotówka</th>
+                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Karta</th>
+                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Razem</th>
+                      <th style={{ padding: "10px", textAlign: "center", borderBottom: "2px solid #dee2e6" }}>Akcje</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dailyClosureReports.map((report, index) => (
+                      <tr 
+                        key={report.id || index} 
+                        style={{ 
+                          borderBottom: "1px solid #e9ecef",
+                          cursor: "pointer",
+                          backgroundColor: selectedReport?.id === report.id ? "#e7f1ff" : "transparent"
+                        }}
+                        onClick={() => setSelectedReport(report)}
+                      >
+                        <td style={{ padding: "10px" }}>
+                          {report.data_zamkniecia || report.date || '-'}
+                        </td>
+                        <td style={{ padding: "10px" }}>
+                          {report.kasjer_login || report.cashier || '-'}
+                        </td>
+                        <td style={{ padding: "10px", textAlign: "right" }}>
+                          {report.liczba_transakcji || report.transactions_count || 0}
+                        </td>
+                        <td style={{ padding: "10px", textAlign: "right", color: "#198754" }}>
+                          {(report.suma_gotowka || report.cash_total || 0).toFixed(2)} zł
+                        </td>
+                        <td style={{ padding: "10px", textAlign: "right", color: "#0d6efd" }}>
+                          {(report.suma_karta || report.card_total || 0).toFixed(2)} zł
+                        </td>
+                        <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold" }}>
+                          {(report.suma_ogolna || report.total || 0).toFixed(2)} zł
+                        </td>
+                        <td style={{ padding: "10px", textAlign: "center" }}>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedReport(report);
+                            }}
+                            style={{
+                              padding: "4px 10px",
+                              fontSize: "12px",
+                              backgroundColor: "#6c757d",
+                              color: "white",
+                              border: "none",
+                              borderRadius: "4px",
+                              cursor: "pointer"
+                            }}
+                          >
+                            👁️ Szczegóły
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          {/* Szczegóły wybranego raportu */}
+          {selectedReport && (
+            <div
+              style={{
+                backgroundColor: "white",
+                borderRadius: "8px",
+                padding: "1.5rem",
+                border: "1px solid #e9ecef",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
+                <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600" }}>
+                  📋 Szczegóły raportu z dnia {selectedReport.data_zamkniecia || selectedReport.date}
+                </h4>
+                <button
+                  onClick={() => setSelectedReport(null)}
+                  style={{
+                    padding: "4px 10px",
+                    fontSize: "12px",
+                    backgroundColor: "#dc3545",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  ✕ Zamknij
+                </button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
+                <div style={{ padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "#6c757d", marginBottom: "4px" }}>Kasjer</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600" }}>{selectedReport.kasjer_login || selectedReport.cashier || '-'}</div>
+                </div>
+                <div style={{ padding: "1rem", backgroundColor: "#d4edda", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "#155724", marginBottom: "4px" }}>Gotówka</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#155724" }}>
+                    {(selectedReport.suma_gotowka || selectedReport.cash_total || 0).toFixed(2)} zł
+                  </div>
+                </div>
+                <div style={{ padding: "1rem", backgroundColor: "#cce5ff", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "#004085", marginBottom: "4px" }}>Karta</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#004085" }}>
+                    {(selectedReport.suma_karta || selectedReport.card_total || 0).toFixed(2)} zł
+                  </div>
+                </div>
+                <div style={{ padding: "1rem", backgroundColor: "#fff3cd", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "#856404", marginBottom: "4px" }}>BLIK</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#856404" }}>
+                    {(selectedReport.suma_blik || selectedReport.blik_total || 0).toFixed(2)} zł
+                  </div>
+                </div>
+                <div style={{ padding: "1rem", backgroundColor: "#e2d5f1", borderRadius: "6px" }}>
+                  <div style={{ fontSize: "12px", color: "#6f42c1", marginBottom: "4px" }}>Kupony</div>
+                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#6f42c1" }}>
+                    {(selectedReport.suma_kupon || selectedReport.coupon_total || 0).toFixed(2)} zł
+                  </div>
+                </div>
+                <div style={{ padding: "1rem", backgroundColor: "#343a40", borderRadius: "6px", color: "white" }}>
+                  <div style={{ fontSize: "12px", opacity: 0.8, marginBottom: "4px" }}>RAZEM</div>
+                  <div style={{ fontSize: "20px", fontWeight: "bold" }}>
+                    {(selectedReport.suma_ogolna || selectedReport.total || 0).toFixed(2)} zł
+                  </div>
+                </div>
+              </div>
+
+              {/* Dodatkowe informacje */}
+              <div style={{ marginTop: "1rem", padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", fontSize: "13px" }}>
+                  <div>
+                    <span style={{ color: "#6c757d" }}>Liczba transakcji:</span>{" "}
+                    <strong>{selectedReport.liczba_transakcji || selectedReport.transactions_count || 0}</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#6c757d" }}>Stan początkowy kasy:</span>{" "}
+                    <strong>{(selectedReport.stan_poczatkowy || selectedReport.opening_balance || 0).toFixed(2)} zł</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#6c757d" }}>Stan końcowy kasy:</span>{" "}
+                    <strong>{(selectedReport.stan_koncowy || selectedReport.closing_balance || 0).toFixed(2)} zł</strong>
+                  </div>
+                  <div>
+                    <span style={{ color: "#6c757d" }}>Różnica:</span>{" "}
+                    <strong style={{ 
+                      color: (selectedReport.roznica || 0) === 0 ? "#198754" : "#dc3545" 
+                    }}>
+                      {(selectedReport.roznica || 0).toFixed(2)} zł
+                    </strong>
+                  </div>
+                </div>
+                {selectedReport.uwagi && (
+                  <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #dee2e6" }}>
+                    <span style={{ color: "#6c757d" }}>Uwagi:</span>{" "}
+                    <span>{selectedReport.uwagi}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Przycisk drukowania */}
+              <div style={{ marginTop: "1rem", textAlign: "right" }}>
+                <button
+                  onClick={() => window.print()}
+                  style={{
+                    padding: "8px 20px",
+                    fontSize: "14px",
+                    backgroundColor: "#198754",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "4px",
+                    cursor: "pointer"
+                  }}
+                >
+                  🖨️ Drukuj raport
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

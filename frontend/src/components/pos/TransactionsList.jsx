@@ -2,6 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { transactionService } from '../../services/transactionService';
 import ReturnModal from './ReturnModal';
 
+// Funkcje pomocnicze do dat
+const getTodayDate = () => {
+  const today = new Date();
+  return today.toISOString().split('T')[0];
+};
+
+const getMonthRange = () => {
+  const today = new Date();
+  const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+  return {
+    from: firstDay.toISOString().split('T')[0],
+    to: lastDay.toISOString().split('T')[0]
+  };
+};
+
 const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = false, locationId = null }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -9,11 +25,12 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
   const [successMessage, setSuccessMessage] = useState('');
   const [showReturnModal, setShowReturnModal] = useState(false);
   const [returnTransaction, setReturnTransaction] = useState(null);
+  const [dateFilter, setDateFilter] = useState('today'); // 'today', 'month', 'custom'
   const [filters, setFilters] = useState({
     limit: 50,
     status: 'completed',
-    date_from: '',
-    date_to: '',
+    date_from: getTodayDate(),
+    date_to: getTodayDate(),
     location_id: locationId
   });
 
@@ -54,6 +71,30 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
       ...prev,
       [name]: value
     }));
+    // Jeśli zmieniono datę ręcznie, ustaw tryb custom
+    if (name === 'date_from' || name === 'date_to') {
+      setDateFilter('custom');
+    }
+  };
+
+  const handleDateFilterChange = (mode) => {
+    setDateFilter(mode);
+    if (mode === 'today') {
+      const today = getTodayDate();
+      setFilters(prev => ({
+        ...prev,
+        date_from: today,
+        date_to: today
+      }));
+    } else if (mode === 'month') {
+      const range = getMonthRange();
+      setFilters(prev => ({
+        ...prev,
+        date_from: range.from,
+        date_to: range.to
+      }));
+    }
+    // custom - nie zmieniamy dat, użytkownik wybierze sam
   };
 
   const handleDeleteTransaction = async (transaction) => {
@@ -212,80 +253,146 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
       {/* Filtry */}
       <div style={{ 
         display: 'flex', 
-        gap: '15px', 
+        gap: '12px', 
         marginBottom: '20px', 
         padding: '15px',
         backgroundColor: '#f8f9fa',
         borderRadius: '6px',
-        flexWrap: 'wrap'
+        flexWrap: 'wrap',
+        alignItems: 'flex-end'
       }}>
         <div>
-          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#666' }}>
+          <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: '#666', fontWeight: '500' }}>
             Status
           </label>
           <select
             value={filters.status}
             onChange={(e) => handleFilterChange('status', e.target.value)}
             style={{
-              padding: '6px 10px',
+              padding: '7px 10px',
               border: '1px solid #ddd',
               borderRadius: '4px',
-              fontSize: '14px'
+              fontSize: '13px',
+              height: '34px',
+              backgroundColor: 'white'
             }}
           >
             <option value="completed">Sfinalizowane</option>
-            <option value="corrections">Korekty</option>
             <option value="draft">Szkice</option>
             <option value="all">Wszystkie</option>
           </select>
         </div>
 
+        {/* Szybkie filtry dat */}
         <div>
-          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#666' }}>
-            Data od
+          <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: '#666', fontWeight: '500' }}>
+            Okres
+          </label>
+          <div style={{ display: 'flex', gap: '4px' }}>
+            <button
+              onClick={() => handleDateFilterChange('today')}
+              style={{
+                padding: '7px 10px',
+                border: dateFilter === 'today' ? '2px solid #007bff' : '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '12px',
+                height: '34px',
+                backgroundColor: dateFilter === 'today' ? '#e7f1ff' : 'white',
+                color: dateFilter === 'today' ? '#007bff' : '#333',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'today' ? '600' : 'normal'
+              }}
+            >
+              Dzisiaj
+            </button>
+            <button
+              onClick={() => handleDateFilterChange('month')}
+              style={{
+                padding: '7px 10px',
+                border: dateFilter === 'month' ? '2px solid #007bff' : '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '12px',
+                height: '34px',
+                backgroundColor: dateFilter === 'month' ? '#e7f1ff' : 'white',
+                color: dateFilter === 'month' ? '#007bff' : '#333',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'month' ? '600' : 'normal'
+              }}
+            >
+              Miesiąc
+            </button>
+            <button
+              onClick={() => handleDateFilterChange('custom')}
+              style={{
+                padding: '7px 10px',
+                border: dateFilter === 'custom' ? '2px solid #007bff' : '1px solid #ddd',
+                borderRadius: '4px',
+                fontSize: '12px',
+                height: '34px',
+                backgroundColor: dateFilter === 'custom' ? '#e7f1ff' : 'white',
+                color: dateFilter === 'custom' ? '#007bff' : '#333',
+                cursor: 'pointer',
+                fontWeight: dateFilter === 'custom' ? '600' : 'normal'
+              }}
+            >
+              Zakres
+            </button>
+          </div>
+        </div>
+
+        {/* Pola daty */}
+        <div>
+          <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: '#666', fontWeight: '500' }}>
+            Od
           </label>
           <input
             type="date"
             value={filters.date_from}
             onChange={(e) => handleFilterChange('date_from', e.target.value)}
             style={{
-              padding: '6px 10px',
+              padding: '7px 10px',
               border: '1px solid #ddd',
               borderRadius: '4px',
-              fontSize: '14px'
+              fontSize: '13px',
+              height: '34px',
+              backgroundColor: 'white'
             }}
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#666' }}>
-            Data do
+          <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: '#666', fontWeight: '500' }}>
+            Do
           </label>
           <input
             type="date"
             value={filters.date_to}
             onChange={(e) => handleFilterChange('date_to', e.target.value)}
             style={{
-              padding: '6px 10px',
+              padding: '7px 10px',
               border: '1px solid #ddd',
               borderRadius: '4px',
-              fontSize: '14px'
+              fontSize: '13px',
+              height: '34px',
+              backgroundColor: 'white'
             }}
           />
         </div>
 
         <div>
-          <label style={{ display: 'block', fontSize: '12px', marginBottom: '4px', color: '#666' }}>
+          <label style={{ display: 'block', fontSize: '11px', marginBottom: '4px', color: '#666', fontWeight: '500' }}>
             Limit
           </label>
           <select
             value={filters.limit}
             onChange={(e) => handleFilterChange('limit', parseInt(e.target.value))}
             style={{
-              padding: '6px 10px',
+              padding: '7px 10px',
               border: '1px solid #ddd',
               borderRadius: '4px',
-              fontSize: '14px'
+              fontSize: '13px',
+              height: '34px',
+              backgroundColor: 'white'
             }}
           >
             <option value={20}>20</option>
