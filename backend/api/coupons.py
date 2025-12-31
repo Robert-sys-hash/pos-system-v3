@@ -27,6 +27,126 @@ def generate_coupon_code(length=8):
     
     raise Exception("Nie można wygenerować unikalnego kodu po 10 próbach")
 
+def generate_document_number():
+    """Generuj unikalny numer dokumentu zakupu kuponu w formacie KP-YYYYMMDD-NNNN"""
+    today = datetime.now().strftime('%Y%m%d')
+    
+    # Znajdź ostatni numer dokumentu z dzisiejszą datą
+    query = """
+    SELECT document_number FROM coupon_purchase_documents 
+    WHERE document_number LIKE ? 
+    ORDER BY id DESC LIMIT 1
+    """
+    result = execute_query(query, (f'KP-{today}-%',))
+    
+    if result and len(result) > 0:
+        last_number = result[0]['document_number']
+        # Wyciągnij numer sekwencyjny
+        try:
+            seq_num = int(last_number.split('-')[-1]) + 1
+        except:
+            seq_num = 1
+    else:
+        seq_num = 1
+    
+    return f"KP-{today}-{seq_num:04d}"
+
+def create_purchase_document(coupon_id, coupon_code, coupon_value, expiry_date,
+                            payment_method=None, customer_phone=None, customer_name=None,
+                            location_id=None, seller_name=None):
+    """Utwórz dokument potwierdzenia zakupu kuponu i KP w Kasa/Bank"""
+    try:
+        document_number = generate_document_number()
+        
+        # Pobierz nazwę lokalizacji
+        location_name = None
+        if location_id:
+            loc_result = execute_query("SELECT nazwa FROM locations WHERE id = ?", (location_id,))
+            if loc_result:
+                location_name = loc_result[0].get('nazwa')
+        
+        insert_query = """
+        INSERT INTO coupon_purchase_documents (
+            document_number, coupon_id, coupon_code, coupon_value,
+            payment_method, customer_phone, customer_name,
+            location_id, location_name, seller_name, expiry_date
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        params = (
+            document_number, coupon_id, coupon_code, coupon_value,
+            payment_method, customer_phone, customer_name,
+            location_id, location_name, seller_name, expiry_date
+        )
+        
+        success = execute_insert(insert_query, params)
+        
+        if success:
+            # Utwórz dokument KP w Kasa/Bank dla wpłaty z kuponu
+            create_kp_for_coupon(
+                coupon_code=coupon_code,
+                amount=coupon_value,
+                payment_method=payment_method,
+                customer_name=customer_name,
+                location_id=location_id,
+                seller_name=seller_name,
+                document_number=document_number
+            )
+            return document_number
+        return None
+        
+    except Exception as e:
+        print(f"Błąd tworzenia dokumentu zakupu: {e}")
+        return None
+
+
+def create_kp_for_coupon(coupon_code, amount, payment_method, customer_name, 
+                         location_id, seller_name, document_number):
+    """Utwórz dokument KP (wpłata) w Kasa/Bank dla zakupu kuponu"""
+    try:
+        # Mapowanie metody płatności
+        payment_type_map = {
+            'gotowka': 'gotowka',
+            'karta': 'karta',
+            'blik': 'blik',
+            'przelew': 'przelew'
+        }
+        
+        typ_platnosci = payment_type_map.get(payment_method, 'gotowka')
+        
+        # Opis operacji
+        opis = f"Sprzedaż kuponu {coupon_code}"
+        if customer_name:
+            opis += f" - {customer_name}"
+        
+        insert_query = """
+        INSERT INTO kasa_operacje 
+        (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
+         numer_dokumentu, kontrahent, data_operacji, utworzyl, uwagi, location_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, date('now'), ?, ?, ?)
+        """
+        
+        params = (
+            'KP',  # Kasa Przyjmie - wpłata
+            typ_platnosci,
+            amount,
+            opis,
+            'kupony',  # Kategoria: kupony
+            document_number,  # Numer dokumentu KP-YYYYMMDD-NNNN
+            customer_name or '',
+            seller_name or 'system',
+            f'Automatyczny wpis z zakupu kuponu {coupon_code}',
+            location_id
+        )
+        
+        execute_insert(insert_query, params)
+        print(f"✅ Utworzono dokument KP dla kuponu {coupon_code}: {amount} zł ({typ_platnosci})")
+        
+    except Exception as e:
+        print(f"⚠️ Błąd tworzenia KP dla kuponu: {e}")
+        # Nie rzucamy błędu - dokument kuponu jest ważniejszy
+
+
 @coupons_bp.route('/coupons', methods=['GET'])
 # @require_auth  # Wyłączono dla testów
 def get_all_coupons():
@@ -142,19 +262,178 @@ def create_coupon():
             
             if coupon_result:
                 coupon = coupon_result[0]
+                
+                # Utwórz dokument potwierdzenia zakupu kuponu
+                customer_name = data.get('customer_name') or data.get('nazwa_klienta', '')
+                document_number = create_purchase_document(
+                    coupon_id=coupon['id'],
+                    coupon_code=coupon['kod'],
+                    coupon_value=value,
+                    expiry_date=expiry_date,
+                    payment_method=payment_method,
+                    customer_phone=phone_number,
+                    customer_name=customer_name,
+                    location_id=location_id,
+                    seller_name=shop
+                )
+                
                 return success_response({
                     'coupon_id': coupon['id'],
                     'code': coupon['kod'],
                     'value': coupon['wartosc'],
                     'expiry_date': coupon['data_waznosci'],
                     'created_at': coupon['data_utworzenia'],
-                    'status': coupon['status']
+                    'status': coupon['status'],
+                    'document_number': document_number  # Numer dokumentu zakupu
                 }, "Kupon utworzony pomyślnie")
         
         return error_response("Błąd tworzenia kuponu", 500)
         
     except Exception as e:
         return error_response(f"Błąd tworzenia kuponu: {str(e)}", 500)
+
+@coupons_bp.route('/coupons/documents', methods=['GET'])
+def get_coupon_documents():
+    """
+    Pobierz wszystkie dokumenty zakupu kuponów
+    GET /api/coupons/documents?location_id=5
+    """
+    try:
+        location_id = request.args.get('location_id')
+        
+        query = """
+        SELECT 
+            cpd.*,
+            k.status as coupon_status
+        FROM coupon_purchase_documents cpd
+        LEFT JOIN kupony k ON cpd.coupon_id = k.id
+        """
+        
+        params = []
+        if location_id:
+            query += " WHERE cpd.location_id = ?"
+            params.append(location_id)
+        
+        query += " ORDER BY cpd.created_at DESC LIMIT 100"
+        
+        result = execute_query(query, params)
+        
+        return success_response(result or [], f"Pobrano {len(result) if result else 0} dokumentów")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania dokumentów: {str(e)}", 500)
+
+@coupons_bp.route('/coupons/documents/<document_number>', methods=['GET'])
+def get_coupon_document(document_number):
+    """
+    Pobierz szczegóły dokumentu zakupu kuponu (do wydruku)
+    GET /api/coupons/documents/KP-20251231-0001
+    """
+    try:
+        query = """
+        SELECT 
+            cpd.*,
+            k.status as coupon_status,
+            k.data_wykorzystania,
+            k.kwota_wykorzystana
+        FROM coupon_purchase_documents cpd
+        LEFT JOIN kupony k ON cpd.coupon_id = k.id
+        WHERE cpd.document_number = ?
+        """
+        
+        result = execute_query(query, (document_number,))
+        
+        if not result:
+            return not_found_response(f"Dokument {document_number} nie został znaleziony")
+        
+        doc = result[0]
+        
+        # Przygotuj dane do wydruku
+        print_data = {
+            'document_number': doc['document_number'],
+            'created_at': doc['created_at'],
+            'coupon': {
+                'code': doc['coupon_code'],
+                'value': doc['coupon_value'],
+                'expiry_date': doc['expiry_date'],
+                'status': doc.get('coupon_status', 'aktywny')
+            },
+            'customer': {
+                'name': doc.get('customer_name', ''),
+                'phone': doc.get('customer_phone', '')
+            },
+            'payment': {
+                'method': doc.get('payment_method', ''),
+                'amount': doc['coupon_value']
+            },
+            'location': {
+                'id': doc.get('location_id'),
+                'name': doc.get('location_name', '')
+            },
+            'seller': doc.get('seller_name', ''),
+            'notes': doc.get('notes', '')
+        }
+        
+        return success_response(print_data, "Dokument pobrany pomyślnie")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania dokumentu: {str(e)}", 500)
+
+@coupons_bp.route('/coupons/<int:coupon_id>/document', methods=['GET'])
+def get_document_by_coupon(coupon_id):
+    """
+    Pobierz dokument zakupu dla danego kuponu
+    GET /api/coupons/123/document
+    """
+    try:
+        query = """
+        SELECT 
+            cpd.*,
+            k.status as coupon_status,
+            k.data_wykorzystania,
+            k.kwota_wykorzystana
+        FROM coupon_purchase_documents cpd
+        LEFT JOIN kupony k ON cpd.coupon_id = k.id
+        WHERE cpd.coupon_id = ?
+        """
+        
+        result = execute_query(query, (coupon_id,))
+        
+        if not result:
+            return not_found_response(f"Dokument dla kuponu {coupon_id} nie został znaleziony")
+        
+        doc = result[0]
+        
+        # Przygotuj dane do wydruku (taki sam format jak get_coupon_document)
+        print_data = {
+            'document_number': doc['document_number'],
+            'created_at': doc['created_at'],
+            'coupon': {
+                'code': doc['coupon_code'],
+                'value': doc['coupon_value'],
+                'expiry_date': doc['expiry_date'],
+                'status': doc.get('coupon_status', 'aktywny')
+            },
+            'customer': {
+                'name': doc.get('customer_name', ''),
+                'phone': doc.get('customer_phone', '')
+            },
+            'payment': {
+                'method': doc.get('payment_method', ''),
+                'amount': doc['coupon_value']
+            },
+            'location': {
+                'id': doc.get('location_id'),
+                'name': doc.get('location_name', '')
+            },
+            'seller': doc.get('seller_name', ''),
+            'notes': doc.get('notes', '')
+        }
+        
+        return success_response(print_data, "Dokument pobrany pomyślnie")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania dokumentu: {str(e)}", 500)
 
 @coupons_bp.route('/coupons/validate/<code>', methods=['GET'])
 def validate_coupon(code):

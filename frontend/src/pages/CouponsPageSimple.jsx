@@ -5,6 +5,7 @@ import { useWarehouse } from '../contexts/WarehouseContext';
 import SimpleUseCouponModal from '../components/coupons/SimpleUseCouponModal';
 import SimpleHistoryModal from '../components/coupons/SimpleHistoryModal';
 import ManualReceiptModal from '../components/coupons/ManualReceiptModal';
+import CouponPurchaseDocumentModal from '../components/coupons/CouponPurchaseDocumentModal';
 
 const CouponsPageSimple = () => {
   const { selectedLocation, locationId } = useLocation();
@@ -36,6 +37,7 @@ const CouponsPageSimple = () => {
   const [showUseModal, setShowUseModal] = useState(false);
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showReceiptModal, setShowReceiptModal] = useState(false);
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [selectedCoupon, setSelectedCoupon] = useState(null);
 
   const getDefaultExpiryDate = () => {
@@ -192,7 +194,7 @@ const CouponsPageSimple = () => {
               <select id="sposob_platnosci" value={newCoupon.sposob_platnosci} onChange={e => setNewCoupon({...newCoupon, sposob_platnosci: e.target.value})} style={{ width: 90, padding: '4px 8px', fontSize: 14, borderRadius: 5, border: '1px solid #ddd' }}>
                 <option value="gotowka">Gotówka</option>
                 <option value="karta">Karta</option>
-                <option value="przelew">Przelew</option>
+                <option value="blik">BLIK</option>
               </select>
               <button type="submit" style={{ padding: '4px 14px', background: '#28a745', color: 'white', border: 'none', borderRadius: 5, fontWeight: 500, fontSize: 14, cursor: 'pointer', minHeight: 28 }}>Dodaj</button>
               <button type="button" onClick={() => setShowAddForm(false)} style={{ padding: '4px 14px', background: '#6c757d', color: 'white', border: 'none', borderRadius: 5, fontWeight: 500, fontSize: 14, cursor: 'pointer', minHeight: 28 }}>Anuluj</button>
@@ -254,6 +256,7 @@ const CouponsPageSimple = () => {
                     </td>
                     <td style={{ padding: '4px 6px', border: '1px solid #e5e7eb' }}>
                       <button style={{ marginRight: 6, fontSize: 12, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#2563eb', color: 'white', cursor: 'pointer' }} onClick={() => { setSelectedCoupon(coupon); setShowUseModal(true); }}>Wykorzystaj</button>
+                      <button style={{ marginRight: 6, fontSize: 12, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#16a34a', color: 'white', cursor: 'pointer' }} onClick={() => { setSelectedCoupon(coupon); setShowDocumentModal(true); }}>📄 Dokument</button>
                       <button style={{ marginRight: 0, fontSize: 12, padding: '2px 8px', borderRadius: 4, border: 'none', background: '#f3f4f6', color: '#222', cursor: 'pointer' }} onClick={() => { setSelectedCoupon(coupon); setShowHistoryModal(true); }}>Historia</button>
                     </td>
                   </tr>
@@ -280,6 +283,11 @@ const CouponsPageSimple = () => {
         isOpen={showReceiptModal}
         onClose={() => { setShowReceiptModal(false); setSelectedCoupon(null); }}
         onSuccess={fetchCoupons}
+      />
+      <CouponPurchaseDocumentModal
+        couponId={selectedCoupon?.id}
+        isOpen={showDocumentModal}
+        onClose={() => { setShowDocumentModal(false); setSelectedCoupon(null); }}
       />
     </div>
   );

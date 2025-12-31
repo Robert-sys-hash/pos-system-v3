@@ -99,5 +99,37 @@ export const couponService = {
 
   async updateReceiptNumber(couponId, receiptNumber) {
     return this.updateCouponReceipt(couponId, receiptNumber);
+  },
+
+  // Dokumenty zakupu kuponów
+  async getPurchaseDocument(documentNumber) {
+    try {
+      const response = await api.get(`/coupons/documents/${documentNumber}`);
+      return response.data;
+    } catch (error) {
+      console.error('Błąd pobierania dokumentu zakupu:', error);
+      throw error;
+    }
+  },
+
+  async getCouponDocument(couponId) {
+    try {
+      const response = await api.get(`/coupons/${couponId}/document`);
+      return response.data;
+    } catch (error) {
+      console.error('Błąd pobierania dokumentu dla kuponu:', error);
+      throw error;
+    }
+  },
+
+  async getPurchaseDocuments(locationId = null) {
+    try {
+      const params = locationId ? { location_id: locationId } : {};
+      const response = await api.get('/coupons/documents', { params });
+      return response.data;
+    } catch (error) {
+      console.error('Błąd pobierania dokumentów zakupu:', error);
+      throw error;
+    }
   }
 };
