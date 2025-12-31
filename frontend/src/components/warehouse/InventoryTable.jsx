@@ -50,24 +50,28 @@ const InventoryTable = ({
     }
   }, [currentLocation]);
 
-  // Pobierz marże z centralnego API gdy produkty się zmienią
+  // Pobierz marże z centralnego API gdy produkty lub ceny magazynowe się zmienią
   // Używamy ref aby uniknąć wielokrotnych wywołań
-  const lastProductsHashRef = React.useRef('');
+  const lastMarginsHashRef = React.useRef('');
   useEffect(() => {
-    // Utwórz hash z ID produktów żeby sprawdzić czy lista się zmieniła
-    const productsHash = products.map(p => p.id).join(',');
-    if (productsHash !== lastProductsHashRef.current && products.length > 0) {
-      lastProductsHashRef.current = productsHash;
+    // Utwórz hash z ID produktów i liczby cen żeby sprawdzić czy coś się zmieniło
+    const marginsHash = `${products.map(p => p.id).join(',')}_${locationPrices.length}`;
+    if (marginsHash !== lastMarginsHashRef.current && products.length > 0) {
+      lastMarginsHashRef.current = marginsHash;
+      console.log('🔄 Obliczanie marży dla', products.length, 'produktów z', locationPrices.length, 'cenami magazynowymi');
       loadMarginsForProducts();
     }
-  }, [products]);
+  }, [products, locationPrices]);
 
   const loadWarehousePrices = async () => {
     if (!currentLocation) return;
     
     try {
       const response = await warehousePricingService.getWarehousePrices(currentLocation.id);
-      setLocationPrices(response.data || []); // używamy tego samego state dla kompatybilności
+      // API zwraca { success: true, data: { prices: [...] } }
+      const prices = response.data?.prices || response.data || [];
+      console.log('📦 Załadowano ceny magazynowe:', prices.length, 'produktów');
+      setLocationPrices(prices);
     } catch (error) {
       console.error('Błąd pobierania cen magazynowych:', error);
       setLocationPrices([]);
@@ -82,18 +86,32 @@ const InventoryTable = ({
     const promises = products.map(async (product) => {
       try {
         const marginData = getMarginCalculationData(product);
-        if (marginData.sellPriceNetto > 0 && marginData.buyPriceNetto > 0) {
+        
+        // Jeśli mamy marżę bezpośrednio z API, użyj jej
+        if (marginData.marginFromAPI !== null && marginData.marginFromAPI !== undefined) {
+          const marginAmount = marginData.sellPriceNetto - marginData.buyPriceNetto;
+          margins[product.id] = {
+            margin_percent: marginData.marginFromAPI,
+            margin_amount: marginAmount,
+            markup_percent: marginData.buyPriceNetto > 0 ? 
+              ((marginAmount / marginData.buyPriceNetto) * 100) : 0,
+            profit_amount: marginAmount,
+            source: 'api'
+          };
+        } else if (marginData.sellPriceNetto > 0 && marginData.buyPriceNetto > 0) {
+          // Fallback - oblicz marżę lokalnie
           const margin = await calculateMargin(
             marginData.sellPriceNetto,
             marginData.buyPriceNetto
           );
-          margins[product.id] = margin;
+          margins[product.id] = { ...margin, source: 'calculated' };
         } else {
           margins[product.id] = {
             margin_percent: 0,
             margin_amount: 0,
             markup_percent: 0,
-            profit_amount: 0
+            profit_amount: 0,
+            source: 'none'
           };
         }
       } catch (error) {
@@ -118,20 +136,28 @@ const InventoryTable = ({
     const safePrices = Array.isArray(locationPrices) ? locationPrices : [];
     
     // Sprawdź czy produkt ma cenę specjalną dla aktualnego magazynu
+    // API zwraca: warehouse_price_net (cena netto specjalna) i purchase_price
     const warehousePrice = safePrices.find(lp => lp.product_id === product.id);
     
-    // Użyj ceny specjalnej jeśli istnieje, inaczej domyślnej (ZAWSZE NETTO)
-    const sellPriceNetto = warehousePrice ? 
-      warehousePrice.cena_sprzedazy_netto : 
-      product.warehouse_price_net || product.price_net || product.cena_sprzedazy_netto || 0;
+    // Użyj ceny specjalnej z API (warehouse_price_net) jeśli istnieje
+    const sellPriceNetto = warehousePrice?.warehouse_price_net || 
+      product.warehouse_price_net || 
+      product.price_net || 
+      product.cena_sprzedazy_netto || 0;
     
-    // POPRAWKA: Używamy purchase_price (które teraz jest cena_zakupu_netto z obu API)
-    const buyPriceNetto = product.purchase_price || product.cena_zakupu_netto || 0;
+    // Użyj ceny zakupu z API (purchase_price) - jest to cena_zakupu_netto
+    const buyPriceNetto = warehousePrice?.purchase_price || 
+      product.purchase_price || 
+      product.cena_zakupu_netto || 0;
+    
+    // Użyj marży bezpośrednio z API jeśli jest dostępna
+    const marginFromAPI = warehousePrice?.margin || null;
     
     return {
       sellPriceNetto,
       buyPriceNetto,
-      hasSpecialPrice: !!warehousePrice
+      hasSpecialPrice: warehousePrice?.has_special_price || false,
+      marginFromAPI
     };
   };
 

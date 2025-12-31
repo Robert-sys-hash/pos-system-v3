@@ -479,14 +479,18 @@ def get_warehouse_prices(warehouse_id):
                     COALESCE(p.cena_sprzedazy_netto, p.cena_sprzedazy_brutto / (1 + COALESCE(p.stawka_vat, 23)/100.0), 0)
             END as warehouse_price_net,
             wp.cena_sprzedazy_brutto as dedicated_warehouse_price,
-            wp.updated_at as price_updated
+            wp.updated_at as price_updated,
+            -- Stan magazynowy z inventory_locations
+            COALESCE(il.ilosc_dostepna, 0) as stock_quantity,
+            COALESCE(il.ilosc_zarezerwowana, 0) as stock_reserved
         FROM produkty p
         LEFT JOIN warehouse_product_prices wp ON p.id = wp.product_id AND wp.warehouse_id = ? AND wp.aktywny = 1
+        LEFT JOIN inventory_locations il ON p.id = il.product_id AND il.warehouse_id = ?
         WHERE p.aktywny = 1
         ORDER BY p.nazwa
         """
         
-        prices = execute_query(prices_sql, (warehouse_id,))
+        prices = execute_query(prices_sql, (warehouse_id, warehouse_id))
         
         if prices is None:
             return error_response("Błąd połączenia z bazą danych", 500)
@@ -553,7 +557,11 @@ def get_warehouse_prices(warehouse_id):
                 'has_special_price': has_dedicated_price,
                 'margin': round(margin, 2),
                 'margin_method': margin_method,
-                'price_updated': row['price_updated']
+                'price_updated': row['price_updated'],
+                # Stan magazynowy
+                'stock': float(row['stock_quantity']) if row.get('stock_quantity') else 0.0,
+                'stock_quantity': float(row['stock_quantity']) if row.get('stock_quantity') else 0.0,
+                'stock_reserved': float(row['stock_reserved']) if row.get('stock_reserved') else 0.0
             })
         
         return success_response({

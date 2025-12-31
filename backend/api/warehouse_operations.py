@@ -218,13 +218,53 @@ def create_internal_receipt():
                 VALUES (?, ?, ?, ?)
             """, (receipt_id, product_id, quantity, reason))
             
-            # Aktualizuj stan magazynowy
+            # Aktualizuj stan magazynowy w inventory_locations (per lokalizacja)
+            if location_id:
+                # Sprawdź czy istnieje wpis dla tego produktu i lokalizacji
+                cursor.execute("""
+                    SELECT id FROM inventory_locations 
+                    WHERE product_id = ? AND warehouse_id = ?
+                """, (product_id, location_id))
+                existing = cursor.fetchone()
+                
+                if existing:
+                    # Aktualizuj istniejący wpis
+                    cursor.execute("""
+                        UPDATE inventory_locations 
+                        SET ilosc_dostepna = ilosc_dostepna + ?, 
+                            ostatnia_aktualizacja = CURRENT_TIMESTAMP
+                        WHERE product_id = ? AND warehouse_id = ?
+                    """, (quantity, product_id, location_id))
+                else:
+                    # Utwórz nowy wpis
+                    cursor.execute("""
+                        INSERT INTO inventory_locations 
+                        (product_id, warehouse_id, ilosc_dostepna, ilosc_zarezerwowana, ilosc_minimalna, ilosc_maksymalna, ostatnia_aktualizacja)
+                        VALUES (?, ?, ?, 0, 0, 0, CURRENT_TIMESTAMP)
+                    """, (product_id, location_id, quantity))
+                
+                logging.info(f"Zaktualizowano inventory_locations: produkt {product_id}, lokalizacja {location_id}, +{quantity}")
+            
+            # Aktualizuj również stan w pos_magazyn (legacy) z lokalizacją
+            # Sprawdź czy istnieje wpis dla tej lokalizacji
             cursor.execute("""
-                UPDATE pos_magazyn 
-                SET stan_aktualny = stan_aktualny + ?, 
-                    ostatnia_aktualizacja = CURRENT_TIMESTAMP
-                WHERE produkt_id = ?
-            """, (quantity, product_id))
+                SELECT id FROM pos_magazyn WHERE produkt_id = ? AND (lokalizacja = ? OR lokalizacja IS NULL OR lokalizacja = '')
+            """, (product_id, str(location_id) if location_id else ''))
+            pos_existing = cursor.fetchone()
+            
+            if pos_existing:
+                cursor.execute("""
+                    UPDATE pos_magazyn 
+                    SET stan_aktualny = stan_aktualny + ?, 
+                        lokalizacja = ?,
+                        ostatnia_aktualizacja = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                """, (quantity, str(location_id) if location_id else '', pos_existing[0]))
+            else:
+                cursor.execute("""
+                    INSERT INTO pos_magazyn (produkt_id, stan_aktualny, stan_minimalny, stan_maksymalny, lokalizacja, ostatnia_aktualizacja)
+                    VALUES (?, ?, 0, 0, ?, CURRENT_TIMESTAMP)
+                """, (product_id, quantity, str(location_id) if location_id else ''))
             
             # Dodaj wpis do historii magazynu
             execute_insert("""

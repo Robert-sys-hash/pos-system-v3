@@ -240,34 +240,14 @@ const LocationPricingPage = () => {
     loadManufacturers();
   }, []);
 
+  // Jeden useEffect do ładowania danych przy zmianie lokalizacji
   useEffect(() => {
     if (selectedLocation) {
-      loadLocationPrices(selectedLocation.id);
+      console.log(`📦 Ładowanie danych dla lokalizacji: ${selectedLocation.id} (${selectedLocation.nazwa})`);
+      // loadAllProducts(true) pobiera świeże ceny, więc nie trzeba osobno wywoływać loadLocationPrices
+      loadAllProducts(true);
     }
   }, [selectedLocation]);
-
-  useEffect(() => {
-    if (selectedLocation && locationPrices.length >= 0) {
-      loadAllProducts();
-      
-      // WYŁĄCZONE: Automatyczna inicjalizacja może nadpisywać ręcznie ustawione ceny specjalne
-      // const initializeIfNeeded = async () => {
-      //   const response = await productService.getProducts(1000);
-      //   const products = response || [];
-      //   const coveragePercent = products.length > 0 ? (locationPrices.length / products.length) * 100 : 0;
-      //   
-      //   console.log(`Pokrycie cen lokalizacyjnych: ${coveragePercent.toFixed(1)}%`);
-      //   
-      //   // Jeśli mniej niż 10% produktów ma ceny lokalizacyjne, automatycznie inicjalizuj
-      //   if (coveragePercent < 10 && products.length > 0) {
-      //     console.log('Automatyczna inicjalizacja cen lokalizacyjnych...');
-      //     await initializeLocationPrices();
-      //   }
-      // };
-      //
-      // initializeIfNeeded().catch(console.error);
-    }
-  }, [selectedLocation, locationPrices]);
 
   const loadManufacturers = async () => {
     try {
@@ -398,12 +378,24 @@ const LocationPricingPage = () => {
       // Jeśli wymagane odświeżenie cen, pobierz je na świeżo
       let currentLocationPrices = locationPrices;
       if (forceRefreshPrices) {
+        console.log(`🔄 Pobieram świeże ceny dla magazynu ${selectedLocation.id}...`);
         const pricesResponse = await warehousePricingService.getWarehousePrices(selectedLocation.id);
+        console.log('📥 Odpowiedź API:', pricesResponse);
         if (pricesResponse.success) {
           // API zwraca { prices: [...] } - potrzebujemy prices
           currentLocationPrices = pricesResponse.data?.prices || [];
           setLocationPrices(currentLocationPrices);
-          console.log(`Odświeżono ${currentLocationPrices.length} cen magazynowych`);
+          console.log(`✅ Odświeżono ${currentLocationPrices.length} cen magazynowych`);
+          // Pokaż produkty z cenami specjalnymi
+          const specialPriceProducts = currentLocationPrices.filter(p => p.has_special_price);
+          console.log(`🎯 Produkty z ceny specjalną: ${specialPriceProducts.length}`, specialPriceProducts.map(p => ({
+            id: p.product_id,
+            name: p.product_name,
+            special: p.special_price,
+            has_special: p.has_special_price
+          })));
+        } else {
+          console.error('❌ API nie zwróciło success:', pricesResponse);
         }
       }
       
