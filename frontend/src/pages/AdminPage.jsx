@@ -86,6 +86,17 @@ const AdminPage = () => {
   const [selectedClosureReport, setSelectedClosureReport] = useState(null);
   const [showClosureReportModal, setShowClosureReportModal] = useState(false);
   
+  // State dla celów sprzedaży
+  const [salesTargets, setSalesTargets] = useState([]);
+  const [salesTargetsLoading, setSalesTargetsLoading] = useState(false);
+  const [editingSalesTarget, setEditingSalesTarget] = useState(null);
+  const [newSalesTarget, setNewSalesTarget] = useState({
+    location_id: '',
+    year: new Date().getFullYear(),
+    month: new Date().getMonth() + 1,
+    target_amount: ''
+  });
+
   // State dla automatycznych backupów
   const [backupSettings, setBackupSettings] = useState({
     enabled: false,
@@ -272,6 +283,68 @@ const AdminPage = () => {
     }
   }, [dailyClosureFilters]);
 
+  // Funkcje dla celów sprzedaży
+  const loadSalesTargets = async () => {
+    setSalesTargetsLoading(true);
+    try {
+      const response = await fetch(`${API_BASE}/admin/sales-targets`);
+      const data = await response.json();
+      if (data.success) {
+        setSalesTargets(data.data?.targets || []);
+      }
+    } catch (err) {
+      console.error('Błąd ładowania celów sprzedaży:', err);
+    } finally {
+      setSalesTargetsLoading(false);
+    }
+  };
+
+  const saveSalesTarget = async () => {
+    if (!newSalesTarget.location_id || !newSalesTarget.target_amount) {
+      setError('Wybierz lokalizację i podaj kwotę celu');
+      return;
+    }
+    try {
+      const response = await fetch(`${API_BASE}/admin/sales-targets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_id: newSalesTarget.location_id,
+          year: newSalesTarget.year || new Date().getFullYear(),
+          month: newSalesTarget.month || (new Date().getMonth() + 1),
+          target_amount: parseFloat(newSalesTarget.target_amount)
+        })
+      });
+      const data = await response.json();
+      if (data.success) {
+        setSuccess(editingSalesTarget ? 'Cel sprzedaży zaktualizowany' : 'Cel sprzedaży zapisany');
+        setEditingSalesTarget(null);
+        setNewSalesTarget({ location_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1, target_amount: '' });
+        loadSalesTargets();
+      } else {
+        setError(data.message || 'Błąd zapisywania celu');
+      }
+    } catch (err) {
+      setError('Błąd połączenia');
+    }
+  };
+
+  const deleteSalesTarget = async (targetId) => {
+    if (!window.confirm('Czy na pewno usunąć ten cel?')) return;
+    try {
+      const response = await fetch(`${API_BASE}/admin/sales-targets/${targetId}`, { method: 'DELETE' });
+      const data = await response.json();
+      if (data.success) {
+        setSuccess('Cel usunięty');
+        loadSalesTargets();
+      } else {
+        setError(data.message || 'Błąd usuwania');
+      }
+    } catch (err) {
+      setError('Błąd połączenia');
+    }
+  };
+
   // useEffects section starts here
   useEffect(() => {
     loadSystemInfo();
@@ -333,6 +406,14 @@ const AdminPage = () => {
   useEffect(() => {
     if (activeTab === 'logs') {
       loadLogs();
+    }
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Automatycznie ładuj cele sprzedaży przy przejściu do zakładki
+  useEffect(() => {
+    if (activeTab === 'sales-targets') {
+      loadSalesTargets();
+      loadDiscountLocations(); // Załaduj lokalizacje dla selecta
     }
   }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -901,8 +982,14 @@ const AdminPage = () => {
       const response = await fetch(`${API_BASE}/locations/`);
       if (response.ok) {
         const data = await response.json();
-        const locations = data.data?.locations || data.locations || [];
-        setDiscountLocations(locations);
+        // API zwraca lokalizacje w data (jako tablica) lub data.locations
+        const locations = Array.isArray(data.data) ? data.data : (data.data?.locations || data.locations || []);
+        // Mapuj pole nazwa na name jeśli brak
+        const mappedLocations = locations.map(loc => ({
+          ...loc,
+          name: loc.name || loc.nazwa
+        }));
+        setDiscountLocations(mappedLocations);
       }
     } catch (err) {
       console.error('❌ Błąd podczas pobierania lokalizacji:', err);
@@ -5756,6 +5843,259 @@ const AdminPage = () => {
     </div>
   );
 
+  // Render tab celów sprzedaży
+  const renderSalesTargetsTab = () => (
+    <div style={{ display: 'grid', gap: '1rem' }}>
+      {/* Formularz dodawania/edycji celu */}
+      <div style={{
+        border: '1px solid #e9ecef',
+        borderRadius: '0.375rem',
+        backgroundColor: 'white',
+        padding: '1rem'
+      }}>
+        <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: '600' }}>
+          🎯 {editingSalesTarget ? 'Edytuj cel sprzedaży' : 'Ustaw cel sprzedaży dla lokalizacji'}
+        </h3>
+        <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '11px', marginBottom: '3px', color: '#6c757d' }}>Lokalizacja</label>
+            <select
+              value={newSalesTarget.location_id || ''}
+              onChange={(e) => setNewSalesTarget({ ...newSalesTarget, location_id: e.target.value })}
+              style={{ 
+                padding: '5px 8px', 
+                border: '1px solid #ced4da', 
+                borderRadius: '3px', 
+                fontSize: '13px', 
+                minWidth: '160px',
+                height: '30px',
+                backgroundColor: 'white'
+              }}
+            >
+              <option value="">-- Wybierz --</option>
+              {(discountLocations || []).map(loc => (
+                <option key={loc.id} value={loc.id}>{loc.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '11px', marginBottom: '3px', color: '#6c757d' }}>Rok</label>
+            <select
+              value={newSalesTarget.year || new Date().getFullYear()}
+              onChange={(e) => setNewSalesTarget({ ...newSalesTarget, year: parseInt(e.target.value) })}
+              style={{ 
+                padding: '5px 8px', 
+                border: '1px solid #ced4da', 
+                borderRadius: '3px', 
+                fontSize: '13px',
+                height: '30px',
+                minWidth: '70px',
+                backgroundColor: 'white'
+              }}
+            >
+              {[2024, 2025, 2026, 2027].map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '11px', marginBottom: '3px', color: '#6c757d' }}>Miesiąc</label>
+            <select
+              value={newSalesTarget.month || (new Date().getMonth() + 1)}
+              onChange={(e) => setNewSalesTarget({ ...newSalesTarget, month: parseInt(e.target.value) })}
+              style={{ 
+                padding: '5px 8px', 
+                border: '1px solid #ced4da', 
+                borderRadius: '3px', 
+                fontSize: '13px',
+                height: '30px',
+                minWidth: '100px',
+                backgroundColor: 'white'
+              }}
+            >
+              {['Styczeń', 'Luty', 'Marzec', 'Kwiecień', 'Maj', 'Czerwiec', 'Lipiec', 'Sierpień', 'Wrzesień', 'Październik', 'Listopad', 'Grudzień'].map((m, i) => (
+                <option key={i+1} value={i+1}>{m}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <label style={{ fontSize: '11px', marginBottom: '3px', color: '#6c757d' }}>Kwota celu (zł)</label>
+            <input
+              type="number"
+              value={newSalesTarget.target_amount || ''}
+              onChange={(e) => setNewSalesTarget({ ...newSalesTarget, target_amount: e.target.value })}
+              placeholder="np. 50000"
+              style={{ 
+                padding: '5px 8px', 
+                border: '1px solid #ced4da', 
+                borderRadius: '3px', 
+                fontSize: '13px', 
+                width: '100px',
+                height: '30px',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+          <button
+            onClick={saveSalesTarget}
+            style={{
+              padding: '0 14px',
+              height: '30px',
+              backgroundColor: editingSalesTarget ? '#007bff' : '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '3px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: '500'
+            }}
+          >
+            💾 {editingSalesTarget ? 'Zapisz' : 'Dodaj'}
+          </button>
+          {editingSalesTarget && (
+            <button
+              onClick={() => {
+                setEditingSalesTarget(null);
+                setNewSalesTarget({ location_id: '', year: new Date().getFullYear(), month: new Date().getMonth() + 1, target_amount: '' });
+              }}
+              style={{
+                padding: '0 14px',
+                height: '30px',
+                backgroundColor: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              ✖ Anuluj
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Lista celów */}
+      <div style={{
+        border: '1px solid #e9ecef',
+        borderRadius: '0.375rem',
+        backgroundColor: 'white',
+        padding: '1rem'
+      }}>
+        <h3 style={{ margin: '0 0 1rem', fontSize: '1rem', fontWeight: '600' }}>
+          📋 Aktualne cele sprzedaży
+        </h3>
+        {salesTargetsLoading ? (
+          <p>Ładowanie...</p>
+        ) : salesTargets.length === 0 ? (
+          <p style={{ color: '#6c757d' }}>Brak zdefiniowanych celów sprzedaży.</p>
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f8f9fa' }}>
+                <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Lokalizacja</th>
+                <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Rok</th>
+                <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Miesiąc</th>
+                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Cel (zł)</th>
+                <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Aktualna sprzedaż</th>
+                <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Postęp</th>
+                <th style={{ padding: '10px', textAlign: 'center', borderBottom: '2px solid #dee2e6' }}>Akcje</th>
+              </tr>
+            </thead>
+            <tbody>
+              {salesTargets.map((target) => {
+                const progress = target.current_revenue && target.target_amount 
+                  ? Math.min((target.current_revenue / target.target_amount) * 100, 100) 
+                  : 0;
+                const monthNames = ['Sty', 'Lut', 'Mar', 'Kwi', 'Maj', 'Cze', 'Lip', 'Sie', 'Wrz', 'Paź', 'Lis', 'Gru'];
+                return (
+                  <tr key={target.id} style={{ borderBottom: '1px solid #e9ecef' }}>
+                    <td style={{ padding: '10px' }}>{target.location_name || `Lokalizacja #${target.location_id}`}</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>{target.year}</td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>{monthNames[target.month - 1]}</td>
+                    <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>
+                      {parseFloat(target.target_amount || 0).toLocaleString()} zł
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'right', color: '#198754' }}>
+                      {parseFloat(target.current_revenue || 0).toLocaleString()} zł
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ 
+                          flex: 1, 
+                          height: '8px', 
+                          backgroundColor: '#e9ecef', 
+                          borderRadius: '4px',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{ 
+                            width: `${progress}%`, 
+                            height: '100%', 
+                            backgroundColor: progress >= 100 ? '#28a745' : '#ffc107',
+                            borderRadius: '4px',
+                            transition: 'width 0.3s'
+                          }} />
+                        </div>
+                        <span style={{ 
+                          fontSize: '12px', 
+                          fontWeight: 'bold',
+                          color: progress >= 100 ? '#28a745' : '#856404'
+                        }}>
+                          {progress.toFixed(0)}%
+                        </span>
+                      </div>
+                    </td>
+                    <td style={{ padding: '10px', textAlign: 'center' }}>
+                      <div style={{ display: 'flex', gap: '6px', justifyContent: 'center' }}>
+                        <button
+                          onClick={() => {
+                            setEditingSalesTarget(target);
+                            setNewSalesTarget({
+                              id: target.id,
+                              location_id: target.location_id,
+                              year: target.year,
+                              month: target.month,
+                              target_amount: target.target_amount
+                            });
+                          }}
+                          style={{
+                            padding: '4px 10px',
+                            backgroundColor: '#007bff',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          ✏️ Edytuj
+                        </button>
+                        <button
+                          onClick={() => deleteSalesTarget(target.id)}
+                          style={{
+                            padding: '4px 10px',
+                            backgroundColor: '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          🗑️ Usuń
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        )}
+      </div>
+    </div>
+  );
+
   const renderLogsTab = () => (
     <div style={{ display: 'grid', gap: '1rem' }}>
       {/* Filtry logów */}
@@ -6633,6 +6973,7 @@ const AdminPage = () => {
                 { id: 'company', icon: '📝', label: 'Dane Firmy' },
                 { id: 'locations', icon: '📍', label: 'Lokalizacje' },
                 { id: 'warehouses', icon: '🏪', label: 'Magazyny' },
+                { id: 'sales-targets', icon: '🎯', label: 'Cele Sprzedaży' },
                 { id: 'announcements', icon: '📢', label: 'Ogłoszenia' }
               ].map(tab => (
                 <button
@@ -6783,6 +7124,7 @@ const AdminPage = () => {
             {activeTab === 'document-prefixes' && renderDocumentPrefixesTab()}
             {activeTab === 'auto-backup' && renderAutoBackupTab()}
             {activeTab === 'settings' && renderSettingsTab()}
+            {activeTab === 'sales-targets' && renderSalesTargetsTab()}
             {activeTab === 'logs' && renderLogsTab()}
           </div>
         </div>

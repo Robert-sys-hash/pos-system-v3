@@ -1517,7 +1517,7 @@ def save_company_data():
 @admin_bp.route('/admin/sales-targets', methods=['GET'])
 def get_sales_targets():
     """
-    Pobierz cele sprzedaży dla wszystkich lokalizacji
+    Pobierz cele sprzedaży dla wszystkich lokalizacji z aktualną sprzedażą
     """
     print("🎯 GET_SALES_TARGETS: Function called!")
     try:
@@ -1537,12 +1537,21 @@ def get_sales_targets():
         """
         execute_query(check_table_sql)
         
-        # Pobierz cele dla bieżącego miesiąca
+        # Pobierz cele dla bieżącego miesiąca z aktualną sprzedażą
         current_date = datetime.now()
         targets_sql = """
         SELECT 
             st.*,
-            l.nazwa as location_name
+            l.nazwa as location_name,
+            COALESCE(
+                (SELECT SUM(pt.suma_brutto) 
+                 FROM pos_transakcje pt 
+                 WHERE pt.location_id = st.location_id 
+                 AND pt.status = 'zakonczony'
+                 AND strftime('%Y', pt.data_transakcji) = printf('%04d', st.year)
+                 AND strftime('%m', pt.data_transakcji) = printf('%02d', st.month)
+                ), 0
+            ) as current_revenue
         FROM sales_targets st
         LEFT JOIN locations l ON st.location_id = l.id
         WHERE st.year = ? AND st.month = ?
