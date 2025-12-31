@@ -3756,6 +3756,7 @@ const PosPage = () => {
           isOpen={showOpenShiftModal}
           onClose={() => setShowOpenShiftModal(false)}
           onSuccess={handleShiftOpened}
+          locationId={currentLocationId}
         />
       )}
 

@@ -408,24 +408,29 @@ def get_cash_status():
         cash_returns = execute_query(cash_returns_sql, (location_id,))
         total_cash_returns = cash_returns[0]['total'] if cash_returns else 0
         
-        # Operacje kasowe KP (przyjęcie gotówki)
+        # Operacje kasowe KP (przyjęcie gotówki) - WYKLUCZAMY kategorię 'sprzedaz'
+        # bo sprzedaż jest już liczona w pos_transakcje
+        # Tutaj liczymy tylko: wpłaty własne, sprzedaż kuponów za gotówkę, inne wpłaty
         kp_sql = """
         SELECT COALESCE(SUM(kwota), 0) as total
         FROM kasa_operacje 
         WHERE location_id = ? 
         AND typ_operacji = 'KP'
         AND typ_platnosci = 'gotowka'
+        AND kategoria != 'sprzedaz'
         """
         kp_result = execute_query(kp_sql, (location_id,))
         total_kp = kp_result[0]['total'] if kp_result else 0
         
-        # Operacje kasowe KW (wydanie gotówki)
+        # Operacje kasowe KW (wydanie gotówki) - WYKLUCZAMY kategorię 'zwroty'
+        # bo zwroty są już liczone w pos_zwroty
         kw_sql = """
         SELECT COALESCE(SUM(kwota), 0) as total
         FROM kasa_operacje 
         WHERE location_id = ? 
         AND typ_operacji = 'KW'
         AND typ_platnosci = 'gotowka'
+        AND kategoria != 'zwroty'
         """
         kw_result = execute_query(kw_sql, (location_id,))
         total_kw = kw_result[0]['total'] if kw_result else 0

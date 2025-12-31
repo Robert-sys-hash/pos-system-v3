@@ -66,7 +66,14 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
     if (isOpen && locationId) {
       loadCashStatus();
     }
-  }, [isOpen, locationId]);
+    // Ustaw cashier z currentShift
+    if (currentShift?.kasjer_login) {
+      setFormData(prev => ({
+        ...prev,
+        cashier: currentShift.kasjer_login
+      }));
+    }
+  }, [isOpen, locationId, currentShift]);
 
   const loadCashStatus = async () => {
     setCashStatusLoading(true);

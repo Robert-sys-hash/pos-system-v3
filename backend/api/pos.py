@@ -26,6 +26,11 @@ def get_pos_stats():
         location_id = request.args.get('location_id')
         print(f"🔍 DEBUG: Starting POS stats for location_id: {location_id}")
         
+        # Użyj lokalnej daty zamiast UTC
+        from datetime import datetime
+        today = datetime.now().strftime('%Y-%m-%d')
+        print(f"🔍 DEBUG: Using local today date: {today}")
+        
         # Buduj warunki WHERE
         base_conditions = "WHERE status = 'zakonczony'"
         location_filter = ""
@@ -38,15 +43,15 @@ def get_pos_stats():
             COUNT(*) as total_transactions,
             COALESCE(SUM(suma_brutto), 0) as total_revenue,
             COALESCE(AVG(suma_brutto), 0) as average_transaction,
-            COUNT(CASE WHEN DATE(data_transakcji) = DATE('now'){location_filter} THEN 1 END) as today_transactions,
-            COALESCE(SUM(CASE WHEN DATE(data_transakcji) = DATE('now'){location_filter} THEN suma_brutto ELSE 0 END), 0) as today_revenue,
-            COALESCE(AVG(CASE WHEN DATE(data_transakcji) = DATE('now'){location_filter} THEN suma_brutto ELSE NULL END), 0) as today_average_transaction,
-            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days'){location_filter} THEN 1 END) as week_transactions,
-            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days'){location_filter} THEN suma_brutto ELSE 0 END), 0) as week_revenue,
-            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('now', '-7 days'){location_filter} THEN suma_brutto ELSE NULL END), 0) as week_average_transaction,
-            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days'){location_filter} THEN 1 END) as month_transactions,
-            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days'){location_filter} THEN suma_brutto ELSE 0 END), 0) as month_revenue,
-            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('now', '-30 days'){location_filter} THEN suma_brutto ELSE NULL END), 0) as month_average_transaction
+            COUNT(CASE WHEN DATE(data_transakcji) = '{today}'{location_filter} THEN 1 END) as today_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) = '{today}'{location_filter} THEN suma_brutto ELSE 0 END), 0) as today_revenue,
+            COALESCE(AVG(CASE WHEN DATE(data_transakcji) = '{today}'{location_filter} THEN suma_brutto ELSE NULL END), 0) as today_average_transaction,
+            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('{today}', '-7 days'){location_filter} THEN 1 END) as week_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('{today}', '-7 days'){location_filter} THEN suma_brutto ELSE 0 END), 0) as week_revenue,
+            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('{today}', '-7 days'){location_filter} THEN suma_brutto ELSE NULL END), 0) as week_average_transaction,
+            COUNT(CASE WHEN DATE(data_transakcji) >= DATE('{today}', '-30 days'){location_filter} THEN 1 END) as month_transactions,
+            COALESCE(SUM(CASE WHEN DATE(data_transakcji) >= DATE('{today}', '-30 days'){location_filter} THEN suma_brutto ELSE 0 END), 0) as month_revenue,
+            COALESCE(AVG(CASE WHEN DATE(data_transakcji) >= DATE('{today}', '-30 days'){location_filter} THEN suma_brutto ELSE NULL END), 0) as month_average_transaction
         FROM pos_transakcje
         {base_conditions}
         """
