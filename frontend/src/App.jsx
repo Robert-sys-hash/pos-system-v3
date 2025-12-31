@@ -29,6 +29,7 @@ import LoginPage from './pages/LoginPage';
 import CategoriesAdmin from './pages/CategoriesAdmin';
 import OrdersPage from './pages/OrdersPage';
 import DocumentPrefixesPage from './pages/DocumentPrefixesPage';
+import ReturnPrintPage from './pages/ReturnPrintPage';
 // import Messenger from './components/Messenger';
 // import MessengerButton from './components/MessengerButton';
 // import MessengerModal from './components/MessengerModal';
@@ -95,6 +96,10 @@ function App() {
                 <Route path="/admin/categories" element={<ProtectedRoute><Layout><CategoriesAdmin /></Layout></ProtectedRoute>} />
                 <Route path="/admin/document-prefixes" element={<ProtectedRoute><Layout><DocumentPrefixesPage /></Layout></ProtectedRoute>} />
                 <Route path="/settings" element={<ProtectedRoute><Layout><SettingsPage /></Layout></ProtectedRoute>} />
+                
+                {/* Strona wydruku zwrotu - bez layoutu */}
+                <Route path="/pos/return-print/:transactionId" element={<ReturnPrintPage />} />
+                
                 {/* <Route path="/messenger" element={<ProtectedRoute><Layout><Messenger ref={messengerRef} onMessageSent={handleMessengerMessageSent} /></Layout></ProtectedRoute>} /> */}
               </Routes>
               

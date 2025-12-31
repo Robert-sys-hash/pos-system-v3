@@ -237,7 +237,11 @@ def get_recent_transactions():
             t.kasjer_login as kasjer_id,
             t.location_id,
             t.fiskalizacja,
-            COUNT(p.id) as items_count
+            t.typ_transakcji,
+            t.typ_transakcji as transaction_type,
+            COUNT(DISTINCT p.id) as items_count,
+            (SELECT COUNT(*) FROM pos_zwroty z WHERE z.transakcja_id = t.id) as returns_count,
+            (SELECT SUM(suma_zwrotu_brutto) FROM pos_zwroty z WHERE z.transakcja_id = t.id) as returns_total
         FROM pos_transakcje t
         LEFT JOIN pos_klienci k ON t.klient_id = k.id
         LEFT JOIN pos_pozycje p ON t.id = p.transakcja_id
@@ -373,21 +377,28 @@ def get_transaction(transaction_id):
     Pobierz szczegóły transakcji wraz z pozycjami
     """
     try:
-        # Pobierz transakcję
+        # Pobierz transakcję z tabeli pos_transakcje
         transaction_query = """
         SELECT 
             t.id,
-            t.customer_id,
-            c.name as customer_name,
-            t.total_amount,
-            t.tax_amount,
-            t.payment_method,
+            t.numer_paragonu,
+            t.numer_transakcji,
+            t.klient_id as customer_id,
+            COALESCE(k.imie || ' ' || k.nazwisko, k.nazwa_firmy, 'Klient anonimowy') as customer_name,
+            t.suma_brutto as total_amount,
+            t.suma_netto as net_amount,
+            t.suma_vat as tax_amount,
+            t.forma_platnosci as payment_method,
             t.status,
-            t.notes,
-            t.created_at,
-            t.updated_at
-        FROM transactions t
-        LEFT JOIN customers c ON t.customer_id = c.id
+            t.uwagi as notes,
+            t.data_transakcji,
+            t.czas_transakcji,
+            t.kasjer_login,
+            t.location_id,
+            t.typ_transakcji,
+            t.created_at
+        FROM pos_transakcje t
+        LEFT JOIN pos_klienci k ON t.klient_id = k.id
         WHERE t.id = ?
         """
         
@@ -398,19 +409,21 @@ def get_transaction(transaction_id):
             
         transaction = transaction_result[0]
         
-        # Pobierz pozycje transakcji
+        # Pobierz pozycje transakcji z tabeli pos_pozycje
         items_query = """
         SELECT 
-            ti.id,
-            ti.product_id,
-            p.name as product_name,
-            ti.quantity,
-            ti.unit_price,
-            ti.total_price
-        FROM transaction_items ti
-        LEFT JOIN produkty p ON ti.product_id = p.id
-        WHERE ti.transaction_id = ?
-        ORDER BY ti.id
+            p.id,
+            p.produkt_id as product_id,
+            p.nazwa_produktu as product_name,
+            p.kod_produktu as product_code,
+            p.ilosc as quantity,
+            p.cena_jednostkowa as unit_price,
+            p.wartosc_brutto as total_price,
+            p.wartosc_netto as total_price_netto,
+            p.stawka_vat as vat_rate
+        FROM pos_pozycje p
+        WHERE p.transakcja_id = ?
+        ORDER BY p.id
         """
         
         items_result = execute_query(items_query, [transaction_id])
@@ -1779,3 +1792,477 @@ def finalize_cart_transaction(transakcja_id):
     Alias dla complete_cart_transaction - finalizuj koszyk/transakcję
     """
     return complete_cart_transaction(transakcja_id)
+
+
+# ======================== SYSTEM ZWROTÓW ========================
+
+def generate_return_number():
+    """Generuje unikalny numer zwrotu w formacie ZW-YYYYMMDD-NNNN"""
+    from datetime import datetime
+    today = datetime.now().strftime('%Y%m%d')
+    
+    count_query = """
+        SELECT COUNT(*) as cnt FROM pos_zwroty 
+        WHERE numer_zwrotu LIKE ?
+    """
+    result = execute_query(count_query, (f'ZW-{today}-%',))
+    count = result[0]['cnt'] if result else 0
+    
+    return f"ZW-{today}-{str(count + 1).zfill(4)}"
+
+
+@pos_bp.route('/pos/transaction/<int:transaction_id>/items', methods=['GET'])
+def get_transaction_items_for_return(transaction_id):
+    """
+    Pobierz pozycje transakcji do zwrotu - z informacją o już zwróconych ilościach
+    """
+    try:
+        # Pobierz transakcję
+        trans_query = """
+            SELECT id, numer_transakcji, numer_paragonu, suma_brutto, 
+                   data_transakcji, forma_platnosci, location_id, kasjer_login
+            FROM pos_transakcje 
+            WHERE id = ?
+        """
+        trans_result = execute_query(trans_query, (transaction_id,))
+        
+        if not trans_result:
+            return not_found_response("Transakcja nie znaleziona")
+        
+        transaction = trans_result[0]
+        
+        # Pobierz pozycje z tabeli pos_pozycje (główna tabela pozycji)
+        items_query = """
+            SELECT 
+                pp.id,
+                pp.transakcja_id,
+                pp.produkt_id,
+                pp.nazwa_produktu,
+                pp.kod_produktu,
+                pp.cena_jednostkowa,
+                pp.ilosc,
+                pp.jednostka,
+                pp.wartosc_brutto,
+                pp.wartosc_netto,
+                pp.stawka_vat,
+                pp.kwota_vat,
+                COALESCE(
+                    (SELECT SUM(zp.ilosc_zwracana) 
+                     FROM pos_zwroty_pozycje zp 
+                     JOIN pos_zwroty z ON zp.zwrot_id = z.id 
+                     WHERE zp.pozycja_paragonu_id = pp.id), 0
+                ) as ilosc_zwrocona
+            FROM pos_pozycje pp
+            WHERE pp.transakcja_id = ?
+            ORDER BY pp.lp
+        """
+        items_result = execute_query(items_query, (transaction_id,))
+        
+        # Oblicz ile można jeszcze zwrócić
+        items = []
+        for item in (items_result or []):
+            item['ilosc_do_zwrotu'] = item['ilosc'] - item['ilosc_zwrocona']
+            items.append(item)
+        
+        return success_response({
+            'transaction': transaction,
+            'items': items
+        }, "Pozycje pobrane pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania pozycji transakcji: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+
+@pos_bp.route('/pos/returns', methods=['POST'])
+def create_return():
+    """
+    Utwórz zwrot do paragonu
+    - Tworzy rekord zwrotu
+    - Dodaje KW do kasy/bank
+    - Przywraca produkty na magazyn
+    """
+    try:
+        data = request.get_json()
+        
+        transaction_id = data.get('transaction_id')
+        items = data.get('items', [])  # lista: {pozycja_id, ilosc_zwracana, powod}
+        payment_method = data.get('payment_method', 'gotowka')
+        reason = data.get('reason', '')
+        cashier = data.get('cashier', 'system')
+        location_id = data.get('location_id')
+        
+        if not transaction_id:
+            return error_response("Brak ID transakcji", 400)
+        
+        if not items or len(items) == 0:
+            return error_response("Brak pozycji do zwrotu", 400)
+        
+        # Pobierz dane transakcji
+        trans_query = """
+            SELECT id, numer_transakcji, numer_paragonu, location_id
+            FROM pos_transakcje WHERE id = ?
+        """
+        trans_result = execute_query(trans_query, (transaction_id,))
+        
+        if not trans_result:
+            return not_found_response("Transakcja nie znaleziona")
+        
+        transaction = trans_result[0]
+        location_id = location_id or transaction.get('location_id')
+        
+        # Generuj numer zwrotu
+        return_number = generate_return_number()
+        
+        # Oblicz sumy i przygotuj pozycje
+        total_brutto = 0
+        total_netto = 0
+        total_vat = 0
+        return_items = []
+        
+        for item_data in items:
+            pozycja_id = item_data.get('pozycja_id')
+            ilosc_zwracana = float(item_data.get('ilosc_zwracana', 0))
+            item_reason = item_data.get('powod', reason)
+            
+            if ilosc_zwracana <= 0:
+                continue
+            
+            # Pobierz dane pozycji z pos_pozycje
+            pos_query = """
+                SELECT pp.*, 
+                    COALESCE(
+                        (SELECT SUM(zp.ilosc_zwracana) 
+                         FROM pos_zwroty_pozycje zp 
+                         JOIN pos_zwroty z ON zp.zwrot_id = z.id 
+                         WHERE zp.pozycja_paragonu_id = pp.id), 0
+                    ) as ilosc_zwrocona
+                FROM pos_pozycje pp
+                WHERE pp.id = ?
+            """
+            pos_result = execute_query(pos_query, (pozycja_id,))
+            
+            if not pos_result:
+                continue
+            
+            pos = pos_result[0]
+            
+            # Sprawdź czy można zwrócić tyle
+            dostepne = pos['ilosc'] - pos['ilosc_zwrocona']
+            if ilosc_zwracana > dostepne:
+                return error_response(
+                    f"Nie można zwrócić {ilosc_zwracana} szt produktu {pos['nazwa_produktu']}. "
+                    f"Dostępne do zwrotu: {dostepne} szt", 400
+                )
+            
+            # Oblicz wartości zwrotu dla tej pozycji
+            cena_brutto = float(pos['cena_jednostkowa'])
+            stawka_vat = float(pos.get('stawka_vat', 23))
+            cena_netto = cena_brutto / (1 + stawka_vat / 100)
+            
+            wartosc_brutto = round(cena_brutto * ilosc_zwracana, 2)
+            wartosc_netto = round(cena_netto * ilosc_zwracana, 2)
+            wartosc_vat = round(wartosc_brutto - wartosc_netto, 2)
+            
+            total_brutto += wartosc_brutto
+            total_netto += wartosc_netto
+            total_vat += wartosc_vat
+            
+            return_items.append({
+                'pozycja_paragonu_id': pozycja_id,
+                'produkt_id': pos['produkt_id'],
+                'nazwa_produktu': pos['nazwa_produktu'],
+                'kod_produktu': pos.get('kod_produktu', ''),
+                'ilosc_zwracana': ilosc_zwracana,
+                'cena_jednostkowa_brutto': cena_brutto,
+                'cena_jednostkowa_netto': round(cena_netto, 2),
+                'stawka_vat': stawka_vat,
+                'wartosc_brutto': wartosc_brutto,
+                'wartosc_netto': wartosc_netto,
+                'wartosc_vat': wartosc_vat,
+                'powod': item_reason
+            })
+        
+        if not return_items:
+            return error_response("Brak prawidłowych pozycji do zwrotu", 400)
+        
+        # 1. Utwórz rekord zwrotu
+        insert_return_query = """
+            INSERT INTO pos_zwroty (
+                numer_zwrotu, transakcja_id, numer_paragonu,
+                kasjer_login, suma_zwrotu_brutto, suma_zwrotu_netto,
+                suma_zwrotu_vat, forma_platnosci, powod_zwrotu,
+                location_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        return_id = execute_insert(insert_return_query, (
+            return_number,
+            transaction_id,
+            transaction.get('numer_paragonu'),
+            cashier,
+            round(total_brutto, 2),
+            round(total_netto, 2),
+            round(total_vat, 2),
+            payment_method,
+            reason,
+            location_id
+        ))
+        
+        if not return_id:
+            return error_response("Nie udało się utworzyć zwrotu", 500)
+        
+        # 2. Dodaj pozycje zwrotu
+        for item in return_items:
+            insert_item_query = """
+                INSERT INTO pos_zwroty_pozycje (
+                    zwrot_id, pozycja_paragonu_id, produkt_id, nazwa_produktu,
+                    kod_produktu, ilosc_zwracana, cena_jednostkowa_brutto,
+                    cena_jednostkowa_netto, stawka_vat, wartosc_brutto,
+                    wartosc_netto, wartosc_vat, powod
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """
+            execute_insert(insert_item_query, (
+                return_id,
+                item['pozycja_paragonu_id'],
+                item['produkt_id'],
+                item['nazwa_produktu'],
+                item['kod_produktu'],
+                item['ilosc_zwracana'],
+                item['cena_jednostkowa_brutto'],
+                item['cena_jednostkowa_netto'],
+                item['stawka_vat'],
+                item['wartosc_brutto'],
+                item['wartosc_netto'],
+                item['wartosc_vat'],
+                item['powod']
+            ))
+            
+            # 3. Przywróć produkty na magazyn (tabela pos_magazyn)
+            try:
+                # Aktualizuj stan w tabeli pos_magazyn (główna tabela POS)
+                update_stock_query = """
+                    UPDATE pos_magazyn 
+                    SET stan_aktualny = COALESCE(stan_aktualny, 0) + ?,
+                        ostatnia_aktualizacja = datetime('now')
+                    WHERE produkt_id = ?
+                """
+                execute_insert(update_stock_query, (
+                    item['ilosc_zwracana'],
+                    item['produkt_id']
+                ))
+                
+                # Dodaj ruch magazynowy (przyjęcie ze zwrotu)
+                ruch_query = """
+                    INSERT INTO pos_ruchy_magazynowe 
+                    (produkt_id, typ_ruchu, ilosc, uwagi, data_ruchu)
+                    VALUES (?, 'przyjecie', ?, ?, datetime('now'))
+                """
+                execute_insert(ruch_query, (
+                    item['produkt_id'],
+                    item['ilosc_zwracana'],
+                    f"Zwrot {return_number}: {item['nazwa_produktu']}"
+                ))
+                
+                print(f"✅ Zwrot magazynowy: +{item['ilosc_zwracana']} szt produktu {item['nazwa_produktu']}")
+            except Exception as stock_err:
+                print(f"⚠️ Błąd aktualizacji stanu magazynowego: {stock_err}")
+        
+        # 4. Utwórz KW w kasa/bank
+        try:
+            kw_query = """
+                INSERT INTO kasa_operacje (
+                    typ_operacji, typ_platnosci, kwota, opis,
+                    kategoria, numer_dokumentu, kontrahent,
+                    utworzyl, location_id
+                ) VALUES ('KW', ?, ?, ?, 'zwroty', ?, ?, ?, ?)
+            """
+            
+            kw_id = execute_insert(kw_query, (
+                payment_method,
+                round(total_brutto, 2),
+                f"Zwrot do paragonu {transaction.get('numer_paragonu', transaction_id)}",
+                return_number,
+                'Klient',
+                cashier,
+                location_id
+            ))
+            
+            # Aktualizuj zwrot z ID dokumentu KW
+            if kw_id:
+                update_return_query = "UPDATE pos_zwroty SET kw_document_id = ? WHERE id = ?"
+                execute_insert(update_return_query, (kw_id, return_id))
+                print(f"✅ Utworzono KW #{kw_id} na kwotę {total_brutto} zł")
+        except Exception as kw_err:
+            print(f"⚠️ Błąd tworzenia KW: {kw_err}")
+        
+        return success_response({
+            'return_id': return_id,
+            'return_number': return_number,
+            'total_brutto': round(total_brutto, 2),
+            'total_netto': round(total_netto, 2),
+            'total_vat': round(total_vat, 2),
+            'items_count': len(return_items),
+            'payment_method': payment_method
+        }, f"Zwrot {return_number} został utworzony pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd tworzenia zwrotu: {e}")
+        import traceback
+        traceback.print_exc()
+        return error_response(f"Błąd serwera: {e}", 500)
+
+
+@pos_bp.route('/pos/returns', methods=['GET'])
+def get_returns():
+    """
+    Pobierz listę zwrotów z filtrami
+    """
+    try:
+        location_id = request.args.get('location_id')
+        date_from = request.args.get('date_from')
+        date_to = request.args.get('date_to')
+        limit = request.args.get('limit', 50, type=int)
+        
+        query = """
+            SELECT 
+                z.id,
+                z.numer_zwrotu,
+                z.transakcja_id,
+                z.numer_paragonu,
+                z.data_zwrotu,
+                z.czas_zwrotu,
+                z.kasjer_login,
+                z.suma_zwrotu_brutto,
+                z.forma_platnosci,
+                z.powod_zwrotu,
+                z.status,
+                z.location_id,
+                z.created_at,
+                (SELECT COUNT(*) FROM pos_zwroty_pozycje WHERE zwrot_id = z.id) as items_count
+            FROM pos_zwroty z
+            WHERE 1=1
+        """
+        params = []
+        
+        if location_id:
+            query += " AND z.location_id = ?"
+            params.append(location_id)
+        
+        if date_from:
+            query += " AND z.data_zwrotu >= ?"
+            params.append(date_from)
+        
+        if date_to:
+            query += " AND z.data_zwrotu <= ?"
+            params.append(date_to)
+        
+        query += " ORDER BY z.created_at DESC LIMIT ?"
+        params.append(limit)
+        
+        result = execute_query(query, params)
+        
+        return success_response({
+            'returns': result or [],
+            'count': len(result or [])
+        }, "Lista zwrotów pobrana pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania zwrotów: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+
+@pos_bp.route('/pos/returns/<int:return_id>', methods=['GET'])
+def get_return_details(return_id):
+    """
+    Pobierz szczegóły zwrotu wraz z pozycjami
+    """
+    try:
+        # Pobierz zwrot
+        return_query = """
+            SELECT * FROM pos_zwroty WHERE id = ?
+        """
+        return_result = execute_query(return_query, (return_id,))
+        
+        if not return_result:
+            return not_found_response("Zwrot nie znaleziony")
+        
+        return_data = return_result[0]
+        
+        # Pobierz pozycje
+        items_query = """
+            SELECT * FROM pos_zwroty_pozycje WHERE zwrot_id = ?
+        """
+        items_result = execute_query(items_query, (return_id,))
+        
+        return_data['items'] = items_result or []
+        
+        return success_response(return_data, "Szczegóły zwrotu pobrane pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania szczegółów zwrotu: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+
+@pos_bp.route('/pos/transaction/<int:transaction_id>/returns', methods=['GET'])
+def get_transaction_returns(transaction_id):
+    """
+    Pobierz historię zwrotów dla konkretnej transakcji wraz z pozycjami
+    """
+    try:
+        # Pobierz zwroty
+        query = """
+            SELECT 
+                z.id,
+                z.numer_zwrotu,
+                z.numer_paragonu,
+                z.data_zwrotu,
+                z.czas_zwrotu,
+                z.suma_zwrotu_brutto,
+                z.suma_zwrotu_netto,
+                z.suma_zwrotu_vat,
+                z.forma_platnosci,
+                z.kasjer_login,
+                z.powod_zwrotu,
+                z.status,
+                z.created_at
+            FROM pos_zwroty z
+            WHERE z.transakcja_id = ?
+            ORDER BY z.created_at DESC
+        """
+        returns = execute_query(query, (transaction_id,))
+        
+        if returns is None:
+            returns = []
+        
+        # Dla każdego zwrotu pobierz pozycje
+        for ret in returns:
+            positions_query = """
+                SELECT 
+                    id,
+                    produkt_id,
+                    nazwa_produktu,
+                    kod_produktu,
+                    ilosc_zwracana,
+                    cena_jednostkowa_brutto,
+                    cena_jednostkowa_netto,
+                    stawka_vat,
+                    wartosc_brutto,
+                    wartosc_netto,
+                    wartosc_vat,
+                    powod
+                FROM pos_zwroty_pozycje
+                WHERE zwrot_id = ?
+            """
+            positions = execute_query(positions_query, (ret['id'],))
+            ret['pozycje'] = positions or []
+        
+        return success_response({
+            'returns': returns,
+            'count': len(returns)
+        }, "Historia zwrotów pobrana pomyślnie")
+        
+    except Exception as e:
+        print(f"Błąd pobierania historii zwrotów: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+

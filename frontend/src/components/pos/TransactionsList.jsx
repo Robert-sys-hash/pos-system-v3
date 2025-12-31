@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { transactionService } from '../../services/transactionService';
+import ReturnModal from './ReturnModal';
 
 const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = false, locationId = null }) => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [showReturnModal, setShowReturnModal] = useState(false);
+  const [returnTransaction, setReturnTransaction] = useState(null);
   const [filters, setFilters] = useState({
     limit: 50,
     status: 'completed',
@@ -73,6 +76,17 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleReturnClick = (transaction) => {
+    setReturnTransaction(transaction);
+    setShowReturnModal(true);
+  };
+
+  const handleReturnComplete = (returnData) => {
+    setSuccessMessage(`Zwrot ${returnData.return_number} utworzony: ${returnData.total_brutto} zł`);
+    setTimeout(() => setSuccessMessage(''), 5000);
+    loadTransactions(); // Odśwież listę
   };
 
   const handleStatusChange = async (transaction, newStatus) => {
@@ -338,13 +352,13 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
           {/* Header tabeli */}
           <div style={{
             display: 'grid',
-            gridTemplateColumns: '80px 120px 80px 60px 100px 100px 120px 80px 40px 60px auto',
-            gap: '10px',
-            padding: '12px 15px',
+            gridTemplateColumns: '60px 110px 75px 55px 90px 90px 90px 70px 35px 50px 55px auto',
+            gap: '8px',
+            padding: '10px 12px',
             backgroundColor: '#f1f3f4',
             borderRadius: '6px 6px 0 0',
             border: '1px solid #dee2e6',
-            fontSize: '12px',
+            fontSize: '11px',
             fontWeight: '600',
             color: '#495057'
           }}>
@@ -357,7 +371,8 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
             <div>Płatność</div>
             <div>Status</div>
             <div>Fisk</div>
-            <div>Pozycje</div>
+            <div>Poz.</div>
+            <div>Zwroty</div>
             <div>Akcje</div>
           </div>
 
@@ -368,20 +383,20 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
                 key={transaction.id}
                 style={{
                   display: 'grid',
-                  gridTemplateColumns: '80px 120px 80px 60px 100px 100px 120px 80px 40px 60px auto',
-                  gap: '10px',
-                  padding: '12px 15px',
+                  gridTemplateColumns: '60px 110px 75px 55px 90px 90px 90px 70px 35px 50px 55px auto',
+                  gap: '8px',
+                  padding: '10px 12px',
                   borderBottom: index < transactions.length - 1 ? '1px solid #dee2e6' : 'none',
                   backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
-                  fontSize: '13px',
+                  fontSize: '12px',
                   alignItems: 'center'
                 }}
               >
-                <div style={{ fontWeight: '600', color: '#007bff' }}>
+                <div style={{ fontWeight: '600', color: '#007bff', fontSize: '11px' }}>
                   #{transaction.id}
                 </div>
                 
-                <div style={{ fontFamily: 'monospace', fontSize: '12px' }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '10px' }}>
                   {transaction.receipt_number || '-'}
                 </div>
                 
@@ -432,7 +447,7 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
                 
                 <div style={{ textAlign: 'center' }}>
                   <span style={{
-                    fontSize: '14px',
+                    fontSize: '12px',
                     fontWeight: 'bold',
                     color: transaction.fiscal_status === 'F' ? '#28a745' : 
                            transaction.fiscal_status === 'F!' ? '#dc3545' : '#6c757d'
@@ -441,11 +456,34 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
                   </span>
                 </div>
                 
-                <div style={{ textAlign: 'center' }}>
+                <div style={{ textAlign: 'center', fontSize: '11px' }}>
                   {transaction.items_count || 0}
                 </div>
                 
-                <div style={{ display: 'flex', gap: '5px' }}>
+                {/* Kolumna zwrotów */}
+                <div style={{ textAlign: 'center' }}>
+                  {transaction.returns_count > 0 ? (
+                    <span 
+                      style={{
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontSize: '10px',
+                        backgroundColor: '#fff3cd',
+                        color: '#856404',
+                        fontWeight: 'bold',
+                        cursor: 'pointer'
+                      }}
+                      title={`Zwrócono: ${parseFloat(transaction.returns_total || 0).toFixed(2)} zł - Kliknij aby wydrukować`}
+                      onClick={() => window.open(`/pos/return-print/${transaction.id}`, '_blank')}
+                    >
+                      🔄 {transaction.returns_count} 🖨️
+                    </span>
+                  ) : (
+                    <span style={{ color: '#ccc', fontSize: '10px' }}>-</span>
+                  )}
+                </div>
+                
+                <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
                   <button
                     onClick={() => onTransactionSelect && onTransactionSelect(transaction)}
                     style={{
@@ -478,22 +516,24 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
                     🖨️
                   </button>
                   
-                  {transaction.status === 'zakonczony' && ['sprzedaz', 'sale'].includes(transaction.transaction_type) && (
-                    <button
-                      onClick={() => onCorrectionClick && onCorrectionClick(transaction)}
-                      style={{
-                        padding: '4px 8px',
-                        fontSize: '11px',
-                        border: 'none',
-                        borderRadius: '4px',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        cursor: 'pointer'
-                      }}
-                      title="Korekta transakcji"
-                    >
-                      ↩️ Korekta
-                    </button>
+                  {transaction.status === 'zakonczony' && ['sprzedaz', 'sale'].includes(transaction.transaction_type || transaction.typ_transakcji) && (
+                    <>
+                      <button
+                        onClick={() => handleReturnClick(transaction)}
+                        style={{
+                          padding: '4px 8px',
+                          fontSize: '11px',
+                          border: 'none',
+                          borderRadius: '4px',
+                          backgroundColor: '#fd7e14',
+                          color: 'white',
+                          cursor: 'pointer'
+                        }}
+                        title="Zwrot do paragonu"
+                      >
+                        🔄 Zwrot
+                      </button>
+                    </>
                   )}
 
                   {/* Przyciski dla szkiców i transakcji w toku (tylko dla adminów) */}
@@ -579,6 +619,17 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
           </div>
         </div>
       )}
+      
+      {/* Modal zwrotu */}
+      <ReturnModal
+        isOpen={showReturnModal}
+        onClose={() => {
+          setShowReturnModal(false);
+          setReturnTransaction(null);
+        }}
+        transaction={returnTransaction}
+        onReturnComplete={handleReturnComplete}
+      />
     </div>
   );
 };
