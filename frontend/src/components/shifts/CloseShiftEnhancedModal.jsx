@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 
-const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) => {
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+
+const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, locationId }) => {
   const [formData, setFormData] = useState({
     cashier: 'admin',
     ending_cash: 0,
     ending_cash_physical: 0,
+    safebag_amount: 0,
     card_terminal_system: 0,
     card_terminal_actual: 0,
     fiscal_printer_report: 0,
@@ -22,21 +26,137 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [cashStatus, setCashStatus] = useState(null);
+  const [cashStatusLoading, setCashStatusLoading] = useState(false);
+  const [showCashCalculator, setShowCashCalculator] = useState(false);
+  const [denominations, setDenominations] = useState({
+    gr1: 0, gr2: 0, gr5: 0, gr10: 0, gr20: 0, gr50: 0,
+    zl1: 0, zl2: 0, zl5: 0, zl10: 0, zl20: 0, zl50: 0, zl100: 0, zl200: 0, zl500: 0
+  });
+
+  // Oblicz sumę z nominałów
+  const calculateDenominationsTotal = () => {
+    return (
+      denominations.gr1 * 0.01 +
+      denominations.gr2 * 0.02 +
+      denominations.gr5 * 0.05 +
+      denominations.gr10 * 0.10 +
+      denominations.gr20 * 0.20 +
+      denominations.gr50 * 0.50 +
+      denominations.zl1 * 1 +
+      denominations.zl2 * 2 +
+      denominations.zl5 * 5 +
+      denominations.zl10 * 10 +
+      denominations.zl20 * 20 +
+      denominations.zl50 * 50 +
+      denominations.zl100 * 100 +
+      denominations.zl200 * 200 +
+      denominations.zl500 * 500
+    );
+  };
+
+  const applyDenominationsTotal = () => {
+    const total = calculateDenominationsTotal();
+    handleChange('ending_cash_physical', total);
+    setShowCashCalculator(false);
+  };
+
+  // Pobierz stan gotówki przy otwarciu modala
+  useEffect(() => {
+    if (isOpen && locationId) {
+      loadCashStatus();
+    }
+  }, [isOpen, locationId]);
+
+  const loadCashStatus = async () => {
+    setCashStatusLoading(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const response = await axios.get(`${API_URL}/shifts/cash-status`, {
+        params: { location_id: locationId, date: today }
+      });
+      if (response.data.success) {
+        setCashStatus(response.data.data);
+        // Ustaw oczekiwaną gotówkę jako domyślną wartość ending_cash
+        setFormData(prev => ({
+          ...prev,
+          ending_cash: response.data.data.expected_drawer_cash || 0
+        }));
+      }
+    } catch (err) {
+      console.error('Błąd pobierania stanu gotówki:', err);
+    } finally {
+      setCashStatusLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (formData.ending_cash < 0) {
-      setError('Kwota końcowa w kasie nie może być ujemna');
+    if (formData.ending_cash_physical < 0) {
+      setError('Kwota fizycznej gotówki nie może być ujemna');
       return;
+    }
+
+    // Walidacja zgodności gotówki
+    const cashValidation = validateCash();
+    if (!cashValidation.isValid && Math.abs(cashValidation.difference) > 10) {
+      const confirm = window.confirm(
+        `Uwaga! Wykryto różnicę w gotówce: ${cashValidation.difference.toFixed(2)} zł\n\n` +
+        `Oczekiwana gotówka w kasie: ${(cashStatus?.expected_drawer_cash || 0).toFixed(2)} zł\n` +
+        `Fizyczna gotówka + Safebag: ${(formData.ending_cash_physical + formData.safebag_amount).toFixed(2)} zł\n\n` +
+        `Czy na pewno chcesz kontynuować?`
+      );
+      if (!confirm) return;
+    }
+
+    // Walidacja zgodności terminala
+    const terminalVal = validateTerminal();
+    if (!terminalVal.isValid && Math.abs(terminalVal.difference) > 10) {
+      const confirm = window.confirm(
+        `Uwaga! Wykryto różnicę w terminalu: ${terminalVal.difference.toFixed(2)} zł\n\n` +
+        `Suma w systemie (karta + BLIK): ${(cashStatus?.terminal?.total || 0).toFixed(2)} zł\n` +
+        `Kwota z wydruku terminala: ${formData.card_terminal_actual.toFixed(2)} zł\n\n` +
+        `Czy na pewno chcesz kontynuować?`
+      );
+      if (!confirm) return;
+    }
+
+    // Walidacja zgodności raportu fiskalnego
+    const fiscalVal = validateFiscal();
+    if (!fiscalVal.isValid && Math.abs(fiscalVal.difference) > 10) {
+      const confirm = window.confirm(
+        `Uwaga! Wykryto różnicę w raporcie fiskalnym: ${fiscalVal.difference.toFixed(2)} zł\n\n` +
+        `Oczekiwana wartość (sprzedaż - zwroty): ${(cashStatus?.fiscal?.expected_total || 0).toFixed(2)} zł\n` +
+        `Kwota z wydruku raportu: ${formData.fiscal_printer_report.toFixed(2)} zł\n\n` +
+        `Czy na pewno chcesz kontynuować?`
+      );
+      if (!confirm) return;
     }
 
     setLoading(true);
     setError('');
 
     try {
+      // Jeśli jest wpłata do safebaga, zapisz ją
+      if (formData.safebag_amount > 0) {
+        await axios.post(`${API_URL}/shifts/safebag`, {
+          location_id: locationId,
+          kwota: formData.safebag_amount,
+          kasjer_login: formData.cashier,
+          uwagi: 'Wpłata przy zamknięciu zmiany',
+          shift_id: currentShift?.id
+        });
+      }
+
       const shiftEnhancedService = (await import('../../services/shiftEnhancedService')).default;
-      const response = await shiftEnhancedService.closeShiftEnhanced(formData);
+      const response = await shiftEnhancedService.closeShiftEnhanced({
+        ...formData,
+        cash_status: cashStatus,
+        cash_validation: validateCash(),
+        terminal_validation: validateTerminal(),
+        fiscal_validation: validateFiscal()
+      });
       
       if (response.success) {
         onSuccess && onSuccess(response.data);
@@ -69,16 +189,69 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
     }
   };
 
-  const calculateDifferences = () => {
-    const cashDifference = formData.ending_cash_physical - formData.ending_cash;
-    const terminalDifference = formData.card_terminal_actual - formData.card_terminal_system;
+  const validateCash = () => {
+    if (!cashStatus) return { isValid: true, difference: 0 };
     
-    return { cashDifference, terminalDifference };
+    const expectedCash = cashStatus.expected_drawer_cash || 0;
+    const actualTotal = (parseFloat(formData.ending_cash_physical) || 0) + (parseFloat(formData.safebag_amount) || 0);
+    const difference = actualTotal - expectedCash;
+    
+    return {
+      isValid: Math.abs(difference) <= 1, // Tolerancja 1 zł
+      difference: difference,
+      expectedCash,
+      actualTotal
+    };
+  };
+
+  const validateTerminal = () => {
+    if (!cashStatus?.terminal) return { isValid: true, difference: 0 };
+    
+    const systemTotal = cashStatus.terminal.total || 0;
+    const actualTotal = parseFloat(formData.card_terminal_actual) || 0;
+    const difference = actualTotal - systemTotal;
+    
+    return {
+      isValid: Math.abs(difference) <= 1, // Tolerancja 1 zł
+      difference,
+      systemTotal,
+      actualTotal
+    };
+  };
+
+  const validateFiscal = () => {
+    if (!cashStatus?.fiscal) return { isValid: true, difference: 0 };
+    
+    const expectedTotal = cashStatus.fiscal.expected_total || 0;
+    const actualTotal = parseFloat(formData.fiscal_printer_report) || 0;
+    const difference = actualTotal - expectedTotal;
+    
+    return {
+      isValid: Math.abs(difference) <= 1, // Tolerancja 1 zł
+      difference,
+      expectedTotal,
+      actualTotal
+    };
+  };
+
+  const calculateDifferences = () => {
+    const cashValidation = validateCash();
+    const terminalValidation = validateTerminal();
+    const fiscalValidation = validateFiscal();
+    
+    return { 
+      cashDifference: cashValidation.difference, 
+      terminalDifference: terminalValidation.difference,
+      fiscalDifference: fiscalValidation.difference,
+      cashValidation,
+      terminalValidation,
+      fiscalValidation
+    };
   };
 
   if (!isOpen) return null;
 
-  const { cashDifference, terminalDifference } = calculateDifferences();
+  const { cashDifference, terminalDifference, fiscalDifference, terminalValidation, fiscalValidation } = calculateDifferences();
 
   return (
     <div style={{
@@ -91,109 +264,146 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000,
-      padding: '1rem'
+      zIndex: 1050,
+      overflow: 'auto'
     }}>
       <div style={{
         background: '#fff',
-        borderRadius: '0.5rem',
-        minWidth: '700px',
-        maxWidth: '900px',
-        width: '95vw',
+        borderRadius: '0.375rem',
+        width: '600px',
+        maxWidth: '95vw',
         maxHeight: '90vh',
         overflow: 'auto',
-        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)'
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        fontSize: '12px'
       }}>
         {/* Header */}
         <div style={{
-          padding: '1.5rem',
+          padding: '0.75rem 1rem',
           borderBottom: '1px solid #e9ecef',
           display: 'flex',
           alignItems: 'center',
-          gap: '1rem'
+          gap: '0.75rem',
+          backgroundColor: '#dc3545',
+          color: 'white',
+          borderRadius: '0.375rem 0.375rem 0 0'
         }}>
-          <div style={{
-            width: '3rem',
-            height: '3rem',
-            background: 'linear-gradient(135deg, #dc3545, #fd7e14)',
-            borderRadius: '0.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center'
-          }}>
-            <i className="fas fa-door-closed" style={{ color: 'white', fontSize: '1.25rem' }}></i>
-          </div>
-          <div>
-            <h4 style={{ margin: 0, fontWeight: '600', color: '#212529' }}>
+          <span style={{ fontSize: '1.1rem' }}>🔒</span>
+          <div style={{ flex: 1 }}>
+            <h5 style={{ margin: 0, fontWeight: '600', fontSize: '13px' }}>
               Zamknij zmianę kasową
-            </h4>
-            <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.875rem', color: '#6c757d' }}>
-              Pełny raport zamknięcia dnia z weryfikacją wszystkich systemów
+            </h5>
+            <p style={{ margin: 0, fontSize: '10px', opacity: 0.9 }}>
+              Raport zamknięcia dnia
             </p>
           </div>
           <button
             onClick={onClose}
             style={{
-              marginLeft: 'auto',
               background: 'none',
               border: 'none',
-              fontSize: '1.5rem',
-              color: '#6c757d',
+              fontSize: '1.25rem',
+              color: 'white',
               cursor: 'pointer',
-              padding: '0.25rem'
+              padding: '0.25rem',
+              lineHeight: 1
             }}
           >
             ✕
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-            
-            {/* Lewa kolumna - Raporty kasowe */}
-            <div>
-              <h5 style={{ margin: '0 0 1rem 0', fontWeight: '600', color: '#495057' }}>
-                💰 Raporty kasowe
-              </h5>
+        <form onSubmit={handleSubmit} style={{ padding: '1rem' }}>
+          
+          {/* Sekcja weryfikacji gotówki - na górze, pełna szerokość */}
+          <div style={{ 
+            marginBottom: '1rem', 
+            padding: '0.75rem', 
+            background: '#f8f9fa', 
+            borderRadius: '5px',
+            border: '1px solid #dee2e6'
+          }}>
+            <h6 style={{ margin: '0 0 0.75rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+              💵 Weryfikacja gotówki
+              {cashStatusLoading && <span style={{ marginLeft: '8px', fontSize: '10px', color: '#6c757d' }}>Ładowanie...</span>}
+            </h6>
 
-              {/* Kasa według systemu */}
-              <div style={{ marginBottom: '1rem' }}>
-                <label style={{
-                  display: 'block',
-                  fontSize: '0.875rem',
-                  fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+            {cashStatus && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                {/* Stan w systemie */}
+                <div style={{ 
+                  padding: '0.5rem', 
+                  background: '#e7f1ff', 
+                  borderRadius: '4px',
+                  textAlign: 'center'
                 }}>
-                  Kasa według systemu (zł)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.ending_cash}
-                  onChange={(e) => handleChange('ending_cash', parseFloat(e.target.value) || 0)}
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '1rem'
-                  }}
-                />
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '2px' }}>Gotówka w systemie</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#0d6efd' }}>
+                    {cashStatus.system_cash.toFixed(2)} zł
+                  </div>
+                </div>
+
+                {/* Safebag w miesiącu */}
+                <div style={{ 
+                  padding: '0.5rem', 
+                  background: '#fff3cd', 
+                  borderRadius: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '2px' }}>Safebag (miesiąc)</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#856404' }}>
+                    {cashStatus.safebag_total_month.toFixed(2)} zł
+                  </div>
+                </div>
+
+                {/* Oczekiwana w kasie */}
+                <div style={{ 
+                  padding: '0.5rem', 
+                  background: '#d4edda', 
+                  borderRadius: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '2px' }}>Oczekiwana w kasie</div>
+                  <div style={{ fontSize: '14px', fontWeight: '700', color: '#155724' }}>
+                    {cashStatus.expected_drawer_cash.toFixed(2)} zł
+                  </div>
+                </div>
               </div>
+            )}
 
-              {/* Ilość gotówki fizycznie */}
-              <div style={{ marginBottom: '1rem' }}>
+            {/* Pola do wprowadzenia */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {/* Fizyczna gotówka w kasie */}
+              <div>
                 <label style={{
-                  display: 'block',
-                  fontSize: '0.875rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
-                  Ilość gotówki fizycznie w kasie (zł)
+                  <span>Fizyczna gotówka w kasie (zł)</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowCashCalculator(!showCashCalculator)}
+                    style={{
+                      background: showCashCalculator ? '#0d6efd' : '#f8f9fa',
+                      color: showCashCalculator ? 'white' : '#495057',
+                      border: '1px solid #ced4da',
+                      borderRadius: '3px',
+                      padding: '2px 6px',
+                      fontSize: '10px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '3px'
+                    }}
+                    title="Kalkulator nominałów"
+                  >
+                    🧮 Licz
+                  </button>
                 </label>
                 <input
                   type="number"
@@ -204,69 +414,276 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
                   required
                   style={{
                     width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '1rem'
+                    padding: '6px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '12px',
+                    height: '30px'
                   }}
                 />
               </div>
 
-              {/* Różnica w kasie */}
-              {cashDifference !== 0 && (
-                <div style={{
-                  padding: '0.75rem',
-                  background: cashDifference > 0 ? '#d4edda' : '#f8d7da',
-                  border: `1px solid ${cashDifference > 0 ? '#c3e6cb' : '#f5c6cb'}`,
-                  borderRadius: '0.375rem',
-                  marginBottom: '1rem'
-                }}>
-                  <strong style={{ color: cashDifference > 0 ? '#155724' : '#721c24' }}>
-                    Różnica w kasie: {cashDifference > 0 ? '+' : ''}{cashDifference.toFixed(2)} zł
-                  </strong>
-                </div>
-              )}
-
-              {/* Terminal kartowy */}
-              <h6 style={{ margin: '1.5rem 0 1rem 0', fontWeight: '600', color: '#495057' }}>
-                💳 Terminal kartowy (Karta + BLIK)
-              </h6>
-
-              <div style={{ marginBottom: '1rem' }}>
+              {/* Wpłata do safebaga */}
+              <div>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
-                  Raport dobowy z terminala - system (zł)
+                  Wpłata do safebaga (zł)
                 </label>
                 <input
                   type="number"
                   step="0.01"
                   min="0"
-                  value={formData.card_terminal_system}
-                  onChange={(e) => handleChange('card_terminal_system', parseFloat(e.target.value) || 0)}
+                  value={formData.safebag_amount}
+                  onChange={(e) => handleChange('safebag_amount', parseFloat(e.target.value) || 0)}
                   style={{
                     width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '1rem'
+                    padding: '6px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '12px',
+                    height: '30px'
                   }}
                 />
               </div>
+            </div>
 
-              <div style={{ marginBottom: '1rem' }}>
+            {/* Kalkulator nominałów */}
+            {showCashCalculator && (
+              <div style={{
+                marginTop: '0.75rem',
+                padding: '0.75rem',
+                background: '#fff',
+                border: '2px solid #0d6efd',
+                borderRadius: '5px'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '11px', fontWeight: '600', color: '#495057' }}>🧮 Kalkulator nominałów</span>
+                  <span style={{ fontSize: '13px', fontWeight: '700', color: '#0d6efd' }}>
+                    Suma: {calculateDenominationsTotal().toFixed(2)} zł
+                  </span>
+                </div>
+                
+                {/* Grosze */}
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '3px' }}>Grosze:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '4px' }}>
+                    {[
+                      { key: 'gr1', label: '1gr' },
+                      { key: 'gr2', label: '2gr' },
+                      { key: 'gr5', label: '5gr' },
+                      { key: 'gr10', label: '10gr' },
+                      { key: 'gr20', label: '20gr' },
+                      { key: 'gr50', label: '50gr' }
+                    ].map(({ key, label }) => (
+                      <div key={key} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '9px', color: '#6c757d' }}>{label}</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={denominations[key]}
+                          onChange={(e) => setDenominations(prev => ({ ...prev, [key]: parseInt(e.target.value) || 0 }))}
+                          style={{
+                            width: '100%',
+                            padding: '3px',
+                            border: '1px solid #ced4da',
+                            borderRadius: '2px',
+                            fontSize: '11px',
+                            textAlign: 'center'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Złotówki */}
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '3px' }}>Złotówki:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                    {[
+                      { key: 'zl1', label: '1zł' },
+                      { key: 'zl2', label: '2zł' },
+                      { key: 'zl5', label: '5zł' },
+                      { key: 'zl10', label: '10zł' },
+                      { key: 'zl20', label: '20zł' }
+                    ].map(({ key, label }) => (
+                      <div key={key} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '9px', color: '#6c757d' }}>{label}</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={denominations[key]}
+                          onChange={(e) => setDenominations(prev => ({ ...prev, [key]: parseInt(e.target.value) || 0 }))}
+                          style={{
+                            width: '100%',
+                            padding: '3px',
+                            border: '1px solid #ced4da',
+                            borderRadius: '2px',
+                            fontSize: '11px',
+                            textAlign: 'center'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Banknoty */}
+                <div style={{ marginBottom: '0.5rem' }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '3px' }}>Banknoty:</div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '4px' }}>
+                    {[
+                      { key: 'zl50', label: '50zł' },
+                      { key: 'zl100', label: '100zł' },
+                      { key: 'zl200', label: '200zł' },
+                      { key: 'zl500', label: '500zł' }
+                    ].map(({ key, label }) => (
+                      <div key={key} style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '9px', color: '#6c757d' }}>{label}</div>
+                        <input
+                          type="number"
+                          min="0"
+                          value={denominations[key]}
+                          onChange={(e) => setDenominations(prev => ({ ...prev, [key]: parseInt(e.target.value) || 0 }))}
+                          style={{
+                            width: '100%',
+                            padding: '3px',
+                            border: '1px solid #ced4da',
+                            borderRadius: '2px',
+                            fontSize: '11px',
+                            textAlign: 'center'
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Przyciski */}
+                <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                  <button
+                    type="button"
+                    onClick={() => setDenominations({
+                      gr1: 0, gr2: 0, gr5: 0, gr10: 0, gr20: 0, gr50: 0,
+                      zl1: 0, zl2: 0, zl5: 0, zl10: 0, zl20: 0, zl50: 0, zl100: 0, zl200: 0, zl500: 0
+                    })}
+                    style={{
+                      padding: '4px 10px',
+                      background: '#f8f9fa',
+                      color: '#6c757d',
+                      border: '1px solid #ced4da',
+                      borderRadius: '3px',
+                      fontSize: '10px',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    Wyczyść
+                  </button>
+                  <button
+                    type="button"
+                    onClick={applyDenominationsTotal}
+                    style={{
+                      padding: '4px 10px',
+                      background: '#0d6efd',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '3px',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    ✓ Zastosuj {calculateDenominationsTotal().toFixed(2)} zł
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Podsumowanie i walidacja */}
+            {cashStatus && (
+              <div style={{ marginTop: '0.75rem' }}>
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '0.5rem',
+                  background: calculateDifferences().cashValidation?.isValid ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${calculateDifferences().cashValidation?.isValid ? '#c3e6cb' : '#f5c6cb'}`,
+                  borderRadius: '4px'
+                }}>
+                  <div style={{ fontSize: '11px' }}>
+                    <strong>Suma (kasa + safebag):</strong>{' '}
+                    {((parseFloat(formData.ending_cash_physical) || 0) + (parseFloat(formData.safebag_amount) || 0)).toFixed(2)} zł
+                  </div>
+                  <div style={{ 
+                    fontSize: '11px', 
+                    fontWeight: '700',
+                    color: calculateDifferences().cashValidation?.isValid ? '#155724' : '#721c24'
+                  }}>
+                    {calculateDifferences().cashValidation?.isValid ? (
+                      <>✅ OK</>
+                    ) : (
+                      <>❌ Różnica: {calculateDifferences().cashDifference > 0 ? '+' : ''}{calculateDifferences().cashDifference.toFixed(2)} zł</>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+            
+            {/* Lewa kolumna - Terminal kartowy */}
+            <div>
+              {/* Terminal kartowy */}
+              <h6 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+                💳 Terminal kartowy
+              </h6>
+
+              {/* Podsumowanie z systemu */}
+              {cashStatus?.terminal && (
+                <div style={{ 
+                  marginBottom: '0.75rem', 
+                  padding: '0.5rem', 
+                  background: '#e7f1ff', 
+                  borderRadius: '4px',
+                  fontSize: '11px'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <span>Karta:</span>
+                    <strong>{cashStatus.terminal.card_sales.toFixed(2)} zł</strong>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
+                    <span>BLIK:</span>
+                    <strong>{cashStatus.terminal.blik_sales.toFixed(2)} zł</strong>
+                  </div>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between', 
+                    borderTop: '1px solid #b8daff',
+                    paddingTop: '3px',
+                    marginTop: '3px'
+                  }}>
+                    <span style={{ fontWeight: '600' }}>SUMA (system):</span>
+                    <strong style={{ color: '#0d6efd' }}>{cashStatus.terminal.total.toFixed(2)} zł</strong>
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginBottom: '0.75rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
-                  Rzeczywista kwota z terminala (zł)
+                  Kwota z wydruku terminala (zł)
                 </label>
                 <input
                   type="number"
@@ -276,42 +693,74 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
                   onChange={(e) => handleChange('card_terminal_actual', parseFloat(e.target.value) || 0)}
                   style={{
                     width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '1rem'
+                    padding: '6px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '12px',
+                    height: '30px'
                   }}
                 />
               </div>
 
-              {terminalDifference !== 0 && (
+              {/* Walidacja terminala */}
+              {cashStatus?.terminal && (
                 <div style={{
-                  padding: '0.75rem',
-                  background: terminalDifference > 0 ? '#d4edda' : '#f8d7da',
-                  border: `1px solid ${terminalDifference > 0 ? '#c3e6cb' : '#f5c6cb'}`,
-                  borderRadius: '0.375rem',
-                  marginBottom: '1rem'
+                  padding: '0.5rem',
+                  background: Math.abs(formData.card_terminal_actual - cashStatus.terminal.total) <= 1 ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${Math.abs(formData.card_terminal_actual - cashStatus.terminal.total) <= 1 ? '#c3e6cb' : '#f5c6cb'}`,
+                  borderRadius: '3px',
+                  marginBottom: '0.75rem',
+                  fontSize: '11px'
                 }}>
-                  <strong style={{ color: terminalDifference > 0 ? '#155724' : '#721c24' }}>
-                    Różnica w terminalu: {terminalDifference > 0 ? '+' : ''}{terminalDifference.toFixed(2)} zł
-                  </strong>
+                  {Math.abs(formData.card_terminal_actual - cashStatus.terminal.total) <= 1 ? (
+                    <strong style={{ color: '#155724' }}>✅ Terminal OK</strong>
+                  ) : (
+                    <strong style={{ color: '#721c24' }}>
+                      ❌ Różnica: {(formData.card_terminal_actual - cashStatus.terminal.total) > 0 ? '+' : ''}
+                      {(formData.card_terminal_actual - cashStatus.terminal.total).toFixed(2)} zł
+                    </strong>
+                  )}
                 </div>
               )}
 
               {/* Kasa fiskalna */}
-              <h6 style={{ margin: '1.5rem 0 1rem 0', fontWeight: '600', color: '#495057' }}>
-                🧾 Kasa fiskalna
+              <h6 style={{ margin: '1rem 0 0.5rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+                🧾 Raport fiskalny
               </h6>
 
-              <div style={{ marginBottom: '1rem' }}>
+              {/* Podsumowanie z systemu */}
+              {cashStatus?.fiscal && (
+                <div style={{ 
+                  marginBottom: '0.75rem', 
+                  padding: '0.5rem', 
+                  background: '#f0f9ff', 
+                  borderRadius: '4px',
+                  fontSize: '11px'
+                }}>
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between'
+                  }}>
+                    <span style={{ fontWeight: '600' }}>Oczekiwany raport (sprzedaż):</span>
+                    <strong style={{ color: '#0d6efd' }}>{cashStatus.fiscal.expected_total.toFixed(2)} zł</strong>
+                  </div>
+                  {cashStatus.fiscal.today_returns > 0 && (
+                    <div style={{ fontSize: '10px', color: '#6c757d', marginTop: '3px' }}>
+                      ℹ️ Zwroty ({cashStatus.fiscal.today_returns.toFixed(2)} zł) nie są uwzględniane w raporcie fiskalnym
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div style={{ marginBottom: '0.75rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
-                  Raport dobowy kasa fiskalna - suma wszystkich płatności (zł)
+                  Kwota z wydruku raportu dobowego (zł)
                 </label>
                 <input
                   type="number"
@@ -321,179 +770,198 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
                   onChange={(e) => handleChange('fiscal_printer_report', parseFloat(e.target.value) || 0)}
                   style={{
                     width: '100%',
-                    padding: '0.75rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '1rem'
+                    padding: '6px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '12px',
+                    height: '30px'
                   }}
                 />
-                <p style={{ fontSize: '0.75rem', color: '#6c757d', margin: '0.25rem 0 0 0' }}>
-                  Raport dobowy z kasy fiskalnej sumuje wszystkie płatności
-                </p>
               </div>
+
+              {/* Walidacja raportu fiskalnego */}
+              {cashStatus?.fiscal && (
+                <div style={{
+                  padding: '0.5rem',
+                  background: Math.abs(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) <= 1 ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${Math.abs(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) <= 1 ? '#c3e6cb' : '#f5c6cb'}`,
+                  borderRadius: '3px',
+                  marginBottom: '0.75rem',
+                  fontSize: '11px'
+                }}>
+                  {Math.abs(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) <= 1 ? (
+                    <strong style={{ color: '#155724' }}>✅ Raport fiskalny OK</strong>
+                  ) : (
+                    <strong style={{ color: '#721c24' }}>
+                      ❌ Różnica: {(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) > 0 ? '+' : ''}
+                      {(formData.fiscal_printer_report - cashStatus.fiscal.expected_total).toFixed(2)} zł
+                    </strong>
+                  )}
+                </div>
+              )}
             </div>
 
             {/* Prawa kolumna - Social media i osiągnięcia */}
             <div>
-              <h5 style={{ margin: '0 0 1rem 0', fontWeight: '600', color: '#495057' }}>
+              <h6 style={{ margin: '0 0 0.75rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
                 📱 Social Media
-              </h5>
+              </h6>
 
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
                   TikTok
                 </label>
                 <textarea
                   value={formData.social_media.tiktok}
                   onChange={(e) => handleChange('social_media.tiktok', e.target.value)}
-                  rows="2"
-                  placeholder="Co zrobiłeś na TikToku dzisiaj?"
+                  rows="1"
+                  placeholder="Co zrobiłeś na TikToku?"
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
+                    padding: '5px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '11px',
                     resize: 'vertical'
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
                   Facebook
                 </label>
                 <textarea
                   value={formData.social_media.facebook}
                   onChange={(e) => handleChange('social_media.facebook', e.target.value)}
-                  rows="2"
+                  rows="1"
                   placeholder="Aktywność na Facebooku..."
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
+                    padding: '5px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '11px',
                     resize: 'vertical'
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
                   Instagram
                 </label>
                 <textarea
                   value={formData.social_media.instagram}
                   onChange={(e) => handleChange('social_media.instagram', e.target.value)}
-                  rows="2"
-                  placeholder="Posty, stories na Instagramie..."
+                  rows="1"
+                  placeholder="Posty, stories..."
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
+                    padding: '5px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '11px',
                     resize: 'vertical'
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: '1.5rem' }}>
+              <div style={{ marginBottom: '0.75rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
                   Wizytówka Google
                 </label>
                 <textarea
                   value={formData.social_media.google_business}
                   onChange={(e) => handleChange('social_media.google_business', e.target.value)}
-                  rows="2"
-                  placeholder="Aktywność w Google My Business..."
+                  rows="1"
+                  placeholder="Google My Business..."
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
+                    padding: '5px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '11px',
                     resize: 'vertical'
                   }}
                 />
               </div>
 
-              <h6 style={{ margin: '0 0 1rem 0', fontWeight: '600', color: '#495057' }}>
+              <h6 style={{ margin: '0.75rem 0 0.5rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
                 🎯 Osiągnięcia dnia
               </h6>
 
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
-                  Opis dzisiejszych osiągnięć - sprzedaż
+                  Osiągnięcia - sprzedaż
                 </label>
                 <textarea
                   value={formData.daily_achievements.sales_description}
                   onChange={(e) => handleChange('daily_achievements.sales_description', e.target.value)}
-                  rows="3"
-                  placeholder="Co sprzedawałeś dzisiaj? Jakie były sukcesy?"
+                  rows="2"
+                  placeholder="Co sprzedawałeś? Sukcesy?"
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
+                    padding: '5px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '11px',
                     resize: 'vertical'
                   }}
                 />
               </div>
 
-              <div style={{ marginBottom: '1rem' }}>
+              <div style={{ marginBottom: '0.5rem' }}>
                 <label style={{
                   display: 'block',
-                  fontSize: '0.875rem',
+                  fontSize: '11px',
                   fontWeight: '500',
-                  color: '#374151',
-                  marginBottom: '0.5rem'
+                  color: '#6c757d',
+                  marginBottom: '3px'
                 }}>
-                  Opis dzisiejszych osiągnięć - praca na sklepie
+                  Osiągnięcia - praca
                 </label>
                 <textarea
                   value={formData.daily_achievements.work_description}
                   onChange={(e) => handleChange('daily_achievements.work_description', e.target.value)}
-                  rows="3"
-                  placeholder="Jaką pracę wykonałeś w sklepie dzisiaj?"
+                  rows="2"
+                  placeholder="Praca w sklepie?"
                   style={{
                     width: '100%',
-                    padding: '0.5rem',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '0.375rem',
-                    fontSize: '0.875rem',
+                    padding: '5px 8px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '3px',
+                    fontSize: '11px',
                     resize: 'vertical'
                   }}
                 />
@@ -502,27 +970,27 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
           </div>
 
           {/* Uwagi - pełna szerokość */}
-          <div style={{ marginTop: '1.5rem', marginBottom: '1rem' }}>
+          <div style={{ marginTop: '0.75rem', marginBottom: '0.75rem' }}>
             <label style={{
               display: 'block',
-              fontSize: '0.875rem',
+              fontSize: '11px',
               fontWeight: '500',
-              color: '#374151',
-              marginBottom: '0.5rem'
+              color: '#6c757d',
+              marginBottom: '3px'
             }}>
-              Dodatkowe uwagi o zamknięciu zmiany (opcjonalne)
+              Dodatkowe uwagi (opcjonalne)
             </label>
             <textarea
               value={formData.notes}
               onChange={(e) => handleChange('notes', e.target.value)}
-              rows="3"
-              placeholder="Dodatkowe informacje o zamknięciu zmiany..."
+              rows="2"
+              placeholder="Dodatkowe informacje..."
               style={{
                 width: '100%',
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '1rem',
+                padding: '5px 8px',
+                border: '1px solid #ced4da',
+                borderRadius: '3px',
+                fontSize: '11px',
                 resize: 'vertical'
               }}
             />
@@ -534,10 +1002,10 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
               color: '#dc3545',
               background: '#f8d7da',
               border: '1px solid #f5c6cb',
-              borderRadius: '0.375rem',
-              padding: '0.75rem',
-              marginBottom: '1rem',
-              fontSize: '0.875rem'
+              borderRadius: '3px',
+              padding: '6px 10px',
+              marginBottom: '0.75rem',
+              fontSize: '11px'
             }}>
               <i className="fas fa-exclamation-circle" style={{ marginRight: '0.5rem' }}></i>
               {error}
@@ -545,17 +1013,18 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
           )}
 
           {/* Przyciski */}
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: '6px 14px',
                 background: '#f8f9fa',
                 color: '#6c757d',
                 border: '1px solid #dee2e6',
-                borderRadius: '0.375rem',
+                borderRadius: '3px',
                 fontWeight: '500',
+                fontSize: '12px',
                 cursor: 'pointer'
               }}
             >
@@ -565,17 +1034,18 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift }) =
               type="submit"
               disabled={loading}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: '6px 14px',
                 background: loading ? '#a5b4fc' : '#dc3545',
                 color: 'white',
                 border: 'none',
-                borderRadius: '0.375rem',
+                borderRadius: '3px',
                 fontWeight: '600',
+                fontSize: '12px',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.7 : 1
               }}
             >
-              {loading ? 'Zamykanie...' : 'Zamknij zmianę i wygeneruj raport'}
+              {loading ? 'Zamykanie...' : 'Zamknij zmianę'}
             </button>
           </div>
         </form>

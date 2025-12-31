@@ -355,3 +355,297 @@ def debug_shifts_tables():
         
     except Exception as e:
         return error_response(f"Błąd debugowania: {str(e)}", 500)
+
+
+@shifts_bp.route('/shifts/cash-status', methods=['GET'])
+def get_cash_status():
+    """
+    Pobierz stan gotówki dla lokalizacji
+    GET /api/shifts/cash-status?location_id=5&date=2025-12-31
+    
+    Zwraca:
+    - system_cash: gotówka w systemie (całkowita dla lokalizacji)
+    - today_cash_sales: sprzedaż gotówkowa z danego dnia
+    - today_cash_returns: zwroty gotówkowe z danego dnia
+    - safebag_total: suma wpłat do safebaga w bieżącym miesiącu
+    - expected_drawer_cash: oczekiwana gotówka w kasie (system_cash - safebag_total)
+    """
+    try:
+        location_id = request.args.get('location_id', type=int)
+        target_date = request.args.get('date', date.today().isoformat())
+        
+        if not location_id:
+            return error_response("Parametr 'location_id' jest wymagany", 400)
+        
+        # Parsuj datę
+        try:
+            target_date_obj = datetime.strptime(target_date, '%Y-%m-%d').date()
+        except:
+            target_date_obj = date.today()
+        
+        # 1. Całkowita gotówka w systemie dla lokalizacji
+        # (suma sprzedaży gotówkowej - suma zwrotów gotówkowych - suma wydatków kasowych + suma wpłat kasowych)
+        
+        # Sprzedaż gotówkowa (całkowita)
+        cash_sales_sql = """
+        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        FROM pos_transakcje 
+        WHERE location_id = ? 
+        AND forma_platnosci = 'gotowka'
+        AND status = 'zakonczony'
+        """
+        cash_sales = execute_query(cash_sales_sql, (location_id,))
+        total_cash_sales = cash_sales[0]['total'] if cash_sales else 0
+        
+        # Zwroty gotówkowe (całkowite)
+        cash_returns_sql = """
+        SELECT COALESCE(SUM(suma_zwrotu_brutto), 0) as total
+        FROM pos_zwroty 
+        WHERE location_id = ? 
+        AND forma_platnosci = 'gotowka'
+        AND status = 'zatwierdzony'
+        """
+        cash_returns = execute_query(cash_returns_sql, (location_id,))
+        total_cash_returns = cash_returns[0]['total'] if cash_returns else 0
+        
+        # Operacje kasowe KP (przyjęcie gotówki)
+        kp_sql = """
+        SELECT COALESCE(SUM(kwota), 0) as total
+        FROM kasa_operacje 
+        WHERE location_id = ? 
+        AND typ_operacji = 'KP'
+        AND typ_platnosci = 'gotowka'
+        """
+        kp_result = execute_query(kp_sql, (location_id,))
+        total_kp = kp_result[0]['total'] if kp_result else 0
+        
+        # Operacje kasowe KW (wydanie gotówki)
+        kw_sql = """
+        SELECT COALESCE(SUM(kwota), 0) as total
+        FROM kasa_operacje 
+        WHERE location_id = ? 
+        AND typ_operacji = 'KW'
+        AND typ_platnosci = 'gotowka'
+        """
+        kw_result = execute_query(kw_sql, (location_id,))
+        total_kw = kw_result[0]['total'] if kw_result else 0
+        
+        # Stan początkowy kasy (pierwsza otwarta zmiana)
+        starting_cash_sql = """
+        SELECT COALESCE(stan_poczatkowy, 0) as starting
+        FROM pos_zmiany 
+        WHERE location_id = ?
+        ORDER BY id ASC
+        LIMIT 1
+        """
+        starting = execute_query(starting_cash_sql, (location_id,))
+        starting_cash = starting[0]['starting'] if starting else 0
+        
+        # Całkowita gotówka w systemie
+        system_cash = starting_cash + total_cash_sales - total_cash_returns + total_kp - total_kw
+        
+        # 2. Sprzedaż gotówkowa z danego dnia
+        today_sales_sql = """
+        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        FROM pos_transakcje 
+        WHERE location_id = ? 
+        AND forma_platnosci = 'gotowka'
+        AND status = 'zakonczony'
+        AND date(data_transakcji) = ?
+        """
+        today_sales = execute_query(today_sales_sql, (location_id, target_date))
+        today_cash_sales = today_sales[0]['total'] if today_sales else 0
+        
+        # 3. Zwroty gotówkowe z danego dnia
+        today_returns_sql = """
+        SELECT COALESCE(SUM(suma_zwrotu_brutto), 0) as total
+        FROM pos_zwroty 
+        WHERE location_id = ? 
+        AND forma_platnosci = 'gotowka'
+        AND status = 'zatwierdzony'
+        AND date(data_zwrotu) = ?
+        """
+        today_returns = execute_query(today_returns_sql, (location_id, target_date))
+        today_cash_returns = today_returns[0]['total'] if today_returns else 0
+        
+        # 4. Suma safebag w bieżącym miesiącu
+        month_start = target_date_obj.replace(day=1).isoformat()
+        safebag_sql = """
+        SELECT COALESCE(SUM(kwota), 0) as total
+        FROM safebag_deposits 
+        WHERE location_id = ? 
+        AND data_wplaty >= ?
+        AND data_wplaty <= ?
+        """
+        safebag = execute_query(safebag_sql, (location_id, month_start, target_date))
+        safebag_total = safebag[0]['total'] if safebag else 0
+        
+        # 5. Oczekiwana gotówka w kasie (system_cash - safebag)
+        expected_drawer_cash = system_cash - safebag_total
+        
+        # 6. Płatności kartą z danego dnia (terminal)
+        today_card_sql = """
+        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        FROM pos_transakcje 
+        WHERE location_id = ? 
+        AND forma_platnosci = 'karta'
+        AND status = 'zakonczony'
+        AND date(data_transakcji) = ?
+        """
+        today_card = execute_query(today_card_sql, (location_id, target_date))
+        today_card_sales = today_card[0]['total'] if today_card else 0
+        
+        # 7. Płatności BLIK z danego dnia (terminal)
+        today_blik_sql = """
+        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        FROM pos_transakcje 
+        WHERE location_id = ? 
+        AND forma_platnosci = 'blik'
+        AND status = 'zakonczony'
+        AND date(data_transakcji) = ?
+        """
+        today_blik = execute_query(today_blik_sql, (location_id, target_date))
+        today_blik_sales = today_blik[0]['total'] if today_blik else 0
+        
+        # Suma terminala (karta + BLIK)
+        terminal_total = today_card_sales + today_blik_sales
+        
+        # 8. Suma wszystkich płatności z dnia (raport fiskalny) - gotówka + karta + BLIK
+        # UWAGA: Raport fiskalny NIE uwzględnia zwrotów - to jest suma sprzedaży
+        today_all_sales_sql = """
+        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        FROM pos_transakcje 
+        WHERE location_id = ? 
+        AND status = 'zakonczony'
+        AND date(data_transakcji) = ?
+        """
+        today_all = execute_query(today_all_sales_sql, (location_id, target_date))
+        today_all_sales = today_all[0]['total'] if today_all else 0
+        
+        # 9. Suma wszystkich zwrotów z dnia (osobno do informacji)
+        today_all_returns_sql = """
+        SELECT COALESCE(SUM(suma_zwrotu_brutto), 0) as total
+        FROM pos_zwroty 
+        WHERE location_id = ? 
+        AND status = 'zatwierdzony'
+        AND date(data_zwrotu) = ?
+        """
+        today_all_ret = execute_query(today_all_returns_sql, (location_id, target_date))
+        today_all_returns = today_all_ret[0]['total'] if today_all_ret else 0
+        
+        # Oczekiwana wartość raportu fiskalnego = tylko sprzedaż (bez zwrotów)
+        fiscal_expected = today_all_sales
+        
+        return success_response({
+            'location_id': location_id,
+            'date': target_date,
+            'system_cash': round(system_cash, 2),
+            'today_cash_sales': round(today_cash_sales, 2),
+            'today_cash_returns': round(today_cash_returns, 2),
+            'today_net_cash': round(today_cash_sales - today_cash_returns, 2),
+            'safebag_total_month': round(safebag_total, 2),
+            'expected_drawer_cash': round(expected_drawer_cash, 2),
+            'terminal': {
+                'card_sales': round(today_card_sales, 2),
+                'blik_sales': round(today_blik_sales, 2),
+                'total': round(terminal_total, 2)
+            },
+            'fiscal': {
+                'today_sales': round(today_all_sales, 2),
+                'today_returns': round(today_all_returns, 2),
+                'expected_total': round(fiscal_expected, 2)
+            },
+            'breakdown': {
+                'starting_cash': round(starting_cash, 2),
+                'total_cash_sales': round(total_cash_sales, 2),
+                'total_cash_returns': round(total_cash_returns, 2),
+                'total_kp': round(total_kp, 2),
+                'total_kw': round(total_kw, 2)
+            }
+        }, "Stan gotówki")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania stanu gotówki: {str(e)}", 500)
+
+
+@shifts_bp.route('/shifts/safebag', methods=['POST'])
+def add_safebag_deposit():
+    """
+    Dodaj wpłatę do safebaga
+    POST /api/shifts/safebag
+    Body: {
+        "location_id": 5,
+        "kwota": 500.00,
+        "numer_safebaga": "SB-2025-001",
+        "kasjer_login": "admin",
+        "uwagi": "Wpłata końca dnia"
+    }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return error_response("Brak danych JSON", 400)
+        
+        location_id = data.get('location_id')
+        kwota = data.get('kwota', 0)
+        numer_safebaga = data.get('numer_safebaga', '')
+        kasjer_login = data.get('kasjer_login', 'admin')
+        uwagi = data.get('uwagi', '')
+        shift_id = data.get('shift_id')
+        
+        if not location_id:
+            return error_response("Parametr 'location_id' jest wymagany", 400)
+        
+        if kwota <= 0:
+            return error_response("Kwota musi być większa od 0", 400)
+        
+        sql = """
+        INSERT INTO safebag_deposits (location_id, kwota, numer_safebaga, kasjer_login, uwagi, shift_id)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """
+        
+        deposit_id = execute_insert(sql, (location_id, kwota, numer_safebaga, kasjer_login, uwagi, shift_id))
+        
+        return success_response({
+            'id': deposit_id,
+            'location_id': location_id,
+            'kwota': kwota,
+            'numer_safebaga': numer_safebaga
+        }, "Wpłata do safebaga zapisana")
+        
+    except Exception as e:
+        return error_response(f"Błąd zapisywania wpłaty do safebaga: {str(e)}", 500)
+
+
+@shifts_bp.route('/shifts/safebag/history', methods=['GET'])
+def get_safebag_history():
+    """
+    Historia wpłat do safebaga
+    GET /api/shifts/safebag/history?location_id=5&month=2025-12
+    """
+    try:
+        location_id = request.args.get('location_id', type=int)
+        month = request.args.get('month', date.today().strftime('%Y-%m'))
+        
+        if not location_id:
+            return error_response("Parametr 'location_id' jest wymagany", 400)
+        
+        sql = """
+        SELECT * FROM safebag_deposits 
+        WHERE location_id = ?
+        AND strftime('%Y-%m', data_wplaty) = ?
+        ORDER BY data_wplaty DESC, czas_wplaty DESC
+        """
+        
+        deposits = execute_query(sql, (location_id, month))
+        
+        total = sum(d['kwota'] for d in deposits) if deposits else 0
+        
+        return success_response({
+            'deposits': deposits or [],
+            'total': round(total, 2),
+            'count': len(deposits) if deposits else 0
+        }, "Historia safebag")
+        
+    except Exception as e:
+        return error_response(f"Błąd pobierania historii safebag: {str(e)}", 500)
