@@ -138,310 +138,361 @@ function AddOperationModal({ isOpen, onClose, onSuccess, operationType = 'KP', l
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      zIndex: 1000
+      zIndex: 1050,
+      overflow: 'auto'
     }}>
       <div style={{
         background: '#fff',
-        borderRadius: '0.5rem',
-        minWidth: '500px',
-        maxWidth: '600px',
-        width: '95vw',
+        borderRadius: '0.375rem',
+        width: '500px',
+        maxWidth: '95vw',
         maxHeight: '90vh',
         overflow: 'auto',
-        boxShadow: '0 10px 25px rgba(0,0,0,0.2)'
+        boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+        fontSize: '12px'
       }}>
-        {/* Nagłówek */}
+        {/* Header - styl jak w modalu zamknięcia zmiany */}
         <div style={{
+          padding: '0.75rem 1rem',
+          borderBottom: '1px solid #e9ecef',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '1.5rem',
-          borderBottom: '1px solid #e9ecef',
-          background: isKP ? '#d4edda' : '#f8d7da'
+          gap: '0.75rem',
+          backgroundColor: isKP ? '#28a745' : '#dc3545',
+          color: 'white',
+          borderRadius: '0.375rem 0.375rem 0 0'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-            <i className={`fas ${isKP ? 'fa-plus-circle' : 'fa-minus-circle'}`} 
-               style={{ 
-                 color: isKP ? '#28a745' : '#dc3545', 
-                 fontSize: '1.5rem' 
-               }}></i>
-            <h3 style={{ 
-              margin: 0, 
-              fontSize: '1.25rem', 
-              fontWeight: '600',
-              color: isKP ? '#155724' : '#721c24'
-            }}>
+          <span style={{ fontSize: '1.1rem' }}>{isKP ? '📥' : '📤'}</span>
+          <div style={{ flex: 1 }}>
+            <h5 style={{ margin: 0, fontWeight: '600', fontSize: '13px' }}>
               {isKP ? 'Dodaj wpływ (KP)' : 'Dodaj wydatek (KW)'}
-            </h3>
+            </h5>
+            <p style={{ margin: 0, fontSize: '10px', opacity: 0.9 }}>
+              {isKP ? 'Kasa Przyjmie - wpłata do kasy' : 'Kasa Wydaje - wypłata z kasy'}
+            </p>
           </div>
           <button
             onClick={onClose}
             style={{
               background: 'none',
               border: 'none',
-              fontSize: '1.5rem',
-              color: '#6c757d',
+              fontSize: '1.25rem',
+              color: 'white',
               cursor: 'pointer',
-              padding: '0.25rem'
+              padding: '0.25rem',
+              lineHeight: 1
             }}
-          >×</button>
+          >
+            ✕
+          </button>
         </div>
 
         {/* Formularz */}
-        <form onSubmit={handleSubmit} style={{ padding: '1.5rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Typ operacji */}
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
-                fontWeight: '500',
-                color: '#374151'
-              }}>
-                Typ operacji
-              </label>
-              <select
-                value={formData.typ_operacji}
-                onChange={(e) => handleChange('typ_operacji', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '1rem'
-                }}
-              >
-                <option value="KP">KP - Kasa Przyjmie (Wpływ)</option>
-                <option value="KW">KW - Kasa Wydaje (Wydatek)</option>
-              </select>
+        <form onSubmit={handleSubmit} style={{ padding: '1rem' }}>
+          
+          {/* Sekcja główna */}
+          <div style={{ 
+            marginBottom: '0.75rem', 
+            padding: '0.75rem', 
+            background: '#f8f9fa', 
+            borderRadius: '5px',
+            border: '1px solid #dee2e6'
+          }}>
+            <h6 style={{ margin: '0 0 0.75rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+              💰 Dane operacji
+            </h6>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem' }}>
+              {/* Typ operacji */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  Typ operacji
+                </label>
+                <select
+                  value={formData.typ_operacji}
+                  onChange={(e) => handleChange('typ_operacji', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}
+                >
+                  <option value="KP">KP - Wpływ</option>
+                  <option value="KW">KW - Wydatek</option>
+                </select>
+              </div>
+
+              {/* Typ płatności */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  Typ płatności
+                </label>
+                <select
+                  value={formData.typ_platnosci}
+                  onChange={(e) => handleChange('typ_platnosci', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}
+                >
+                  {paymentTypes.map(type => (
+                    <option key={type.value} value={type.value}>
+                      {type.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
 
-            {/* Typ płatności */}
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
-                fontWeight: '500',
-                color: '#374151'
-              }}>
-                Typ płatności
-              </label>
-              <select
-                value={formData.typ_platnosci}
-                onChange={(e) => handleChange('typ_platnosci', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '1rem'
-                }}
-              >
-                {paymentTypes.map(type => (
-                  <option key={type.value} value={type.value}>
-                    {type.label}
-                  </option>
-                ))}
-              </select>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {/* Kwota */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  Kwota (zł) *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.kwota}
+                  onChange={(e) => handleChange('kwota', e.target.value)}
+                  placeholder="0.00"
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    fontWeight: '600'
+                  }}
+                  required
+                />
+              </div>
+
+              {/* Data operacji */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  Data operacji
+                </label>
+                <input
+                  type="date"
+                  value={formData.data_operacji}
+                  onChange={(e) => handleChange('data_operacji', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}
+                />
+              </div>
             </div>
           </div>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Kwota */}
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
+          {/* Sekcja opisu */}
+          <div style={{ 
+            marginBottom: '0.75rem', 
+            padding: '0.75rem', 
+            background: '#f8f9fa', 
+            borderRadius: '5px',
+            border: '1px solid #dee2e6'
+          }}>
+            <h6 style={{ margin: '0 0 0.75rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+              📝 Opis operacji
+            </h6>
+
+            {/* Opis */}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '11px',
                 fontWeight: '500',
-                color: '#374151'
+                color: '#6c757d',
+                marginBottom: '3px'
               }}>
-                Kwota (zł) *
+                Opis *
               </label>
               <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={formData.kwota}
-                onChange={(e) => handleChange('kwota', e.target.value)}
+                type="text"
+                value={formData.opis}
+                onChange={(e) => handleChange('opis', e.target.value)}
+                placeholder={isKP ? 'np. Sprzedaż produktów' : 'np. Zakup materiałów biurowych'}
                 style={{
                   width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '1rem'
+                  padding: '0.4rem 0.5rem',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '12px'
                 }}
                 required
               />
             </div>
 
-            {/* Data operacji */}
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
-                fontWeight: '500',
-                color: '#374151'
-              }}>
-                Data operacji
-              </label>
-              <input
-                type="date"
-                value={formData.data_operacji}
-                onChange={(e) => handleChange('data_operacji', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '1rem'
-                }}
-              />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              {/* Kategoria */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  Kategoria
+                </label>
+                <select
+                  value={formData.kategoria}
+                  onChange={(e) => handleChange('kategoria', e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}
+                >
+                  {getCurrentKategorie().map(kat => (
+                    <option key={kat.value} value={kat.value}>
+                      {kat.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Numer dokumentu */}
+              <div>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  Nr dokumentu
+                </label>
+                <input
+                  type="text"
+                  value={formData.numer_dokumentu}
+                  onChange={(e) => handleChange('numer_dokumentu', e.target.value)}
+                  placeholder="np. FV001/2025"
+                  style={{
+                    width: '100%',
+                    padding: '0.4rem 0.5rem',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}
+                />
+              </div>
             </div>
           </div>
 
-          {/* Opis */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: '500',
-              color: '#374151'
-            }}>
-              Opis operacji *
-            </label>
-            <input
-              type="text"
-              value={formData.opis}
-              onChange={(e) => handleChange('opis', e.target.value)}
-              placeholder={isKP ? 'np. Sprzedaż produktów' : 'np. Zakup materiałów biurowych'}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '1rem'
-              }}
-              required
-            />
-          </div>
+          {/* Sekcja kontrahenta */}
+          <div style={{ 
+            marginBottom: '0.75rem', 
+            padding: '0.75rem', 
+            background: '#f8f9fa', 
+            borderRadius: '5px',
+            border: '1px solid #dee2e6'
+          }}>
+            <h6 style={{ margin: '0 0 0.75rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+              👤 Kontrahent i uwagi
+            </h6>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-            {/* Kategoria */}
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
+            {/* Kontrahent */}
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '11px',
                 fontWeight: '500',
-                color: '#374151'
+                color: '#6c757d',
+                marginBottom: '3px'
               }}>
-                Kategoria
-              </label>
-              <select
-                value={formData.kategoria}
-                onChange={(e) => handleChange('kategoria', e.target.value)}
-                style={{
-                  width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '1rem'
-                }}
-              >
-                {getCurrentKategorie().map(kat => (
-                  <option key={kat.value} value={kat.value}>
-                    {kat.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            {/* Numer dokumentu */}
-            <div>
-              <label style={{ 
-                display: 'block', 
-                marginBottom: '0.5rem', 
-                fontWeight: '500',
-                color: '#374151'
-              }}>
-                Nr dokumentu
+                Kontrahent
               </label>
               <input
                 type="text"
-                value={formData.numer_dokumentu}
-                onChange={(e) => handleChange('numer_dokumentu', e.target.value)}
-                placeholder="np. FV001/2025"
+                value={formData.kontrahent}
+                onChange={(e) => handleChange('kontrahent', e.target.value)}
+                placeholder={isKP ? 'np. Jan Kowalski' : 'np. Firma XYZ Sp. z o.o.'}
                 style={{
                   width: '100%',
-                  padding: '0.75rem',
-                  border: '1px solid #d1d5db',
-                  borderRadius: '0.375rem',
-                  fontSize: '1rem'
+                  padding: '0.4rem 0.5rem',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '12px'
                 }}
               />
             </div>
-          </div>
 
-          {/* Kontrahent */}
-          <div style={{ marginBottom: '1rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: '500',
-              color: '#374151'
-            }}>
-              Kontrahent
-            </label>
-            <input
-              type="text"
-              value={formData.kontrahent}
-              onChange={(e) => handleChange('kontrahent', e.target.value)}
-              placeholder={isKP ? 'np. Jan Kowalski' : 'np. Firma XYZ Sp. z o.o.'}
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '1rem'
-              }}
-            />
-          </div>
-
-          {/* Uwagi */}
-          <div style={{ marginBottom: '1.5rem' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '0.5rem', 
-              fontWeight: '500',
-              color: '#374151'
-            }}>
-              Uwagi
-            </label>
-            <textarea
-              value={formData.uwagi}
-              onChange={(e) => handleChange('uwagi', e.target.value)}
-              rows="3"
-              placeholder="Dodatkowe informacje..."
-              style={{
-                width: '100%',
-                padding: '0.75rem',
-                border: '1px solid #d1d5db',
-                borderRadius: '0.375rem',
-                fontSize: '1rem',
-                resize: 'vertical'
-              }}
-            />
+            {/* Uwagi */}
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '11px',
+                fontWeight: '500',
+                color: '#6c757d',
+                marginBottom: '3px'
+              }}>
+                Uwagi
+              </label>
+              <textarea
+                value={formData.uwagi}
+                onChange={(e) => handleChange('uwagi', e.target.value)}
+                rows="2"
+                placeholder="Dodatkowe informacje..."
+                style={{
+                  width: '100%',
+                  padding: '0.4rem 0.5rem',
+                  border: '1px solid #ced4da',
+                  borderRadius: '4px',
+                  fontSize: '12px',
+                  resize: 'vertical'
+                }}
+              />
+            </div>
           </div>
 
           {/* Błąd */}
           {error && (
             <div style={{
-              color: '#dc3545',
+              color: '#721c24',
               background: '#f8d7da',
               border: '1px solid #f5c6cb',
-              borderRadius: '0.375rem',
-              padding: '0.75rem',
-              marginBottom: '1rem',
-              fontSize: '0.875rem'
+              borderRadius: '4px',
+              padding: '0.5rem 0.75rem',
+              marginBottom: '0.75rem',
+              fontSize: '11px'
             }}>
               <i className="fas fa-exclamation-circle" style={{ marginRight: '0.5rem' }}></i>
               {error}
@@ -449,17 +500,18 @@ function AddOperationModal({ isOpen, onClose, onSuccess, operationType = 'KP', l
           )}
 
           {/* Przyciski */}
-          <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
             <button
               type="button"
               onClick={onClose}
               style={{
-                padding: '0.75rem 1.5rem',
-                background: '#f8f9fa',
-                color: '#6c757d',
-                border: '1px solid #dee2e6',
-                borderRadius: '0.375rem',
+                padding: '0.5rem 1rem',
+                background: '#6c757d',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
                 fontWeight: '500',
+                fontSize: '12px',
                 cursor: 'pointer'
               }}
             >
@@ -469,17 +521,18 @@ function AddOperationModal({ isOpen, onClose, onSuccess, operationType = 'KP', l
               type="submit"
               disabled={loading}
               style={{
-                padding: '0.75rem 1.5rem',
+                padding: '0.5rem 1rem',
                 background: loading ? '#a5b4fc' : (isKP ? '#28a745' : '#dc3545'),
                 color: 'white',
                 border: 'none',
-                borderRadius: '0.375rem',
+                borderRadius: '4px',
                 fontWeight: '600',
+                fontSize: '12px',
                 cursor: loading ? 'not-allowed' : 'pointer',
                 opacity: loading ? 0.7 : 1
               }}
             >
-              {loading ? 'Zapisywanie...' : (isKP ? 'Dodaj wpływ' : 'Dodaj wydatek')}
+              {loading ? 'Zapisywanie...' : (isKP ? '📥 Dodaj wpływ' : '📤 Dodaj wydatek')}
             </button>
           </div>
         </form>

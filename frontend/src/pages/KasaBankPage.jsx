@@ -41,6 +41,9 @@ const KasaBankPage = () => {
   const [showAddKWModal, setShowAddKWModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedOperation, setSelectedOperation] = useState(null);
+  const [showSafebagWithdrawModal, setShowSafebagWithdrawModal] = useState(false);
+  const [safebagWithdrawAmount, setSafebagWithdrawAmount] = useState('');
+  const [safebagWithdrawNote, setSafebagWithdrawNote] = useState('');
 
   useEffect(() => {
     console.log('🔧 useEffect triggered - selectedLocation:', selectedLocation);
@@ -110,6 +113,48 @@ const KasaBankPage = () => {
       setLoading(false);
     }
   }, [selectedLocation]);
+
+  // Funkcja wypłaty z Safebag
+  const handleSafebagWithdraw = async () => {
+    const amount = parseFloat(safebagWithdrawAmount);
+    if (isNaN(amount) || amount <= 0) {
+      alert('❌ Podaj poprawną kwotę wypłaty');
+      return;
+    }
+    
+    const safebagBalance = saldo?.safebag || 0;
+    if (amount > safebagBalance) {
+      alert(`❌ Niewystarczające środki w Safebag. Dostępne: ${safebagBalance.toFixed(2)} zł`);
+      return;
+    }
+    
+    try {
+      const currentLocationId = selectedLocation.id || selectedLocation.location_id;
+      const response = await fetch(`http://localhost:8000/api/kasa-bank/safebag/withdraw`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          location_id: currentLocationId,
+          amount: amount,
+          note: safebagWithdrawNote || 'Wypłata z Safebag'
+        })
+      });
+      
+      const data = await response.json();
+      if (data.success) {
+        alert(`✅ Wypłacono ${amount.toFixed(2)} zł z Safebag\nNumer dokumentu: ${data.data.document_number}`);
+        setShowSafebagWithdrawModal(false);
+        setSafebagWithdrawAmount('');
+        setSafebagWithdrawNote('');
+        loadData(); // Odśwież dane
+      } else {
+        alert(`❌ Błąd: ${data.message}`);
+      }
+    } catch (err) {
+      console.error('Błąd wypłaty z Safebag:', err);
+      alert('❌ Błąd połączenia z serwerem');
+    }
+  };
 
   // Funkcja do filtrowania operacji
   const filterOperations = () => {
@@ -708,6 +753,51 @@ const KasaBankPage = () => {
                   </p>
                 </div>
                 <i className="fas fa-university fa-2x" style={{ color: '#ffc107', opacity: 0.3 }}></i>
+              </div>
+            </div>
+
+            {/* Karta Safebag */}
+            <div style={{ 
+              flex: '1', 
+              minWidth: '200px',
+              padding: '1rem',
+              backgroundColor: 'white',
+              border: '1px solid #e9ecef',
+              borderLeft: '4px solid #6610f2',
+              borderRadius: '0.375rem',
+              boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)',
+              cursor: 'pointer',
+              transition: 'transform 0.15s, box-shadow 0.15s'
+            }}
+            onClick={() => setShowSafebagWithdrawModal(true)}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 0.25rem 0.5rem rgba(0, 0, 0, 0.15)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)';
+            }}
+            title="Kliknij aby wypłacić z Safebag">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ 
+                    margin: 0, 
+                    fontSize: '0.9rem', 
+                    fontWeight: '700',
+                    color: '#6610f2'
+                  }}>
+                    {saldo.safebag?.toFixed(2) || '0.00'} zł
+                  </h3>
+                  <p style={{ 
+                    margin: '0.25rem 0 0 0', 
+                    fontSize: '0.8rem', 
+                    color: '#6c757d'
+                  }}>
+                    🔒 Safebag
+                  </p>
+                </div>
+                <i className="fas fa-lock fa-2x" style={{ color: '#6610f2', opacity: 0.3 }}></i>
               </div>
             </div>
           </div>
@@ -1904,6 +1994,203 @@ const KasaBankPage = () => {
         }}
         operation={selectedOperation}
       />
+
+      {/* Modal wypłaty z Safebag - styl jak w modalu zamknięcia zmiany */}
+      {showSafebagWithdrawModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1050,
+          overflow: 'auto'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '0.375rem',
+            width: '400px',
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            overflow: 'auto',
+            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            fontSize: '12px'
+          }}>
+            {/* Header - styl jak w modalu zamknięcia zmiany */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderBottom: '1px solid #e9ecef',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              backgroundColor: '#6610f2',
+              color: 'white',
+              borderRadius: '0.375rem 0.375rem 0 0'
+            }}>
+              <span style={{ fontSize: '1.1rem' }}>🔒</span>
+              <div style={{ flex: 1 }}>
+                <h5 style={{ margin: 0, fontWeight: '600', fontSize: '13px' }}>
+                  Wypłata z Safebag
+                </h5>
+                <p style={{ margin: 0, fontSize: '10px', opacity: 0.9 }}>
+                  Przekaż środki z sejfu do kasy
+                </p>
+              </div>
+              <button
+                onClick={() => setShowSafebagWithdrawModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '0.25rem',
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Treść */}
+            <div style={{ padding: '1rem' }}>
+              
+              {/* Stan Safebag */}
+              <div style={{ 
+                marginBottom: '0.75rem', 
+                padding: '0.75rem', 
+                background: '#f8f9fa', 
+                borderRadius: '5px',
+                border: '1px solid #dee2e6'
+              }}>
+                <h6 style={{ margin: '0 0 0.5rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+                  💰 Stan Safebag
+                </h6>
+                <div style={{ 
+                  padding: '0.5rem', 
+                  background: '#e7d8f8', 
+                  borderRadius: '4px',
+                  textAlign: 'center'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '2px' }}>Dostępne środki</div>
+                  <div style={{ fontSize: '18px', fontWeight: '700', color: '#6610f2' }}>
+                    {saldo?.safebag?.toFixed(2) || '0.00'} zł
+                  </div>
+                </div>
+              </div>
+              
+              {/* Formularz wypłaty */}
+              <div style={{ 
+                marginBottom: '0.75rem', 
+                padding: '0.75rem', 
+                background: '#f8f9fa', 
+                borderRadius: '5px',
+                border: '1px solid #dee2e6'
+              }}>
+                <h6 style={{ margin: '0 0 0.75rem 0', fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+                  📤 Dane wypłaty
+                </h6>
+
+                {/* Kwota */}
+                <div style={{ marginBottom: '0.75rem' }}>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: '500',
+                    color: '#6c757d',
+                    marginBottom: '3px'
+                  }}>
+                    Kwota wypłaty (zł) *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    max={saldo?.safebag || 0}
+                    value={safebagWithdrawAmount}
+                    onChange={(e) => setSafebagWithdrawAmount(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.5rem',
+                      border: '1px solid #ced4da',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '600'
+                    }}
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                {/* Opis */}
+                <div>
+                  <label style={{
+                    display: 'block',
+                    fontSize: '11px',
+                    fontWeight: '500',
+                    color: '#6c757d',
+                    marginBottom: '3px'
+                  }}>
+                    Opis (opcjonalnie)
+                  </label>
+                  <input
+                    type="text"
+                    value={safebagWithdrawNote}
+                    onChange={(e) => setSafebagWithdrawNote(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '0.4rem 0.5rem',
+                      border: '1px solid #ced4da',
+                      borderRadius: '4px',
+                      fontSize: '12px'
+                    }}
+                    placeholder="Np. Przekazanie do banku"
+                  />
+                </div>
+              </div>
+
+              {/* Przyciski */}
+              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => setShowSafebagWithdrawModal(false)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontWeight: '500',
+                    fontSize: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Anuluj
+                </button>
+                <button
+                  onClick={handleSafebagWithdraw}
+                  disabled={!safebagWithdrawAmount || parseFloat(safebagWithdrawAmount) <= 0}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    background: (!safebagWithdrawAmount || parseFloat(safebagWithdrawAmount) <= 0) ? '#a5b4fc' : '#6610f2',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    fontWeight: '600',
+                    fontSize: '12px',
+                    cursor: (!safebagWithdrawAmount || parseFloat(safebagWithdrawAmount) <= 0) ? 'not-allowed' : 'pointer',
+                    opacity: (!safebagWithdrawAmount || parseFloat(safebagWithdrawAmount) <= 0) ? 0.6 : 1
+                  }}
+                >
+                  📤 Wypłać (KW)
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
