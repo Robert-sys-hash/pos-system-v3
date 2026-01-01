@@ -54,10 +54,43 @@ class KasaBankManager:
                 result[row['typ_platnosci']] = float(row['saldo'] or 0)
             
             # Dodaj domyślne konta jeśli nie istnieją
-            default_accounts = ['gotowka', 'karta', 'blik', 'przelew']
+            default_accounts = ['gotowka', 'karta', 'blik', 'przelew', 'safebag']
             for account in default_accounts:
                 if account not in result:
                     result[account] = 0.0
+            
+            # Pobierz saldo safebag z tabeli safebag_deposits (wpłaty) i kasa_operacje (wypłaty)
+            safebag_query = """
+                SELECT COALESCE(SUM(kwota), 0) as total_deposits
+                FROM safebag_deposits
+                WHERE 1=1
+            """
+            safebag_params = []
+            if location_id:
+                safebag_query += " AND location_id = ?"
+                safebag_params.append(location_id)
+                
+            cursor.execute(safebag_query, safebag_params)
+            safebag_deposits = cursor.fetchone()
+            safebag_deposit_total = float(safebag_deposits['total_deposits'] or 0) if safebag_deposits else 0
+            
+            # Pobierz wypłaty z safebag (KW z typ_platnosci = 'safebag')
+            safebag_withdrawals_query = """
+                SELECT COALESCE(SUM(kwota), 0) as total_withdrawals
+                FROM kasa_operacje
+                WHERE typ_platnosci = 'safebag' AND typ_operacji = 'KW'
+            """
+            safebag_withdrawals_params = []
+            if location_id:
+                safebag_withdrawals_query += " AND location_id = ?"
+                safebag_withdrawals_params.append(location_id)
+                
+            cursor.execute(safebag_withdrawals_query, safebag_withdrawals_params)
+            safebag_withdrawals = cursor.fetchone()
+            safebag_withdrawals_total = float(safebag_withdrawals['total_withdrawals'] or 0) if safebag_withdrawals else 0
+            
+            # Saldo safebag = wpłaty - wypłaty
+            result['safebag'] = safebag_deposit_total - safebag_withdrawals_total
                     
             return result
             
@@ -771,6 +804,149 @@ def get_kw_documents():
         return jsonify({
             'success': False,
             'error': f'Błąd pobierania dokumentów KW: {str(e)}'
+        }), 500
+
+@kasa_bank_bp.route('/kasa-bank/safebag')
+def get_safebag_details():
+    """Pobierz szczegóły portfela Safebag"""
+    try:
+        location_id = request.args.get('location_id', type=int)
+        
+        # Pobierz wpłaty do safebag
+        deposits_query = """
+            SELECT 
+                id, kwota, data_wplaty, czas_wplaty, kasjer_login,
+                numer_safebaga, uwagi, shift_id, created_at
+            FROM safebag_deposits
+            WHERE 1=1
+        """
+        params = []
+        if location_id:
+            deposits_query += " AND location_id = ?"
+            params.append(location_id)
+        deposits_query += " ORDER BY created_at DESC"
+        
+        deposits = execute_query(deposits_query, params)
+        
+        # Pobierz wypłaty z safebag (KW)
+        withdrawals_query = """
+            SELECT 
+                id, kwota, data_operacji, opis, numer_dokumentu,
+                utworzyl, uwagi, data_utworzenia
+            FROM kasa_operacje
+            WHERE typ_platnosci = 'safebag' AND typ_operacji = 'KW'
+        """
+        withdrawals_params = []
+        if location_id:
+            withdrawals_query += " AND location_id = ?"
+            withdrawals_params.append(location_id)
+        withdrawals_query += " ORDER BY data_operacji DESC"
+        
+        withdrawals = execute_query(withdrawals_query, withdrawals_params)
+        
+        # Oblicz saldo
+        total_deposits = sum(d.get('kwota', 0) for d in (deposits or []))
+        total_withdrawals = sum(w.get('kwota', 0) for w in (withdrawals or []))
+        balance = total_deposits - total_withdrawals
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'balance': round(balance, 2),
+                'total_deposits': round(total_deposits, 2),
+                'total_withdrawals': round(total_withdrawals, 2),
+                'deposits': deposits or [],
+                'withdrawals': withdrawals or [],
+                'deposits_count': len(deposits or []),
+                'withdrawals_count': len(withdrawals or [])
+            }
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Błąd pobierania danych safebag: {str(e)}'
+        }), 500
+
+@kasa_bank_bp.route('/kasa-bank/safebag/withdraw', methods=['POST'])
+def withdraw_from_safebag():
+    """Wypłata gotówki z Safebag (dokument KW)"""
+    try:
+        data = request.get_json()
+        
+        kwota = data.get('kwota')
+        location_id = data.get('location_id')
+        opis = data.get('opis', 'Wypłata z Safebag')
+        utworzyl = data.get('utworzyl', 'admin')
+        uwagi = data.get('uwagi', '')
+        
+        if not kwota or kwota <= 0:
+            return jsonify({
+                'success': False,
+                'error': 'Kwota musi być większa od 0'
+            }), 400
+        
+        # Sprawdź dostępne saldo safebag
+        balance_query = """
+            SELECT 
+                COALESCE((SELECT SUM(kwota) FROM safebag_deposits WHERE location_id = ?), 0) -
+                COALESCE((SELECT SUM(kwota) FROM kasa_operacje 
+                          WHERE typ_platnosci = 'safebag' AND typ_operacji = 'KW' AND location_id = ?), 0)
+                as balance
+        """
+        result = execute_query(balance_query, (location_id, location_id))
+        current_balance = result[0]['balance'] if result else 0
+        
+        if kwota > current_balance:
+            return jsonify({
+                'success': False,
+                'error': f'Niewystarczające środki w Safebag. Dostępne: {current_balance:.2f} zł'
+            }), 400
+        
+        # Wygeneruj numer dokumentu KW
+        today = date.today()
+        doc_query = """
+            SELECT COUNT(*) + 1 as next_num
+            FROM kasa_operacje
+            WHERE typ_operacji = 'KW'
+            AND date(data_operacji) = date('now')
+        """
+        doc_result = execute_query(doc_query, ())
+        next_num = doc_result[0]['next_num'] if doc_result else 1
+        numer_dokumentu = f"KW-SB-{today.strftime('%Y%m%d')}-{next_num:04d}"
+        
+        # Utwórz operację KW (wypłata z safebag)
+        insert_query = """
+            INSERT INTO kasa_operacje 
+            (typ_operacji, typ_platnosci, kwota, opis, kategoria, 
+             numer_dokumentu, data_operacji, utworzyl, uwagi, location_id)
+            VALUES ('KW', 'safebag', ?, ?, 'wypłata', ?, date('now'), ?, ?, ?)
+        """
+        
+        operacja_id = execute_insert(insert_query, (
+            kwota, opis, numer_dokumentu, utworzyl, uwagi, location_id
+        ))
+        
+        if operacja_id:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'operacja_id': operacja_id,
+                    'numer_dokumentu': numer_dokumentu,
+                    'kwota': kwota,
+                    'new_balance': round(current_balance - kwota, 2)
+                },
+                'message': f'Wypłacono {kwota:.2f} zł z Safebag'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Błąd zapisywania operacji'
+            }), 500
+            
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Błąd wypłaty z safebag: {str(e)}'
         }), 500
 
 @kasa_bank_bp.route('/kasa-bank/health')

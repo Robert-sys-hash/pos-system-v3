@@ -488,12 +488,18 @@ def get_cash_status():
         # 5. Oczekiwana gotówka w kasie (system_cash - safebag)
         expected_drawer_cash = system_cash - safebag_total
         
-        # 6. Płatności kartą z danego dnia (terminal)
+        # 6. Płatności kartą z danego dnia (terminal) - używamy kwota_karta i metoda_karta
+        # Obsługuje zarówno pojedyncze płatności kartą jak i płatności dzielone
         today_card_sql = """
-        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        SELECT COALESCE(SUM(
+            CASE 
+                WHEN forma_platnosci = 'karta' THEN suma_brutto
+                WHEN kwota_karta > 0 AND (metoda_karta = 'karta' OR metoda_karta IS NULL) THEN kwota_karta
+                ELSE 0
+            END
+        ), 0) as total
         FROM pos_transakcje 
         WHERE location_id = ? 
-        AND forma_platnosci = 'karta'
         AND status = 'zakonczony'
         AND date(data_transakcji) = ?
         """
@@ -502,10 +508,15 @@ def get_cash_status():
         
         # 7. Płatności BLIK z danego dnia (terminal)
         today_blik_sql = """
-        SELECT COALESCE(SUM(suma_brutto), 0) as total
+        SELECT COALESCE(SUM(
+            CASE 
+                WHEN forma_platnosci = 'blik' THEN suma_brutto
+                WHEN kwota_karta > 0 AND metoda_karta = 'blik' THEN kwota_karta
+                ELSE 0
+            END
+        ), 0) as total
         FROM pos_transakcje 
         WHERE location_id = ? 
-        AND forma_platnosci = 'blik'
         AND status = 'zakonczony'
         AND date(data_transakcji) = ?
         """

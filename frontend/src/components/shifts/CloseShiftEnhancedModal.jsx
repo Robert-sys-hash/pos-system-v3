@@ -105,38 +105,44 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
       return;
     }
 
-    // Walidacja zgodności gotówki
+    // Walidacja zgodności gotówki - musi być dokładna co do grosza
     const cashValidation = validateCash();
-    if (!cashValidation.isValid && Math.abs(cashValidation.difference) > 10) {
+    if (!cashValidation.isValid) {
       const confirm = window.confirm(
-        `Uwaga! Wykryto różnicę w gotówce: ${cashValidation.difference.toFixed(2)} zł\n\n` +
+        `⚠️ BŁĄD WALIDACJI GOTÓWKI!\n\n` +
+        `Różnica: ${cashValidation.difference.toFixed(2)} zł\n\n` +
         `Oczekiwana gotówka w kasie: ${(cashStatus?.expected_drawer_cash || 0).toFixed(2)} zł\n` +
         `Fizyczna gotówka + Safebag: ${(formData.ending_cash_physical + formData.safebag_amount).toFixed(2)} zł\n\n` +
-        `Czy na pewno chcesz kontynuować?`
+        `Kwoty muszą się zgadzać co do grosza!\n` +
+        `Czy mimo to chcesz kontynuować?`
       );
       if (!confirm) return;
     }
 
-    // Walidacja zgodności terminala
+    // Walidacja zgodności terminala - musi być dokładna co do grosza
     const terminalVal = validateTerminal();
-    if (!terminalVal.isValid && Math.abs(terminalVal.difference) > 10) {
+    if (!terminalVal.isValid) {
       const confirm = window.confirm(
-        `Uwaga! Wykryto różnicę w terminalu: ${terminalVal.difference.toFixed(2)} zł\n\n` +
+        `⚠️ BŁĄD WALIDACJI TERMINALA!\n\n` +
+        `Różnica: ${terminalVal.difference.toFixed(2)} zł\n\n` +
         `Suma w systemie (karta + BLIK): ${(cashStatus?.terminal?.total || 0).toFixed(2)} zł\n` +
         `Kwota z wydruku terminala: ${formData.card_terminal_actual.toFixed(2)} zł\n\n` +
-        `Czy na pewno chcesz kontynuować?`
+        `Kwoty muszą się zgadzać co do grosza!\n` +
+        `Czy mimo to chcesz kontynuować?`
       );
       if (!confirm) return;
     }
 
-    // Walidacja zgodności raportu fiskalnego
+    // Walidacja zgodności raportu fiskalnego - musi być dokładna co do grosza
     const fiscalVal = validateFiscal();
-    if (!fiscalVal.isValid && Math.abs(fiscalVal.difference) > 10) {
+    if (!fiscalVal.isValid) {
       const confirm = window.confirm(
-        `Uwaga! Wykryto różnicę w raporcie fiskalnym: ${fiscalVal.difference.toFixed(2)} zł\n\n` +
+        `⚠️ BŁĄD WALIDACJI RAPORTU FISKALNEGO!\n\n` +
+        `Różnica: ${fiscalVal.difference.toFixed(2)} zł\n\n` +
         `Oczekiwana wartość (sprzedaż - zwroty): ${(cashStatus?.fiscal?.expected_total || 0).toFixed(2)} zł\n` +
         `Kwota z wydruku raportu: ${formData.fiscal_printer_report.toFixed(2)} zł\n\n` +
-        `Czy na pewno chcesz kontynuować?`
+        `Kwoty muszą się zgadzać co do grosza!\n` +
+        `Czy mimo to chcesz kontynuować?`
       );
       if (!confirm) return;
     }
@@ -201,10 +207,10 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
     
     const expectedCash = cashStatus.expected_drawer_cash || 0;
     const actualTotal = (parseFloat(formData.ending_cash_physical) || 0) + (parseFloat(formData.safebag_amount) || 0);
-    const difference = actualTotal - expectedCash;
+    const difference = Math.round((actualTotal - expectedCash) * 100) / 100; // Zaokrąglij do groszy
     
     return {
-      isValid: Math.abs(difference) <= 1, // Tolerancja 1 zł
+      isValid: Math.abs(difference) < 0.01, // Ścisła walidacja - musi się zgadzać co do grosza
       difference: difference,
       expectedCash,
       actualTotal
@@ -216,10 +222,10 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
     
     const systemTotal = cashStatus.terminal.total || 0;
     const actualTotal = parseFloat(formData.card_terminal_actual) || 0;
-    const difference = actualTotal - systemTotal;
+    const difference = Math.round((actualTotal - systemTotal) * 100) / 100; // Zaokrąglij do groszy
     
     return {
-      isValid: Math.abs(difference) <= 1, // Tolerancja 1 zł
+      isValid: Math.abs(difference) < 0.01, // Ścisła walidacja - musi się zgadzać co do grosza
       difference,
       systemTotal,
       actualTotal
@@ -231,10 +237,10 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
     
     const expectedTotal = cashStatus.fiscal.expected_total || 0;
     const actualTotal = parseFloat(formData.fiscal_printer_report) || 0;
-    const difference = actualTotal - expectedTotal;
+    const difference = Math.round((actualTotal - expectedTotal) * 100) / 100; // Zaokrąglij do groszy
     
     return {
-      isValid: Math.abs(difference) <= 1, // Tolerancja 1 zł
+      isValid: Math.abs(difference) < 0.01, // Ścisła walidacja - musi się zgadzać co do grosza
       difference,
       expectedTotal,
       actualTotal

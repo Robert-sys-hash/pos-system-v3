@@ -59,7 +59,7 @@ const PosPage = () => {
   const [appliedDiscounts, setAppliedDiscounts] = useState([]);
   const [showDiscountModal, setShowDiscountModal] = useState(false);
   const [discountLoading, setDiscountLoading] = useState(false);
-  const [currentUser] = useState("kasjer1"); // W rzeczywistej aplikacji z kontekstu
+  const [currentUser] = useState("admin"); // W rzeczywistej aplikacji z kontekstu
   const [cartDiscountTotal, setCartDiscountTotal] = useState(0);
 
   // Stany dla płatności gotówkowej
@@ -644,6 +644,12 @@ const PosPage = () => {
   };
 
   const addToCart = (product) => {
+    // Blokada - nie można dodawać produktów bez otwartej zmiany
+    if (!currentShift) {
+      alert('⚠️ Nie można dodać produktu - najpierw otwórz zmianę!');
+      return;
+    }
+    
     const existingItem = cart.find((item) => item.id === product.id);
 
     if (existingItem) {
@@ -1229,18 +1235,6 @@ const PosPage = () => {
           <button className="btn btn-outline-light" onClick={saveDraft}>
             Zapisz szkic
           </button>
-          <button
-            className="btn btn-outline-light"
-            onClick={() => window.open("/warehouse", "_blank")}
-          >
-            Magazyn
-          </button>
-          <button
-            className="btn btn-outline-light"
-            onClick={() => window.open("/customers", "_blank")}
-          >
-            Kartoteka
-          </button>
           {currentShift ? (
             <button
               className="btn btn-warning"
@@ -1458,375 +1452,6 @@ const PosPage = () => {
       {activeTab === "pos" && (
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
           {/* Jedna główna kolumna */}
-          {/* Sekcja klienta z wbudowaną wyszukiwarką - nad koszykiem */}
-          <div
-            style={{
-              backgroundColor: "white",
-              border: "1px solid #e9ecef",
-              borderRadius: "0.5rem",
-              padding: "1.25rem 1.5rem",
-              marginBottom: "1rem",
-              boxShadow: "0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)",
-              background: "linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%)",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "0.75rem",
-                marginBottom: selectedCustomer ? "1rem" : "0",
-              }}
-            >
-              <div
-                style={{
-                  width: "2.5rem",
-                  height: "2.5rem",
-                  backgroundColor: "#e7f1ff",
-                  borderRadius: "0.5rem",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "2px solid #0d6efd",
-                }}
-              >
-                <i
-                  className="fas fa-user"
-                  style={{
-                    color: "#0d6efd",
-                    fontSize: "1rem",
-                  }}
-                ></i>
-              </div>
-              <div style={{ flex: 1 }}>
-                <h3
-                  style={{
-                    margin: 0,
-                    fontSize: "1.1rem",
-                    fontWeight: "600",
-                    color: "#212529",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  Klient
-                </h3>
-              </div>
-
-              {/* Mały przycisk "Utwórz klienta" po prawej stronie w nagłówku */}
-              {!selectedCustomer && (
-                <button
-                  type="button"
-                  onClick={() => setShowAddCustomerModal(true)}
-                  style={{
-                    padding: "6px 12px",
-                    background: "#f8f9fa",
-                    color: "#059669",
-                    border: "1px solid #d0d7de",
-                    borderRadius: "6px",
-                    fontSize: "12px",
-                    fontWeight: "500",
-                    cursor: "pointer",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "4px",
-                    transition: "all 0.2s",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.05)",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.target.style.background = "#059669";
-                    e.target.style.color = "white";
-                    e.target.style.borderColor = "#059669";
-                  }}
-                  onMouseLeave={(e) => {
-                    e.target.style.background = "#f8f9fa";
-                    e.target.style.color = "#059669";
-                    e.target.style.borderColor = "#d0d7de";
-                  }}
-                  title="Dodaj nowego klienta"
-                >
-                  <svg
-                    width="12"
-                    height="12"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                    <circle cx="12" cy="7" r="4" />
-                  </svg>
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <line x1="12" y1="5" x2="12" y2="19" />
-                    <line x1="5" y1="12" x2="19" y2="12" />
-                  </svg>
-                  + Nowy klient
-                </button>
-              )}
-            </div>
-
-            <div style={{ position: "relative" }}>
-              <input
-                type="text"
-                placeholder="Wyszukaj klienta (nazwa, telefon, email)..."
-                value={customerSearchQuery}
-                onChange={(e) => setCustomerSearchQuery(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "0.6rem 0.75rem",
-                  border: "1px solid #ddd",
-                  borderRadius: "0.375rem",
-                  fontSize: "0.875rem",
-                  outline: "none",
-                  transition: "border-color 0.15s ease-in-out",
-                  backgroundColor: selectedCustomer ? "#f8f9fa" : "white",
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = "#0d6efd";
-                  if (customerSearchQuery.length >= 2)
-                    setShowCustomerSuggestions(true);
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = "#ddd";
-                  // Delay hiding suggestions to allow clicking
-                  setTimeout(() => setShowCustomerSuggestions(false), 150);
-                }}
-              />
-
-              {/* Przycisk "Wybierz z listy" */}
-              {!selectedCustomer && customerSearchQuery.length < 2 && (
-                <button
-                  type="button"
-                  onClick={loadAllCustomers}
-                  style={{
-                    position: "absolute",
-                    right: "8px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "#e7f1ff",
-                    border: "1px solid #0d6efd",
-                    borderRadius: "4px",
-                    color: "#0d6efd",
-                    cursor: "pointer",
-                    fontSize: "12px",
-                    padding: "4px 8px",
-                    fontWeight: "500",
-                  }}
-                  title="Pokaż wszystkich klientów"
-                >
-                  📋 Lista
-                </button>
-              )}
-
-              {selectedCustomer && (
-                <button
-                  onClick={() => {
-                    setSelectedCustomer(null);
-                    setCustomerSearchQuery("");
-                    setShowCustomerSuggestions(false);
-                  }}
-                  style={{
-                    position: "absolute",
-                    right: "8px",
-                    top: "50%",
-                    transform: "translateY(-50%)",
-                    background: "none",
-                    border: "none",
-                    color: "#6c757d",
-                    cursor: "pointer",
-                    fontSize: "16px",
-                    padding: "4px",
-                  }}
-                  title="Usuń klienta"
-                >
-                  ✕
-                </button>
-              )}
-
-              {/* Podpowiedzi wyszukiwania */}
-              {showCustomerSuggestions &&
-                customerSuggestions.length > 0 &&
-                !selectedCustomer && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: "0",
-                      right: "0",
-                      background: "white",
-                      border: "1px solid #ddd",
-                      borderTop: "none",
-                      borderRadius: "0 0 0.375rem 0.375rem",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                      zIndex: 1000,
-                      maxHeight: "200px",
-                      overflowY: "auto",
-                    }}
-                  >
-                    {customerSuggestions.map((customer) => (
-                      <div
-                        key={customer.id}
-                        onClick={() => selectCustomer(customer)}
-                        style={{
-                          padding: "0.75rem",
-                          borderBottom: "1px solid #f1f1f1",
-                          cursor: "pointer",
-                          transition: "background-color 0.15s",
-                        }}
-                        onMouseEnter={(e) =>
-                          (e.target.style.backgroundColor = "#f8f9fa")
-                        }
-                        onMouseLeave={(e) =>
-                          (e.target.style.backgroundColor = "white")
-                        }
-                      >
-                        <div style={{ fontWeight: "500", marginBottom: "2px" }}>
-                          {(customer.name && customer.name.trim()) ||
-                            `${(customer.imie || "").trim()} ${(customer.nazwisko || "").trim()}`.trim() ||
-                            customer.email ||
-                            customer.phone ||
-                            `Klient #${customer.id}`}
-                        </div>
-                        <div style={{ fontSize: "0.75rem", color: "#6c757d" }}>
-                          {customer.phone && `📞 ${customer.phone}`}
-                          {customer.phone && customer.email && " • "}
-                          {customer.email && `📧 ${customer.email}`}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-              {/* Brak wyników */}
-              {showCustomerSuggestions &&
-                customerSuggestions.length === 0 &&
-                customerSearchQuery.length >= 2 &&
-                !customerSearchLoading &&
-                !selectedCustomer && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      top: "100%",
-                      left: "0",
-                      right: "0",
-                      background: "white",
-                      border: "1px solid #ddd",
-                      borderTop: "none",
-                      borderRadius: "0 0 0.375rem 0.375rem",
-                      boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                      zIndex: 1000,
-                      padding: "0.75rem",
-                      textAlign: "center",
-                      color: "#6c757d",
-                      fontSize: "0.875rem",
-                    }}
-                  >
-                    🔍 Nie znaleziono klientów dla "{customerSearchQuery}"
-                    <button
-                      onClick={() => {
-                        setShowAddCustomerModal(true);
-                        setShowCustomerSuggestions(false);
-                      }}
-                      style={{
-                        display: "block",
-                        width: "100%",
-                        marginTop: "8px",
-                        padding: "8px 12px",
-                        background: "#059669",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "4px",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        cursor: "pointer",
-                      }}
-                    >
-                      ➕ Utwórz "{customerSearchQuery}"
-                    </button>
-                  </div>
-                )}
-
-              {/* Loading */}
-              {customerSearchLoading && !selectedCustomer && (
-                <div
-                  style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: "0",
-                    right: "0",
-                    background: "white",
-                    border: "1px solid #ddd",
-                    borderTop: "none",
-                    borderRadius: "0 0 0.375rem 0.375rem",
-                    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-                    zIndex: 1000,
-                    padding: "0.75rem",
-                    textAlign: "center",
-                    color: "#6c757d",
-                    fontSize: "0.875rem",
-                  }}
-                >
-                  🔍 Wyszukiwanie...
-                </div>
-              )}
-            </div>
-
-            {/* Wybrany klient - szczegóły */}
-            {selectedCustomer && (
-              <div
-                style={{
-                  padding: "0.75rem",
-                  backgroundColor: "#e8f5e8",
-                  borderRadius: "0.375rem",
-                  border: "1px solid #c3e6cb",
-                }}
-              >
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "0.5rem",
-                    marginBottom: "0.5rem",
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: "0.95rem",
-                      fontWeight: "600",
-                      color: "#155724",
-                    }}
-                  >
-                    ✅{" "}
-                    {(selectedCustomer.name && selectedCustomer.name.trim()) ||
-                      `${(selectedCustomer.imie || "").trim()} ${(selectedCustomer.nazwisko || "").trim()}`.trim() ||
-                      selectedCustomer.email ||
-                      selectedCustomer.phone ||
-                      `Klient #${selectedCustomer.id}`}
-                  </span>
-                </div>
-                <div style={{ fontSize: "0.8rem", color: "#155724" }}>
-                  {selectedCustomer.phone && `📞 ${selectedCustomer.phone}`}
-                  {selectedCustomer.phone && selectedCustomer.email && " • "}
-                  {selectedCustomer.email && `📧 ${selectedCustomer.email}`}
-                  {selectedCustomer.address && (
-                    <div style={{ marginTop: "0.25rem" }}>
-                      📍 {selectedCustomer.address}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
           {/* Koszyk z wbudowaną wyszukiwarką */}
           <div
             style={{
@@ -2018,31 +1643,251 @@ const PosPage = () => {
 
               <div style={{ display: "flex", gap: "0.5rem" }}>
                 {cart.length > 0 && (
-                  <button
-                    onClick={clearCart}
+                  <>
+                    <button
+                      onClick={saveDraft}
+                      style={{
+                        padding: "0.5rem 0.875rem",
+                        fontSize: "0.8rem",
+                        border: "1px solid #6c757d",
+                        borderRadius: "0.375rem",
+                        backgroundColor: "white",
+                        color: "#6c757d",
+                        cursor: "pointer",
+                        fontWeight: "500",
+                        transition: "all 0.15s ease-in-out",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "#6c757d";
+                        e.target.style.color = "white";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "white";
+                        e.target.style.color = "#6c757d";
+                      }}
+                      title="Zapisz jako szkic"
+                    >
+                      <i className="fas fa-save me-1"></i>
+                      Szkic
+                    </button>
+                    <button
+                      onClick={clearCart}
+                      style={{
+                        padding: "0.5rem 0.875rem",
+                        fontSize: "0.8rem",
+                        border: "1px solid #dc3545",
+                        borderRadius: "0.375rem",
+                        backgroundColor: "white",
+                        color: "#dc3545",
+                        cursor: "pointer",
+                        fontWeight: "500",
+                        transition: "all 0.15s ease-in-out",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.target.style.backgroundColor = "#dc3545";
+                        e.target.style.color = "white";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.target.style.backgroundColor = "white";
+                        e.target.style.color = "#dc3545";
+                      }}
+                    >
+                      <i className="fas fa-trash me-1"></i>
+                      Wyczyść
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Kompaktowa sekcja klienta */}
+            <div
+              style={{
+                padding: "0.5rem 1rem",
+                borderBottom: "1px solid #e9ecef",
+                backgroundColor: "#fafbfc",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.75rem",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", minWidth: "fit-content" }}>
+                <i className="fas fa-user" style={{ color: "#6c757d", fontSize: "0.8rem" }}></i>
+                <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#495057" }}>Klient:</span>
+              </div>
+
+              <div style={{ flex: 1, position: "relative", maxWidth: "300px" }}>
+                {selectedCustomer ? (
+                  <div
                     style={{
-                      padding: "0.5rem 0.875rem",
-                      fontSize: "0.8rem",
-                      border: "1px solid #dc3545",
-                      borderRadius: "0.375rem",
-                      backgroundColor: "white",
-                      color: "#dc3545",
-                      cursor: "pointer",
-                      fontWeight: "500",
-                      transition: "all 0.15s ease-in-out",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor = "#dc3545";
-                      e.target.style.color = "white";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor = "white";
-                      e.target.style.color = "#dc3545";
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      padding: "0.25rem 0.5rem",
+                      backgroundColor: "#d4edda",
+                      borderRadius: "0.25rem",
+                      border: "1px solid #c3e6cb",
                     }}
                   >
-                    <i className="fas fa-trash me-1"></i>
-                    Wyczyść
-                  </button>
+                    <span style={{ fontSize: "0.75rem", fontWeight: "500", color: "#155724" }}>
+                      {(selectedCustomer.name && selectedCustomer.name.trim()) ||
+                        `${(selectedCustomer.imie || "").trim()} ${(selectedCustomer.nazwisko || "").trim()}`.trim() ||
+                        selectedCustomer.email ||
+                        selectedCustomer.phone ||
+                        `#${selectedCustomer.id}`}
+                    </span>
+                    {selectedCustomer.phone && (
+                      <span style={{ fontSize: "0.7rem", color: "#155724" }}>📞 {selectedCustomer.phone}</span>
+                    )}
+                    <button
+                      onClick={() => {
+                        setSelectedCustomer(null);
+                        setCustomerSearchQuery("");
+                      }}
+                      style={{
+                        marginLeft: "auto",
+                        background: "none",
+                        border: "none",
+                        color: "#155724",
+                        cursor: "pointer",
+                        fontSize: "0.8rem",
+                        padding: "0 0.25rem",
+                      }}
+                      title="Usuń klienta"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <input
+                      type="text"
+                      placeholder="Wyszukaj lub wybierz..."
+                      value={customerSearchQuery}
+                      onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                      style={{
+                        width: "100%",
+                        padding: "0.3rem 0.5rem",
+                        border: "1px solid #ced4da",
+                        borderRadius: "0.25rem",
+                        fontSize: "0.75rem",
+                        outline: "none",
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = "#0d6efd";
+                        if (customerSearchQuery.length >= 2) setShowCustomerSuggestions(true);
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = "#ced4da";
+                        setTimeout(() => setShowCustomerSuggestions(false), 150);
+                      }}
+                    />
+                    {/* Podpowiedzi */}
+                    {showCustomerSuggestions && customerSuggestions.length > 0 && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          background: "white",
+                          border: "1px solid #ced4da",
+                          borderTop: "none",
+                          borderRadius: "0 0 0.25rem 0.25rem",
+                          boxShadow: "0 2px 6px rgba(0,0,0,0.1)",
+                          zIndex: 1000,
+                          maxHeight: "150px",
+                          overflowY: "auto",
+                        }}
+                      >
+                        {customerSuggestions.map((customer) => (
+                          <div
+                            key={customer.id}
+                            onClick={() => selectCustomer(customer)}
+                            style={{
+                              padding: "0.4rem 0.5rem",
+                              fontSize: "0.75rem",
+                              cursor: "pointer",
+                              borderBottom: "1px solid #f1f1f1",
+                            }}
+                            onMouseEnter={(e) => (e.target.style.backgroundColor = "#f8f9fa")}
+                            onMouseLeave={(e) => (e.target.style.backgroundColor = "white")}
+                          >
+                            <div style={{ fontWeight: "500" }}>
+                              {(customer.name && customer.name.trim()) ||
+                                `${(customer.imie || "").trim()} ${(customer.nazwisko || "").trim()}`.trim() ||
+                                customer.email ||
+                                `#${customer.id}`}
+                            </div>
+                            {customer.phone && (
+                              <span style={{ fontSize: "0.65rem", color: "#6c757d" }}>📞 {customer.phone}</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {showCustomerSuggestions && customerSuggestions.length === 0 && customerSearchQuery.length >= 2 && !customerSearchLoading && (
+                      <div
+                        style={{
+                          position: "absolute",
+                          top: "100%",
+                          left: 0,
+                          right: 0,
+                          background: "white",
+                          border: "1px solid #ced4da",
+                          borderTop: "none",
+                          borderRadius: "0 0 0.25rem 0.25rem",
+                          padding: "0.4rem",
+                          fontSize: "0.7rem",
+                          color: "#6c757d",
+                          textAlign: "center",
+                          zIndex: 1000,
+                        }}
+                      >
+                        Brak wyników
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Przyciski */}
+              <div style={{ display: "flex", gap: "0.25rem" }}>
+                {!selectedCustomer && (
+                  <>
+                    <button
+                      onClick={loadAllCustomers}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.7rem",
+                        border: "1px solid #0d6efd",
+                        borderRadius: "0.25rem",
+                        backgroundColor: "#e7f1ff",
+                        color: "#0d6efd",
+                        cursor: "pointer",
+                        fontWeight: "500",
+                      }}
+                      title="Pokaż listę klientów"
+                    >
+                      📋
+                    </button>
+                    <button
+                      onClick={() => setShowAddCustomerModal(true)}
+                      style={{
+                        padding: "0.25rem 0.5rem",
+                        fontSize: "0.7rem",
+                        border: "1px solid #198754",
+                        borderRadius: "0.25rem",
+                        backgroundColor: "#d1e7dd",
+                        color: "#198754",
+                        cursor: "pointer",
+                        fontWeight: "500",
+                      }}
+                      title="Dodaj nowego klienta"
+                    >
+                      ➕
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -4235,6 +4080,19 @@ const PosPage = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal dodawania klienta */}
+      {showAddCustomerModal && (
+        <AddCustomerModal
+          isOpen={showAddCustomerModal}
+          onClose={() => setShowAddCustomerModal(false)}
+          onSuccess={handleNewCustomerAdded}
+          initialData={{ 
+            imie: customerSearchQuery || '',
+            telefon: ''
+          }}
+        />
       )}
     </div>
   );

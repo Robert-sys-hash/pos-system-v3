@@ -1355,25 +1355,49 @@ def complete_cart_transaction(transakcja_id):
         kwota_reszty = 0
         kwota_gotowka = 0
         kwota_karta = 0
+        metoda_karta = None  # Będzie zawierać 'karta' lub 'blik'
         
         # Oblicz finalną kwotę po rabacie
         rabat_kwota = transakcja.get('rabat_kwota', 0) or 0
         final_amount = transakcja['suma_brutto'] - rabat_kwota
         
-        if kwota_otrzymana:
+        # Jeśli jest płatność dzielona, pobierz kwoty z każdej metody
+        if split_payments and len(split_payments) > 0:
+            for payment in split_payments:
+                method = payment.get('method', '')
+                amount = float(payment.get('amount', 0) or 0)
+                if method in ['gotowka', 'cash']:
+                    kwota_gotowka += amount
+                elif method in ['karta', 'card']:
+                    kwota_karta += amount
+                    metoda_karta = 'karta'
+                elif method == 'blik':
+                    kwota_karta += amount  # BLIK traktujemy jako kartę
+                    metoda_karta = 'blik'
+            print(f"DEBUG: Płatność dzielona - gotówka: {kwota_gotowka}, karta/blik: {kwota_karta}, metoda_karta: {metoda_karta}")
+        elif kwota_otrzymana:
             kwota_otrzymana_float = float(kwota_otrzymana)
             if metoda_platnosci == 'gotowka':
                 kwota_gotowka = final_amount  # Rzeczywista kwota transakcji
                 kwota_reszty = max(0, kwota_otrzymana_float - final_amount)
             elif metoda_platnosci in ['karta', 'card']:
                 kwota_karta = final_amount  # Rzeczywista kwota transakcji
+                metoda_karta = 'karta'
                 kwota_reszty = 0  # Przy płatności kartą nie ma reszty
+            elif metoda_platnosci == 'blik':
+                kwota_karta = final_amount  # BLIK traktujemy jako kartę
+                metoda_karta = 'blik'
+                kwota_reszty = 0
         else:
             # Jeśli nie podano kwoty otrzymanej, ustaw kwotę transakcji
             if metoda_platnosci == 'gotowka':
                 kwota_gotowka = final_amount
             elif metoda_platnosci in ['karta', 'card']:
                 kwota_karta = final_amount
+                metoda_karta = 'karta'
+            elif metoda_platnosci == 'blik':
+                kwota_karta = final_amount
+                metoda_karta = 'blik'
         
         # Wygeneruj numer paragonu jeśli nie istnieje
         numer_paragonu = transakcja.get('numer_paragonu')
@@ -1401,6 +1425,7 @@ def complete_cart_transaction(transakcja_id):
             kwota_reszty = ?,
             kwota_gotowka = ?,
             kwota_karta = ?,
+            metoda_karta = ?,
             uwagi = ?,
             numer_paragonu = ?
         WHERE id = ?
@@ -1408,7 +1433,7 @@ def complete_cart_transaction(transakcja_id):
         
         result = execute_insert(update_query, (
             metoda_platnosci, customer_id, kwota_otrzymana, kwota_reszty, 
-            kwota_gotowka, kwota_karta, notatka, numer_paragonu, transakcja_id
+            kwota_gotowka, kwota_karta, metoda_karta, notatka, numer_paragonu, transakcja_id
         ))
         
         if result is not None:
