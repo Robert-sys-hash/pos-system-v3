@@ -244,6 +244,7 @@ def get_recent_transactions():
             t.fiskalizacja,
             t.typ_transakcji,
             t.typ_transakcji as transaction_type,
+            COALESCE(t.has_stock_shortage, 0) as has_stock_shortage,
             COUNT(DISTINCT p.id) as items_count,
             (SELECT COUNT(*) FROM pos_zwroty z WHERE z.transakcja_id = t.id) as returns_count,
             (SELECT SUM(suma_zwrotu_brutto) FROM pos_zwroty z WHERE z.transakcja_id = t.id) as returns_total
@@ -953,7 +954,7 @@ def add_item_to_cart(transakcja_id):
 @pos_bp.route('/pos/cart/<int:transakcja_id>', methods=['GET'])
 def get_cart(transakcja_id):
     """
-    Pobierz zawartość koszyka z informacjami o rabatach
+    Pobierz zawartość koszyka z informacjami o rabatach i stanach magazynowych
     """
     try:
         # Pobierz transakcję
@@ -971,6 +972,7 @@ def get_cart(transakcja_id):
             return error_response("Transakcja nie została znaleziona", 404)
             
         transakcja = transakcja[0]
+        location_id = transakcja.get('location_id', 5)
         
         # Pobierz pozycje koszyka
         pozycje = execute_query("""
@@ -983,6 +985,19 @@ def get_cart(transakcja_id):
             WHERE p.transakcja_id = ?
             ORDER BY p.lp
         """, (transakcja_id,))
+        
+        # Dodaj informację o stanie magazynowym dla każdej pozycji
+        for pozycja in pozycje:
+            product_id = pozycja.get('produkt_id')
+            stock_result = execute_query("""
+                SELECT COALESCE(stan_aktualny, 0) as stock 
+                FROM pos_magazyn 
+                WHERE produkt_id = ? AND lokalizacja = ?
+            """, (product_id, str(location_id)))
+            
+            available_stock = stock_result[0]['stock'] if stock_result else 0
+            pozycja['available_stock'] = available_stock
+            pozycja['stock_warning'] = available_stock < pozycja.get('ilosc', 0)
         
         # Pobierz zastosowane rabaty
         rabaty = execute_query("""
@@ -1296,6 +1311,7 @@ def complete_cart_transaction(transakcja_id):
             return error_response("Transakcja nie została znaleziona lub nie jest w trakcie", 404)
             
         transakcja = transakcja[0]
+        location_id = transakcja.get('location_id', 5)  # Pobierz lokalizację transakcji
         
         # Sprawdź czy są pozycje w koszyku
         pozycje_count = execute_query("""
@@ -1304,6 +1320,56 @@ def complete_cart_transaction(transakcja_id):
         
         if not pozycje_count or pozycje_count[0]['count'] == 0:
             return error_response("Nie można finalizować pustego koszyka", 400)
+        
+        # === WALIDACJA STANÓW MAGAZYNOWYCH ===
+        # Pobierz pozycje z koszyka i sprawdź stany
+        pozycje_do_sprawdzenia = execute_query("""
+            SELECT produkt_id, nazwa_produktu, ilosc 
+            FROM pos_pozycje 
+            WHERE transakcja_id = ?
+        """, (transakcja_id,))
+        
+        stock_check_errors = []
+        for pozycja in pozycje_do_sprawdzenia:
+            product_id = pozycja['produkt_id']
+            required_quantity = pozycja['ilosc']
+            product_name = pozycja['nazwa_produktu']
+            
+            # Sprawdź aktualny stan dla danej lokalizacji
+            stock_result = execute_query("""
+                SELECT COALESCE(stan_aktualny, 0) as stock 
+                FROM pos_magazyn 
+                WHERE produkt_id = ? AND lokalizacja = ?
+            """, (product_id, str(location_id)))
+            
+            current_stock = stock_result[0]['stock'] if stock_result else 0
+            
+            if current_stock < required_quantity:
+                stock_check_errors.append({
+                    'product_id': product_id,
+                    'product_name': product_name,
+                    'required': required_quantity,
+                    'available': current_stock,
+                    'shortfall': round(required_quantity - current_stock, 2)
+                })
+        
+        # Jeśli są braki magazynowe - zapisz je do tabeli stock_shortages (ale pozwól na transakcję)
+        has_stock_shortage = 0
+        if stock_check_errors:
+            has_stock_shortage = 1
+            print(f"⚠️ BRAKI MAGAZYNOWE w transakcji {transakcja_id}: {stock_check_errors}")
+            
+            # Zapisz braki do tabeli
+            for err in stock_check_errors:
+                try:
+                    execute_insert("""
+                        INSERT INTO pos_stock_shortages 
+                        (transakcja_id, produkt_id, nazwa_produktu, ilosc_sprzedana, ilosc_dostepna, ilosc_brakujaca, status)
+                        VALUES (?, ?, ?, ?, ?, ?, 'pending')
+                    """, (transakcja_id, err['product_id'], err['product_name'], 
+                          err['required'], err['available'], err['shortfall']))
+                except Exception as e:
+                    print(f"Błąd zapisu braku magazynowego: {e}")
             
         # Przelicz sumy z pozycji przed finalizacją
         pozycje_sum = execute_query("""
@@ -1436,13 +1502,15 @@ def complete_cart_transaction(transakcja_id):
             kwota_blik = ?,
             metoda_karta = ?,
             uwagi = ?,
-            numer_paragonu = ?
+            numer_paragonu = ?,
+            has_stock_shortage = ?
         WHERE id = ?
         """
         
         result = execute_insert(update_query, (
             metoda_platnosci, customer_id, kwota_otrzymana, kwota_reszty, 
-            kwota_gotowka, kwota_karta, kwota_blik, metoda_karta, notatka, numer_paragonu, transakcja_id
+            kwota_gotowka, kwota_karta, kwota_blik, metoda_karta, notatka, numer_paragonu, 
+            has_stock_shortage, transakcja_id
         ))
         
         if result is not None:
@@ -2305,3 +2373,193 @@ def get_transaction_returns(transaction_id):
         print(f"Błąd pobierania historii zwrotów: {e}")
         return error_response(f"Błąd serwera: {e}", 500)
 
+
+# === BRAKI MAGAZYNOWE (Stock Shortages) ===
+
+@pos_bp.route('/pos/stock-shortages', methods=['GET'])
+def get_stock_shortages():
+    """
+    Pobierz listę paragonów z brakami magazynowymi
+    Query params: location_id, status (pending/resolved/all)
+    """
+    try:
+        location_id = request.args.get('location_id')
+        status = request.args.get('status', 'pending')  # pending, resolved, all
+        
+        query = """
+            SELECT 
+                ss.*,
+                t.numer_paragonu,
+                t.data_transakcji,
+                t.czas_transakcji,
+                t.kasjer_login,
+                t.suma_brutto
+            FROM pos_stock_shortages ss
+            JOIN pos_transakcje t ON ss.transakcja_id = t.id
+            WHERE 1=1
+        """
+        params = []
+        
+        if location_id:
+            query += " AND t.location_id = ?"
+            params.append(location_id)
+        
+        if status != 'all':
+            query += " AND ss.status = ?"
+            params.append(status)
+        
+        query += " ORDER BY ss.created_at DESC"
+        
+        shortages = execute_query(query, params) or []
+        
+        # Grupuj po transakcji
+        transactions_with_shortages = {}
+        for s in shortages:
+            trans_id = s['transakcja_id']
+            if trans_id not in transactions_with_shortages:
+                transactions_with_shortages[trans_id] = {
+                    'transakcja_id': trans_id,
+                    'numer_paragonu': s['numer_paragonu'],
+                    'data_transakcji': s['data_transakcji'],
+                    'czas_transakcji': s['czas_transakcji'],
+                    'kasjer_login': s['kasjer_login'],
+                    'suma_brutto': s['suma_brutto'],
+                    'braki': []
+                }
+            transactions_with_shortages[trans_id]['braki'].append({
+                'id': s['id'],
+                'produkt_id': s['produkt_id'],
+                'nazwa_produktu': s['nazwa_produktu'],
+                'ilosc_sprzedana': s['ilosc_sprzedana'],
+                'ilosc_dostepna': s['ilosc_dostepna'],
+                'ilosc_brakujaca': s['ilosc_brakujaca'],
+                'status': s['status'],
+                'resolved_at': s['resolved_at']
+            })
+        
+        return success_response({
+            'transactions': list(transactions_with_shortages.values()),
+            'total_count': len(shortages),
+            'transaction_count': len(transactions_with_shortages)
+        }, "Braki magazynowe pobrane")
+        
+    except Exception as e:
+        print(f"Błąd pobierania braków magazynowych: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+
+@pos_bp.route('/pos/stock-shortages/<int:transakcja_id>/resolve', methods=['POST'])
+def resolve_stock_shortage(transakcja_id):
+    """
+    Oznacz braki magazynowe dla transakcji jako uzupełnione
+    Body: { faktura_zakupu_id: int (opcjonalne), resolved_by: string }
+    """
+    try:
+        data = request.get_json() or {}
+        faktura_zakupu_id = data.get('faktura_zakupu_id')
+        resolved_by = data.get('resolved_by', 'system')
+        
+        # Sprawdź czy są nieuzupełnione braki dla tej transakcji
+        pending_shortages = execute_query("""
+            SELECT * FROM pos_stock_shortages 
+            WHERE transakcja_id = ? AND status = 'pending'
+        """, (transakcja_id,))
+        
+        if not pending_shortages:
+            return error_response("Brak nieuzupełnionych braków dla tej transakcji", 404)
+        
+        # Jeśli podano fakturę - sprawdź czy data faktury nie jest późniejsza niż paragon
+        if faktura_zakupu_id:
+            transakcja = execute_query("""
+                SELECT data_transakcji FROM pos_transakcje WHERE id = ?
+            """, (transakcja_id,))
+            
+            if transakcja:
+                paragon_date = transakcja[0]['data_transakcji']
+                
+                faktura = execute_query("""
+                    SELECT data_faktury FROM faktury_zakupu WHERE id = ?
+                """, (faktura_zakupu_id,))
+                
+                if faktura and faktura[0]['data_faktury'] > paragon_date:
+                    return error_response(
+                        f"Data faktury ({faktura[0]['data_faktury']}) jest późniejsza niż data paragonu ({paragon_date}). "
+                        "Faktura musi być z datą nie późniejszą niż paragon.", 
+                        400
+                    )
+        
+        # Oznacz braki jako uzupełnione
+        update_result = execute_insert("""
+            UPDATE pos_stock_shortages 
+            SET status = 'resolved',
+                resolved_at = datetime('now'),
+                resolved_by = ?,
+                faktura_zakupu_id = ?
+            WHERE transakcja_id = ? AND status = 'pending'
+        """, (resolved_by, faktura_zakupu_id, transakcja_id))
+        
+        # Aktualizuj flagę w transakcji
+        execute_insert("""
+            UPDATE pos_transakcje SET has_stock_shortage = 0 WHERE id = ?
+        """, (transakcja_id,))
+        
+        return success_response({
+            'resolved_count': len(pending_shortages),
+            'transakcja_id': transakcja_id
+        }, "Braki magazynowe oznaczone jako uzupełnione")
+        
+    except Exception as e:
+        print(f"Błąd uzupełniania braków: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)
+
+
+@pos_bp.route('/pos/transactions-with-shortages', methods=['GET'])
+def get_transactions_with_shortages():
+    """
+    Pobierz listę transakcji które mają braki magazynowe
+    Query params: location_id, status (pending/resolved/all)
+    """
+    try:
+        location_id = request.args.get('location_id')
+        status = request.args.get('status', 'pending')
+        
+        query = """
+            SELECT DISTINCT
+                t.id,
+                t.numer_paragonu,
+                t.data_transakcji,
+                t.czas_transakcji,
+                t.kasjer_login,
+                t.suma_brutto,
+                t.has_stock_shortage,
+                (SELECT COUNT(*) FROM pos_stock_shortages ss 
+                 WHERE ss.transakcja_id = t.id AND ss.status = 'pending') as pending_shortages_count,
+                (SELECT GROUP_CONCAT(ss.nazwa_produktu || ' (' || ss.ilosc_brakujaca || ' szt.)', ', ')
+                 FROM pos_stock_shortages ss 
+                 WHERE ss.transakcja_id = t.id AND ss.status = 'pending') as shortage_details
+            FROM pos_transakcje t
+            WHERE t.has_stock_shortage = 1
+        """
+        params = []
+        
+        if location_id:
+            query += " AND t.location_id = ?"
+            params.append(location_id)
+        
+        if status == 'pending':
+            query += " AND EXISTS (SELECT 1 FROM pos_stock_shortages ss WHERE ss.transakcja_id = t.id AND ss.status = 'pending')"
+        elif status == 'resolved':
+            query += " AND NOT EXISTS (SELECT 1 FROM pos_stock_shortages ss WHERE ss.transakcja_id = t.id AND ss.status = 'pending')"
+        
+        query += " ORDER BY t.data_transakcji DESC, t.czas_transakcji DESC"
+        
+        transactions = execute_query(query, params) or []
+        
+        return success_response({
+            'transactions': transactions,
+            'count': len(transactions)
+        }, "Transakcje z brakami pobrane")
+        
+    except Exception as e:
+        print(f"Błąd pobierania transakcji z brakami: {e}")
+        return error_response(f"Błąd serwera: {e}", 500)

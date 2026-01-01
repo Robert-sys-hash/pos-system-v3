@@ -258,30 +258,35 @@ def search_products():
 def get_product(product_id):
     """
     Pobierz szczegóły konkretnego produktu
-    GET /api/products/123
+    GET /api/products/123?location_id=5
     """
     try:
-        sql_queries = [
-            """
-            SELECT 
-                id, nazwa as name, opis as description, cena as price, 
-                kategoria as category, ean as barcode,
-                0 as stock_quantity, jednostka as unit, 
-                stawka_vat as tax_rate, cena_zakupu as cost_price,
-                marza_procent as margin_percent, 0 as min_stock_level,
-                producent as supplier_name, '' as location,
-                data_utworzenia as created_at, data_modyfikacji as updated_at,
-                gramatura, ilosc_jednostek, jednostka_wagi,
-                cena_sprzedazy_brutto, cena_sprzedazy_netto
-            FROM produkty WHERE id = ?
-            """
-        ]
+        location_id = request.args.get('location_id', 5, type=int)
         
-        result = None
-        for sql in sql_queries:
-            result = execute_query(sql, (product_id,))
-            if result:
-                break
+        sql_query = f"""
+            SELECT 
+                p.id, p.nazwa as name, p.opis as description, p.cena as price, 
+                p.kategoria as category, p.ean as barcode,
+                COALESCE(pm.stan_aktualny, 0) as stock_quantity, p.jednostka as unit, 
+                p.stawka_vat as tax_rate, p.cena_zakupu as cost_price,
+                p.marza_procent as margin_percent, COALESCE(pm.stan_minimalny, 0) as min_stock_level,
+                p.producent as supplier_name, '' as location,
+                p.data_utworzenia as created_at, p.data_modyfikacji as updated_at,
+                p.gramatura, p.ilosc_jednostek, p.jednostka_wagi,
+                p.cena_sprzedazy_brutto, p.cena_sprzedazy_netto,
+                COALESCE(wpp.cena_sprzedazy_brutto, p.cena_sprzedazy_brutto) as special_price_brutto,
+                COALESCE(wpp.cena_sprzedazy_netto, p.cena_sprzedazy_netto) as special_price_netto,
+                CASE WHEN wpp.cena_sprzedazy_brutto IS NOT NULL THEN 1 ELSE 0 END as has_special_price,
+                p.cena_sprzedazy_brutto as default_price_brutto,
+                p.cena_sprzedazy_netto as default_price_netto
+            FROM produkty p
+            LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id AND pm.lokalizacja = {location_id}
+            LEFT JOIN (SELECT MIN(id) as id, location_id FROM warehouses WHERE location_id = {location_id} GROUP BY location_id) w ON 1=1
+            LEFT JOIN warehouse_product_prices wpp ON p.id = wpp.product_id AND w.id = wpp.warehouse_id AND wpp.aktywny = 1
+            WHERE p.id = ?
+        """
+        
+        result = execute_query(sql_query, (product_id,))
         
         if not result:
             return not_found_response(f"Produkt o ID {product_id} nie został znaleziony")

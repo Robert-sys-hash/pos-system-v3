@@ -15,6 +15,64 @@ def execute_select(query, params=None):
     else:
         return {'success': False, 'error': 'Database query failed'}
 
+def resolve_stock_shortages_for_product(cursor, product_id, location_id, invoice_id=None):
+    """
+    Automatycznie rozwiązuje braki magazynowe dla produktu po uzupełnieniu stanu.
+    Sprawdza aktualny stan i jeśli jest >= 0, oznacza braki jako rozwiązane.
+    """
+    try:
+        # Sprawdź aktualny stan magazynowy produktu
+        cursor.execute("""
+            SELECT stan_aktualny FROM pos_magazyn 
+            WHERE produkt_id = ? AND lokalizacja = ?
+        """, (product_id, str(location_id)))
+        stock = cursor.fetchone()
+        
+        current_stock = stock['stan_aktualny'] if stock else 0
+        
+        # Jeśli stan jest >= 0, oznacz wszystkie oczekujące braki jako rozwiązane
+        if current_stock >= 0:
+            cursor.execute("""
+                UPDATE pos_stock_shortages 
+                SET status = 'resolved',
+                    resolved_at = datetime('now'),
+                    resolved_by = 'system_auto',
+                    faktura_zakupu_id = ?
+                WHERE produkt_id = ? 
+                  AND status = 'pending'
+            """, (invoice_id, product_id))
+            
+            resolved_count = cursor.rowcount
+            
+            if resolved_count > 0:
+                print(f"✅ Automatycznie rozwiązano {resolved_count} braków dla produktu {product_id}")
+                
+                # Sprawdź, czy powiązane transakcje mają jeszcze jakieś nierozwiązane braki
+                # Jeśli nie, usuń flagę has_stock_shortage
+                cursor.execute("""
+                    UPDATE pos_transakcje 
+                    SET has_stock_shortage = 0
+                    WHERE id IN (
+                        SELECT DISTINCT transakcja_id 
+                        FROM pos_stock_shortages 
+                        WHERE produkt_id = ? AND status = 'resolved'
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1 FROM pos_stock_shortages 
+                        WHERE transakcja_id = pos_transakcje.id AND status = 'pending'
+                    )
+                """, (product_id,))
+                
+                updated_transactions = cursor.rowcount
+                if updated_transactions > 0:
+                    print(f"✅ Usunięto flagę braku z {updated_transactions} transakcji")
+                    
+            return resolved_count
+        return 0
+    except Exception as e:
+        print(f"⚠️ Błąd rozwiązywania braków dla produktu {product_id}: {e}")
+        return 0
+
 @warehouse_operations_bp.route('/warehouse/purchase-invoices', methods=['GET', 'OPTIONS'])
 def get_purchase_invoices_for_pz():
     """Pobiera faktury zakupu dostępne do generowania PZ"""
@@ -141,6 +199,9 @@ def generate_external_receipt(invoice_id):
             
             print(f"📊 Zaktualizowano stan magazynowy dla produktu {item['produkt_id']}")
             
+            # Automatycznie rozwiąż braki magazynowe jeśli stan jest teraz >= 0
+            resolve_stock_shortages_for_product(cursor, item['produkt_id'], warehouse_id, invoice_id)
+            
             # Dodaj wpis do historii magazynu
             cursor.execute("""
                 INSERT INTO warehouse_history 
@@ -265,6 +326,10 @@ def create_internal_receipt():
                     INSERT INTO pos_magazyn (produkt_id, stan_aktualny, stan_minimalny, stan_maksymalny, lokalizacja, ostatnia_aktualizacja)
                     VALUES (?, ?, 0, 0, ?, CURRENT_TIMESTAMP)
                 """, (product_id, quantity, str(location_id) if location_id else ''))
+            
+            # Automatycznie rozwiąż braki magazynowe jeśli stan jest teraz >= 0
+            if location_id:
+                resolve_stock_shortages_for_product(cursor, product_id, location_id, None)
             
             # Dodaj wpis do historii magazynu
             execute_insert("""

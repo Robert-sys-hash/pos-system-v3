@@ -21,7 +21,7 @@ export const LocationProvider = ({ children }) => {
       setLoading(true);
       setError(null);
       console.log('🔄 LocationContext: Fetching locations...');
-      const response = await fetch('https://panelv3.pl/api/locations/');
+      const response = await fetch('http://localhost:8000/api/locations/');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

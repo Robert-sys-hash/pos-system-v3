@@ -72,54 +72,55 @@ const InventoryFilters = ({
       width: '100%', 
       backgroundColor: 'white',
       border: '1px solid #e9ecef',
-      borderRadius: '0.375rem',
-      padding: '1rem',
-      marginBottom: '1rem',
-      boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
+      borderRadius: '4px',
+      padding: '0.5rem 0.75rem',
+      marginBottom: '0.5rem',
+      boxShadow: '0 1px 3px rgba(0,0,0,0.08)',
+      fontSize: '11px'
     }}>
       <div style={{ 
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'center', 
-        marginBottom: '0.75rem'
+        marginBottom: '0.5rem'
       }}>
-        <h6 style={{ 
+        <span style={{ 
           margin: 0, 
           color: '#495057', 
           fontWeight: '600',
-          fontSize: '0.9rem'
+          fontSize: '11px'
         }}>
-          <i className="fas fa-filter me-2" style={{ color: '#6c757d' }}></i>
+          <i className="fas fa-filter me-1" style={{ color: '#6c757d', fontSize: '10px' }}></i>
           Filtry i wyszukiwanie
-        </h6>
+        </span>
         <div style={{ 
-          fontSize: '0.75rem', 
+          fontSize: '10px', 
           color: '#6c757d',
           display: 'flex',
           alignItems: 'center',
-          gap: '0.5rem'
+          gap: '0.25rem'
         }}>
-          <i className="fas fa-boxes"></i>
-          <span>Znaleziono: <strong>{totalProducts}</strong> produktów</span>
+          <i className="fas fa-boxes" style={{ fontSize: '9px' }}></i>
+          <span>Znaleziono: <strong>{totalProducts}</strong></span>
         </div>
       </div>
       
       <div style={{ 
         display: 'flex', 
-        gap: '0.75rem', 
+        gap: '0.5rem', 
         alignItems: 'end',
         flexWrap: 'wrap'
       }}>
         {/* Wyszukiwanie - 35% szerokości */}
-        <div style={{ flex: '0 0 35%', minWidth: '250px' }}>
+        <div style={{ flex: '0 0 35%', minWidth: '200px' }}>
           <label style={{ 
-            fontSize: '0.75rem', 
+            fontSize: '10px', 
             fontWeight: '600',
             color: '#495057',
             display: 'block',
-            marginBottom: '0.25rem'
+            marginBottom: '0.15rem'
           }}>
-            <i className="fas fa-search me-1" style={{ color: '#17a2b8' }}></i>
+            <i className="fas fa-search me-1" style={{ color: '#17a2b8', fontSize: '9px' }}></i>
             Wyszukaj produkty
           </label>
           <div style={{ position: 'relative' }}>
@@ -131,21 +132,21 @@ const InventoryFilters = ({
               disabled={loading}
               style={{ 
                 width: '100%',
-                padding: '0.375rem 0.75rem',
-                paddingLeft: '2rem',
-                fontSize: '0.8rem',
+                padding: '0.25rem 0.5rem',
+                paddingLeft: '1.5rem',
+                fontSize: '11px',
                 border: '1px solid #ced4da',
-                borderRadius: '0.25rem',
+                borderRadius: '3px',
                 boxSizing: 'border-box'
               }}
             />
             <i className="fas fa-search" style={{ 
               position: 'absolute',
-              left: '0.5rem',
+              left: '0.4rem',
               top: '50%',
               transform: 'translateY(-50%)',
               color: '#6c757d',
-              fontSize: '0.75rem'
+              fontSize: '10px'
             }}></i>
             {filters.search && (
               <button
@@ -153,14 +154,15 @@ const InventoryFilters = ({
                 onClick={() => setFilters(prev => ({ ...prev, search: '' }))}
                 style={{ 
                   position: 'absolute',
-                  right: '0.5rem',
+                  right: '0.4rem',
                   top: '50%',
                   transform: 'translateY(-50%)',
                   border: 'none',
                   background: 'none',
                   color: '#6c757d',
                   cursor: 'pointer',
-                  fontSize: '0.75rem'
+                  fontSize: '10px',
+                  padding: '0'
                 }}
                 title="Wyczyść wyszukiwanie"
               >
@@ -171,15 +173,15 @@ const InventoryFilters = ({
         </div>
 
         {/* Kategoria - 20% szerokości */}
-        <div style={{ flex: '0 0 20%', minWidth: '150px' }}>
+        <div style={{ flex: '0 0 18%', minWidth: '120px' }}>
           <label style={{ 
-            fontSize: '0.75rem', 
+            fontSize: '10px', 
             fontWeight: '600',
             color: '#495057',
             display: 'block',
-            marginBottom: '0.25rem'
+            marginBottom: '0.15rem'
           }}>
-            <i className="fas fa-tags me-1" style={{ color: '#ffc107' }}></i>
+            <i className="fas fa-tags me-1" style={{ color: '#ffc107', fontSize: '9px' }}></i>
             Kategoria
           </label>
           <select
@@ -188,10 +190,10 @@ const InventoryFilters = ({
             disabled={loading}
             style={{ 
               width: '100%',
-              padding: '0.375rem 0.75rem',
-              fontSize: '0.8rem',
+              padding: '0.25rem 0.5rem',
+              fontSize: '11px',
               border: '1px solid #ced4da',
-              borderRadius: '0.25rem',
+              borderRadius: '3px',
               boxSizing: 'border-box'
             }}
           >
@@ -204,25 +206,25 @@ const InventoryFilters = ({
           </select>
         </div>
 
-        {/* Checkbox - 25% szerokości */}
-        <div style={{ flex: '0 0 25%', minWidth: '120px' }}>
+        {/* Checkbox - 20% szerokości */}
+        <div style={{ flex: '0 0 18%', minWidth: '100px' }}>
           <label style={{ 
-            fontSize: '0.75rem', 
+            fontSize: '10px', 
             fontWeight: '600',
             color: '#495057',
             display: 'block',
-            marginBottom: '0.25rem'
+            marginBottom: '0.15rem'
           }}>
-            <i className="fas fa-eye me-1" style={{ color: '#28a745' }}></i>
+            <i className="fas fa-eye me-1" style={{ color: '#28a745', fontSize: '9px' }}></i>
             Widok
           </label>
           <div style={{ 
             display: 'flex', 
             alignItems: 'center',
-            padding: '0.375rem 0.75rem',
-            fontSize: '0.8rem',
+            padding: '0.25rem 0.5rem',
+            fontSize: '11px',
             border: '1px solid #e9ecef',
-            borderRadius: '0.25rem',
+            borderRadius: '3px',
             backgroundColor: '#f8f9fa'
           }}>
             <input
@@ -231,40 +233,40 @@ const InventoryFilters = ({
               checked={filters.available_only}
               onChange={handleAvailableOnlyChange}
               disabled={loading}
-              style={{ marginRight: '0.5rem' }}
+              style={{ marginRight: '0.35rem', transform: 'scale(0.9)' }}
             />
             <label htmlFor="available-only" style={{ 
               margin: 0, 
               cursor: 'pointer',
-              fontSize: '0.75rem'
+              fontSize: '10px'
             }}>
               Tylko dostępne
             </label>
           </div>
         </div>
 
-        {/* Akcje - 20% szerokości */}
-        <div style={{ flex: '0 0 20%', minWidth: '140px' }}>
+        {/* Akcje - 15% szerokości */}
+        <div style={{ flex: '0 0 15%', minWidth: '100px' }}>
           <label style={{ 
-            fontSize: '0.75rem', 
+            fontSize: '10px', 
             fontWeight: '600',
             color: '#495057',
             display: 'block',
-            marginBottom: '0.25rem'
+            marginBottom: '0.15rem'
           }}>
-            <i className="fas fa-cog me-1" style={{ color: '#6c757d' }}></i>
+            <i className="fas fa-cog me-1" style={{ color: '#6c757d', fontSize: '9px' }}></i>
             Akcje
           </label>
-          <div style={{ display: 'flex', gap: '0.25rem' }}>
+          <div style={{ display: 'flex', gap: '0.2rem' }}>
             <button
               type="button"
               onClick={clearFilters}
               disabled={loading}
               style={{ 
-                padding: '0.375rem 0.5rem',
-                fontSize: '0.7rem',
+                padding: '0.25rem 0.4rem',
+                fontSize: '10px',
                 border: '1px solid #dc3545',
-                borderRadius: '0.25rem',
+                borderRadius: '3px',
                 backgroundColor: 'white',
                 color: '#dc3545',
                 cursor: 'pointer',
@@ -272,11 +274,11 @@ const InventoryFilters = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.25rem'
+                gap: '0.2rem'
               }}
               title="Wyczyść wszystkie filtry"
             >
-              <i className="fas fa-eraser"></i>
+              <i className="fas fa-eraser" style={{ fontSize: '9px' }}></i>
               <span>Wyczyść</span>
             </button>
             <button
@@ -284,10 +286,10 @@ const InventoryFilters = ({
               onClick={() => window.location.reload()}
               disabled={loading}
               style={{ 
-                padding: '0.375rem 0.5rem',
-                fontSize: '0.7rem',
+                padding: '0.25rem 0.4rem',
+                fontSize: '10px',
                 border: '1px solid #17a2b8',
-                borderRadius: '0.25rem',
+                borderRadius: '3px',
                 backgroundColor: 'white',
                 color: '#17a2b8',
                 cursor: 'pointer',
@@ -295,7 +297,7 @@ const InventoryFilters = ({
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                gap: '0.25rem'
+                gap: '0.2rem'
               }}
               title="Odśwież dane"
             >
@@ -309,18 +311,18 @@ const InventoryFilters = ({
       {/* Aktywne filtry */}
       {hasActiveFilters && (
         <div style={{ 
-          marginTop: '0.75rem',
-          paddingTop: '0.75rem',
+          marginTop: '0.4rem',
+          paddingTop: '0.4rem',
           borderTop: '1px solid #e9ecef'
         }}>
           <div style={{ 
             display: 'flex', 
             flexWrap: 'wrap', 
-            gap: '0.5rem',
+            gap: '0.3rem',
             alignItems: 'center'
           }}>
             <span style={{ 
-              fontSize: '0.7rem', 
+              fontSize: '10px', 
               color: '#6c757d',
               fontWeight: '600'
             }}>
@@ -331,12 +333,12 @@ const InventoryFilters = ({
               <span style={{ 
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.65rem',
+                gap: '0.15rem',
+                padding: '0.15rem 0.35rem',
+                fontSize: '9px',
                 backgroundColor: '#17a2b8',
                 color: 'white',
-                borderRadius: '0.25rem'
+                borderRadius: '3px'
               }}>
                 Szukaj: "{filters.search}"
                 <button
@@ -347,8 +349,9 @@ const InventoryFilters = ({
                     background: 'none',
                     color: 'white',
                     cursor: 'pointer',
-                    fontSize: '0.6rem',
-                    marginLeft: '0.25rem'
+                    fontSize: '8px',
+                    marginLeft: '0.15rem',
+                    padding: '0'
                   }}
                 >
                   <i className="fas fa-times"></i>
@@ -360,12 +363,12 @@ const InventoryFilters = ({
               <span style={{ 
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.65rem',
+                gap: '0.15rem',
+                padding: '0.15rem 0.35rem',
+                fontSize: '9px',
                 backgroundColor: '#ffc107',
                 color: '#212529',
-                borderRadius: '0.25rem'
+                borderRadius: '3px'
               }}>
                 Kategoria: {filters.category}
                 <button
@@ -376,8 +379,9 @@ const InventoryFilters = ({
                     background: 'none',
                     color: '#212529',
                     cursor: 'pointer',
-                    fontSize: '0.6rem',
-                    marginLeft: '0.25rem'
+                    fontSize: '8px',
+                    marginLeft: '0.15rem',
+                    padding: '0'
                   }}
                 >
                   <i className="fas fa-times"></i>
@@ -389,12 +393,12 @@ const InventoryFilters = ({
               <span style={{ 
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.25rem',
-                padding: '0.25rem 0.5rem',
-                fontSize: '0.65rem',
+                gap: '0.15rem',
+                padding: '0.15rem 0.35rem',
+                fontSize: '9px',
                 backgroundColor: '#28a745',
                 color: 'white',
-                borderRadius: '0.25rem'
+                borderRadius: '3px'
               }}>
                 Tylko dostępne
                 <button
@@ -405,8 +409,9 @@ const InventoryFilters = ({
                     background: 'none',
                     color: 'white',
                     cursor: 'pointer',
-                    fontSize: '0.6rem',
-                    marginLeft: '0.25rem'
+                    fontSize: '8px',
+                    marginLeft: '0.15rem',
+                    padding: '0'
                   }}
                 >
                   <i className="fas fa-times"></i>

@@ -97,15 +97,24 @@ export const productService = {
   /**
    * Pobierz szczegóły produktu
    * @param {number} productId - ID produktu
+  /**
+   * Pobierz pojedynczy produkt
+   * @param {number} productId - ID produktu
+   * @param {number} locationId - ID lokalizacji dla stanu magazynowego
    * @returns {Promise} Dane produktu
    */
-  async getProduct(productId) {
+  async getProduct(productId, locationId = 5) {
     try {
-      const response = await api.get(`/products/${productId}`);
-      return mapProductFromAPI(response.data);
+      const response = await api.get(`/products/${productId}`, {
+        params: { location_id: locationId }
+      });
+      return {
+        success: true,
+        data: mapProductFromAPI(response.data.data || response.data)
+      };
     } catch (error) {
       console.error('Błąd pobierania produktu:', error);
-      throw error;
+      return { success: false, error: error.message };
     }
   },
 

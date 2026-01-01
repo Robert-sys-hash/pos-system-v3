@@ -228,74 +228,105 @@ const InternalIssue = () => {
   };
 
   return (
-    <div className="container-fluid">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h3>📤 Rozchód Wewnętrzny (RW)</h3>
+    <div style={{ fontSize: '12px' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '0.5rem'
+      }}>
+        <span style={{ fontWeight: '600', fontSize: '13px' }}>📤 Rozchód Wewnętrzny (RW)</span>
       </div>
 
       {error && (
-        <div className="alert alert-danger alert-dismissible fade show" role="alert">
+        <div style={{
+          padding: '0.35rem 0.5rem',
+          marginBottom: '0.5rem',
+          backgroundColor: '#f8d7da',
+          color: '#842029',
+          borderRadius: '4px',
+          fontSize: '11px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
           {error}
-          <button type="button" className="btn-close" onClick={() => setError('')}></button>
+          <button 
+            style={{ border: 'none', background: 'none', color: '#842029', cursor: 'pointer', padding: '0' }}
+            onClick={() => setError('')}
+          >×</button>
         </div>
       )}
 
       {success && (
-        <div className="alert alert-success alert-dismissible fade show" role="alert">
+        <div style={{
+          padding: '0.35rem 0.5rem',
+          marginBottom: '0.5rem',
+          backgroundColor: '#d1e7dd',
+          color: '#0f5132',
+          borderRadius: '4px',
+          fontSize: '11px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
           {success}
-          <button type="button" className="btn-close" onClick={() => setSuccess('')}></button>
+          <button 
+            style={{ border: 'none', background: 'none', color: '#0f5132', cursor: 'pointer', padding: '0' }}
+            onClick={() => setSuccess('')}
+          >×</button>
         </div>
       )}
 
-      {/* Zakładki z pięknym formatowaniem */}
+      {/* Zakładki kompaktowe */}
       <div style={{
         display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '1.5rem',
-        padding: '0.75rem',
+        gap: '0.25rem',
+        marginBottom: '0.5rem',
+        padding: '0.35rem',
         backgroundColor: 'white',
-        borderRadius: '0.5rem',
+        borderRadius: '4px',
         border: '1px solid #e9ecef',
-        boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
       }}>
         <button
           style={{
-            padding: '0.75rem 1.25rem',
-            fontSize: '0.875rem',
+            padding: '0.3rem 0.6rem',
+            fontSize: '11px',
             fontWeight: '500',
             border: activeTab === 'new' ? '1px solid #fd7e14' : '1px solid #e9ecef',
-            borderRadius: '0.375rem',
+            borderRadius: '3px',
             backgroundColor: activeTab === 'new' ? '#fd7e14' : 'white',
             color: activeTab === 'new' ? 'white' : '#495057',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.25rem',
             transition: 'all 0.15s ease-in-out'
           }}
           onClick={() => setActiveTab('new')}
         >
-          <i className="fas fa-plus"></i>
+          <i className="fas fa-plus" style={{ fontSize: '10px' }}></i>
           Nowy rozchód
         </button>
         <button
           style={{
-            padding: '0.75rem 1.25rem',
-            fontSize: '0.875rem',
+            padding: '0.3rem 0.6rem',
+            fontSize: '11px',
             fontWeight: '500',
             border: activeTab === 'history' ? '1px solid #6f42c1' : '1px solid #e9ecef',
-            borderRadius: '0.375rem',
+            borderRadius: '3px',
             backgroundColor: activeTab === 'history' ? '#6f42c1' : 'white',
             color: activeTab === 'history' ? 'white' : '#495057',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.25rem',
             transition: 'all 0.15s ease-in-out'
           }}
           onClick={() => setActiveTab('history')}
         >
-          <i className="fas fa-history"></i>
+          <i className="fas fa-history" style={{ fontSize: '10px' }}></i>
           Historia rozchodów
         </button>
       </div>
@@ -303,86 +334,116 @@ const InternalIssue = () => {
       {/* Zakładka nowego rozchodu */}
       {activeTab === 'new' && (
         <>
-          <div className="d-flex justify-content-end mb-3">
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
             <button 
-              className="btn btn-primary"
+              style={{
+                padding: '0.3rem 0.6rem',
+                fontSize: '11px',
+                backgroundColor: '#0d6efd',
+                color: 'white',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.25rem'
+              }}
               onClick={() => setShowProductModal(true)}
             >
-              <i className="fas fa-plus me-2"></i>
+              <i className="fas fa-plus" style={{ fontSize: '10px' }}></i>
               Dodaj produkt
             </button>
           </div>
 
           {/* Lista wybranych produktów */}
-          <div className="card mb-4">
-            <div className="card-header">
-              <h5 className="card-title mb-0">Produkty do wydania</h5>
+          <div style={{ 
+            backgroundColor: 'white', 
+            border: '1px solid #e9ecef', 
+            borderRadius: '4px',
+            marginBottom: '0.5rem'
+          }}>
+            <div style={{ 
+              padding: '0.4rem 0.6rem', 
+              backgroundColor: '#f8f9fa', 
+              borderBottom: '1px solid #e9ecef',
+              fontWeight: '600',
+              fontSize: '11px'
+            }}>
+              Produkty do wydania
             </div>
-            <div className="card-body">
+            <div style={{ padding: '0.5rem' }}>
               {selectedProducts.length === 0 ? (
-                <div className="text-center py-4">
-                  <div className="text-muted">
-                    <i className="fas fa-inbox fa-2x mb-2"></i>
-                    <p>Brak wybranych produktów</p>
-                  </div>
+                <div style={{ textAlign: 'center', padding: '1rem', color: '#6c757d', fontSize: '11px' }}>
+                  <i className="fas fa-inbox" style={{ fontSize: '16px', marginBottom: '0.25rem', display: 'block' }}></i>
+                  Brak wybranych produktów
                 </div>
               ) : (
-                <div className="table-responsive">
-                  <table className="table">
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr>
-                        <th>Produkt</th>
-                        <th>Kod</th>
-                        <th>Stan dostępny</th>
-                        <th>Ilość do wydania</th>
-                        <th>Powód</th>
-                        <th>Akcje</th>
+                      <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Produkt</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Kod</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Stan</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', width: '80px' }}>Ilość</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Powód</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'center', width: '50px' }}>Akcje</th>
                       </tr>
                     </thead>
                     <tbody>
                       {selectedProducts.map((product) => (
                         <tr key={product.id}>
-                          <td>
+                          <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
                             <strong>{product.name}</strong>
                             {product.description && (
-                              <>
-                                <br />
-                                <small className="text-muted">{product.description}</small>
-                              </>
+                              <span style={{ display: 'block', color: '#6c757d', fontSize: '10px' }}>{product.description}</span>
                             )}
                           </td>
-                          <td>
-                            <code>{product.barcode || product.product_code || 'Brak'}</code>
+                          <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
+                            <code style={{ fontSize: '10px' }}>{product.barcode || product.product_code || 'Brak'}</code>
                           </td>
-                          <td>
-                            <span className="badge bg-info">
+                          <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
+                            <span style={{ 
+                              padding: '0.1rem 0.3rem', 
+                              fontSize: '10px', 
+                              backgroundColor: '#0dcaf0', 
+                              color: '#000', 
+                              borderRadius: '3px' 
+                            }}>
                               {product.maxQuantity} {product.unit || 'szt'}
                             </span>
                           </td>
-                          <td>
+                          <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
                             <input
                               type="number"
-                              className="form-control"
-                              style={{ width: '120px' }}
+                              style={{ width: '60px', padding: '0.2rem 0.3rem', fontSize: '11px', border: '1px solid #ced4da', borderRadius: '3px' }}
                               value={product.quantity}
                               onChange={(e) => updateProductQuantity(product.id, e.target.value)}
                               min="1"
                               max={product.maxQuantity}
                             />
                           </td>
-                          <td>
+                          <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
                             <input
                               type="text"
-                              className="form-control"
+                              style={{ width: '100%', padding: '0.2rem 0.3rem', fontSize: '11px', border: '1px solid #ced4da', borderRadius: '3px' }}
                               placeholder="Powód rozchodu..."
                               value={product.reason}
                               onChange={(e) => updateProductReason(product.id, e.target.value)}
                               required
                             />
                           </td>
-                          <td>
+                          <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee', textAlign: 'center' }}>
                             <button
-                              className="btn btn-danger btn-sm"
+                              style={{
+                                padding: '0.2rem 0.4rem',
+                                fontSize: '10px',
+                                backgroundColor: '#dc3545',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer'
+                              }}
                               onClick={() => removeProduct(product.id)}
                             >
                               <i className="fas fa-trash"></i>
@@ -396,20 +457,28 @@ const InternalIssue = () => {
               )}
               
               {selectedProducts.length > 0 && (
-                <div className="d-flex justify-content-end mt-3">
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
                   <button
-                    className="btn btn-warning"
+                    style={{
+                      padding: '0.35rem 0.75rem',
+                      fontSize: '11px',
+                      backgroundColor: '#ffc107',
+                      color: '#000',
+                      border: 'none',
+                      borderRadius: '3px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.25rem'
+                    }}
                     onClick={submitInternalIssue}
                     disabled={loading}
                   >
                     {loading ? (
-                      <>
-                        <span className="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                        Przetwarzanie...
-                      </>
+                      <span>Przetwarzanie...</span>
                     ) : (
                       <>
-                        <i className="fas fa-arrow-up me-2"></i>
+                        <i className="fas fa-arrow-up" style={{ fontSize: '10px' }}></i>
                         Zatwierdź rozchód
                       </>
                     )}
@@ -423,101 +492,117 @@ const InternalIssue = () => {
 
       {/* Zakładka historii rozchodów */}
       {activeTab === 'history' && (
-        <div className="card">
-          <div className="card-header">
-            <div className="d-flex justify-content-between align-items-center">
-              <h5 className="card-title mb-0">Historia rozchodów wewnętrznych</h5>
-              <div className="d-flex gap-2">
-                <input
-                  type="date"
-                  className="form-control form-control-sm"
-                  value={dateFilter}
-                  onChange={(e) => setDateFilter(e.target.value)}
-                  style={{ width: '150px' }}
-                />
-                <select
-                  className="form-select form-select-sm"
-                  value={statusFilter}
-                  onChange={(e) => setStatusFilter(e.target.value)}
-                  style={{ width: '120px' }}
-                >
-                  <option value="">Wszystkie</option>
-                  <option value="completed">Zatwierdzone</option>
-                  <option value="pending">Oczekujące</option>
-                </select>
-                <button 
-                  className="btn btn-outline-primary btn-sm"
-                  onClick={loadIssues}
-                >
-                  <i className="fas fa-sync-alt"></i>
-                </button>
-              </div>
+        <div style={{ 
+          backgroundColor: 'white', 
+          border: '1px solid #e9ecef', 
+          borderRadius: '4px'
+        }}>
+          <div style={{ 
+            padding: '0.4rem 0.6rem', 
+            backgroundColor: '#f8f9fa', 
+            borderBottom: '1px solid #e9ecef',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <span style={{ fontWeight: '600', fontSize: '11px' }}>Historia rozchodów wewnętrznych</span>
+            <div style={{ display: 'flex', gap: '0.25rem' }}>
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                style={{ padding: '0.2rem 0.3rem', fontSize: '10px', border: '1px solid #ced4da', borderRadius: '3px', width: '110px' }}
+              />
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                style={{ padding: '0.2rem 0.3rem', fontSize: '10px', border: '1px solid #ced4da', borderRadius: '3px', width: '90px' }}
+              >
+                <option value="">Wszystkie</option>
+                <option value="completed">Zatwierdzone</option>
+                <option value="pending">Oczekujące</option>
+              </select>
+              <button 
+                onClick={loadIssues}
+                style={{ padding: '0.2rem 0.4rem', fontSize: '10px', border: '1px solid #0d6efd', borderRadius: '3px', backgroundColor: 'white', color: '#0d6efd', cursor: 'pointer' }}
+              >
+                <i className="fas fa-sync-alt"></i>
+              </button>
             </div>
           </div>
-          <div className="card-body">
+          <div style={{ padding: '0.5rem' }}>
             {issues.length === 0 ? (
-              <div className="text-center py-4">
-                <div className="text-muted">
-                  <i className="fas fa-history fa-2x mb-2"></i>
-                  <p>Brak rozchodów wewnętrznych</p>
-                </div>
+              <div style={{ textAlign: 'center', padding: '1rem', color: '#6c757d', fontSize: '11px' }}>
+                <i className="fas fa-history" style={{ fontSize: '16px', marginBottom: '0.25rem', display: 'block' }}></i>
+                Brak rozchodów wewnętrznych
               </div>
             ) : (
-              <div className="table-responsive">
-                <table className="table table-hover">
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
                   <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Nr dokumentu</th>
-                      <th>Produkty</th>
-                      <th>Łączna ilość</th>
-                      <th>Status</th>
-                      <th>Utworzył</th>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Data</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Nr dokumentu</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Produkty</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Łączna ilość</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Status</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left' }}>Utworzył</th>
                     </tr>
                   </thead>
                   <tbody>
                     {issues.map((issue) => (
                       <tr key={issue.id}>
-                        <td>
+                        <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
                           {new Date(issue.created_at).toLocaleDateString('pl-PL')}
-                          <br />
-                          <small className="text-muted">
+                          <span style={{ display: 'block', color: '#6c757d', fontSize: '10px' }}>
                             {new Date(issue.created_at).toLocaleTimeString('pl-PL')}
-                          </small>
+                          </span>
                         </td>
-                        <td>
-                          <code>RW-{issue.id.toString().padStart(6, '0')}</code>
+                        <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
+                          <code style={{ fontSize: '10px' }}>RW-{issue.id.toString().padStart(6, '0')}</code>
                         </td>
-                        <td>
+                        <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
                           {issue.items ? (
                             <div>
                               {issue.items.slice(0, 2).map((item, index) => (
-                                <div key={index} className="small">
+                                <div key={index} style={{ fontSize: '10px' }}>
                                   {item.product_name} ({item.quantity} {item.unit || 'szt'})
                                 </div>
                               ))}
                               {issue.items.length > 2 && (
-                                <small className="text-muted">
+                                <span style={{ color: '#6c757d', fontSize: '10px' }}>
                                   ...i {issue.items.length - 2} więcej
-                                </small>
+                                </span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-muted">Brak danych</span>
+                            <span style={{ color: '#6c757d' }}>Brak danych</span>
                           )}
                         </td>
-                        <td>
-                          <span className="badge bg-warning">
+                        <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
+                          <span style={{ 
+                            padding: '0.1rem 0.3rem', 
+                            fontSize: '10px', 
+                            backgroundColor: '#ffc107', 
+                            color: '#000', 
+                            borderRadius: '3px' 
+                          }}>
                             {issue.total_quantity || 0}
                           </span>
                         </td>
-                        <td>
-                          <span className={`badge ${issue.status === 'completed' ? 'bg-success' : 'bg-warning'}`}>
+                        <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee' }}>
+                          <span style={{ 
+                            padding: '0.1rem 0.3rem', 
+                            fontSize: '10px', 
+                            backgroundColor: issue.status === 'completed' ? '#198754' : '#ffc107', 
+                            color: issue.status === 'completed' ? '#fff' : '#000', 
+                            borderRadius: '3px' 
+                          }}>
                             {issue.status === 'completed' ? 'Zatwierdzony' : 'Oczekujący'}
                           </span>
                         </td>
-                        <td>
-                          <small>{issue.created_by || 'System'}</small>
+                        <td style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #eee', color: '#6c757d', fontSize: '10px' }}>
+                          {issue.created_by || 'System'}
                         </td>
                       </tr>
                     ))}
@@ -529,119 +614,274 @@ const InternalIssue = () => {
         </div>
       )}
 
-      {/* Modal wyboru produktu */}
+      {/* Modal wyboru produktu - styl zgodny z Open/CloseShiftEnhancedModal */}
       {showProductModal && (
-        <div className="modal fade show" style={{ display: 'block' }} tabIndex="-1">
-          <div className="modal-dialog modal-lg">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">Wybierz produkt</h5>
-                <button 
-                  type="button" 
-                  className="btn-close" 
-                  onClick={() => { setShowProductModal(false); setSearchTerm(''); }}
-                ></button>
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '1rem'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '6px',
+            width: '900px',
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
+          }}>
+            {/* Header - styl jak w OpenShiftEnhancedModal */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              background: 'linear-gradient(135deg, #fd7e14, #dc3545)',
+              color: 'white',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem'
+            }}>
+              <div style={{
+                width: '2rem',
+                height: '2rem',
+                background: 'rgba(255,255,255,0.2)',
+                borderRadius: '5px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '1rem'
+              }}>
+                📤
               </div>
-              <div className="modal-body">
-                {/* Wybór magazynu */}
-                <div className="mb-3">
-                  <label className="form-label">Magazyn źródłowy:</label>
-                  <select
-                    className="form-select"
-                    value={selectedWarehouse || ''}
-                    onChange={(e) => setSelectedWarehouse(parseInt(e.target.value))}
-                  >
-                    {warehouses.length === 0 ? (
-                      <option value="">Brak magazynów dla tej lokalizacji</option>
-                    ) : (
-                      warehouses.map(w => (
-                        <option key={w.id} value={w.id}>{w.name || w.nazwa}</option>
-                      ))
-                    )}
-                  </select>
+              <div style={{ flex: 1 }}>
+                <h5 style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>
+                  Wybierz produkt do wydania
+                </h5>
+                <p style={{ margin: 0, fontSize: '11px', opacity: 0.9 }}>
+                  RW - Rozchód wewnętrzny
+                </p>
+              </div>
+              <button
+                onClick={() => { setShowProductModal(false); setSearchTerm(''); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '1.25rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '0.25rem',
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ padding: '1rem', maxHeight: 'calc(90vh - 60px)', overflowY: 'auto' }}>
+              {/* Wybór magazynu */}
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  🏪 Magazyn źródłowy
+                </label>
+                <select
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '13px',
+                    backgroundColor: '#fff'
+                  }}
+                  value={selectedWarehouse || ''}
+                  onChange={(e) => setSelectedWarehouse(parseInt(e.target.value))}
+                >
+                  {warehouses.length === 0 ? (
+                    <option value="">Brak magazynów dla tej lokalizacji</option>
+                  ) : (
+                    warehouses.map(w => (
+                      <option key={w.id} value={w.id}>{w.name || w.nazwa}</option>
+                    ))
+                  )}
+                </select>
+              </div>
+
+              {/* Wyszukiwarka */}
+              <div style={{ marginBottom: '0.75rem' }}>
+                <label style={{
+                  display: 'block',
+                  fontSize: '11px',
+                  fontWeight: '500',
+                  color: '#6c757d',
+                  marginBottom: '3px'
+                }}>
+                  🔍 Szukaj produktów
+                </label>
+                <input
+                  type="text"
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    border: '1px solid #ced4da',
+                    borderRadius: '4px',
+                    fontSize: '13px'
+                  }}
+                  placeholder="Wpisz min. 2 znaki aby wyszukać..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+
+              {/* Tabela produktów */}
+              {loadingProducts ? (
+                <div style={{ textAlign: 'center', padding: '2rem' }}>
+                  <div style={{ 
+                    width: '40px', 
+                    height: '40px', 
+                    border: '4px solid #e9ecef',
+                    borderTop: '4px solid #fd7e14',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    margin: '0 auto'
+                  }}></div>
+                  <p style={{ marginTop: '1rem', color: '#6c757d', fontSize: '12px' }}>Ładowanie produktów...</p>
                 </div>
-                
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    className="form-control"
-                    placeholder="Szukaj produktów (wpisz min. 2 znaki)..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                  />
-                </div>
-                
-                {loadingProducts ? (
-                  <div className="text-center py-4">
-                    <div className="spinner-border text-primary" role="status">
-                      <span className="visually-hidden">Ładowanie...</span>
-                    </div>
-                    <p className="mt-2 text-muted">Ładowanie produktów...</p>
-                  </div>
-                ) : (
-                <div className="table-responsive" style={{ maxHeight: '400px', overflowY: 'auto' }}>
-                  <table className="table table-hover">
-                    <thead className="sticky-top bg-white">
-                      <tr>
-                        <th>Nazwa</th>
-                        <th>Kod</th>
-                        <th>Stan</th>
-                        <th>Akcja</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {products.length === 0 ? (
+              ) : (
+                <div style={{ 
+                  border: '1px solid #dee2e6',
+                  borderRadius: '4px',
+                  overflow: 'hidden'
+                }}>
+                  <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead style={{ 
+                        position: 'sticky', 
+                        top: 0, 
+                        backgroundColor: '#f8f9fa',
+                        borderBottom: '2px solid #dee2e6'
+                      }}>
                         <tr>
-                          <td colSpan="4" className="text-center py-4">
-                            <div className="text-muted">
-                              <i className="fas fa-search fa-2x mb-2"></i>
-                              <p>Brak dostępnych produktów</p>
-                            </div>
-                          </td>
+                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Nazwa</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'left', fontWeight: '600', color: '#495057', width: '110px' }}>Kod</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#495057', width: '90px' }}>Stan</th>
+                          <th style={{ padding: '10px 12px', textAlign: 'center', fontWeight: '600', color: '#495057', width: '90px' }}>Akcja</th>
                         </tr>
-                      ) : (
-                        products.map((product) => (
-                          <tr key={product.id}>
-                            <td>
-                              <strong>{product.name}</strong>
-                              {product.description && (
-                                <>
-                                  <br />
-                                  <small className="text-muted">{product.description}</small>
-                                </>
-                              )}
-                            </td>
-                            <td>
-                              <code>{product.barcode || product.product_code || 'Brak'}</code>
-                            </td>
-                            <td>
-                              <span className="badge bg-success">
-                                {product.stock_quantity || product.quantity || 0} {product.unit || 'szt'}
-                              </span>
-                            </td>
-                            <td>
-                              <button
-                                className="btn btn-primary btn-sm"
-                                onClick={() => addProduct(product)}
-                                disabled={selectedProducts.some(p => p.id === product.id)}
-                              >
-                                <i className="fas fa-plus me-1"></i>
-                                {selectedProducts.some(p => p.id === product.id) ? 'Dodano' : 'Dodaj'}
-                              </button>
+                      </thead>
+                      <tbody>
+                        {products.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" style={{ padding: '2rem', textAlign: 'center', color: '#6c757d' }}>
+                              <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>📦</div>
+                              Brak dostępnych produktów
                             </td>
                           </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                        ) : (
+                          products.map((product) => (
+                            <tr key={product.id} style={{ 
+                              borderBottom: '1px solid #f0f0f0',
+                              transition: 'background-color 0.15s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f8f9fa'}
+                            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                            >
+                              <td style={{ padding: '10px 12px' }}>
+                                <div style={{ fontWeight: '500', color: '#212529', fontSize: '13px' }}>{product.name}</div>
+                                {product.description && (
+                                  <small style={{ color: '#6c757d', fontSize: '11px' }}>{product.description}</small>
+                                )}
+                              </td>
+                              <td style={{ padding: '10px 12px' }}>
+                                <code style={{ 
+                                  backgroundColor: '#e9ecef', 
+                                  padding: '3px 6px', 
+                                  borderRadius: '3px',
+                                  fontSize: '11px'
+                                }}>
+                                  {product.barcode || product.product_code || '-'}
+                                </code>
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                <span style={{ 
+                                  display: 'inline-block',
+                                  padding: '4px 8px',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  fontWeight: '500',
+                                  backgroundColor: '#d1e7dd',
+                                  color: '#0a3622'
+                                }}>
+                                  {product.stock_quantity || product.quantity || 0} {product.unit || 'szt'}
+                                </span>
+                              </td>
+                              <td style={{ padding: '10px 12px', textAlign: 'center' }}>
+                                <button
+                                  style={{
+                                    padding: '6px 12px',
+                                    fontSize: '11px',
+                                    fontWeight: '500',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    backgroundColor: selectedProducts.some(p => p.id === product.id) ? '#6c757d' : '#fd7e14',
+                                    color: 'white',
+                                    cursor: selectedProducts.some(p => p.id === product.id) ? 'default' : 'pointer',
+                                    transition: 'background-color 0.15s'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    if (!selectedProducts.some(p => p.id === product.id)) {
+                                      e.target.style.backgroundColor = '#dc3545';
+                                    }
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    if (!selectedProducts.some(p => p.id === product.id)) {
+                                      e.target.style.backgroundColor = '#fd7e14';
+                                    }
+                                  }}
+                                  onClick={() => addProduct(product)}
+                                  disabled={selectedProducts.some(p => p.id === product.id)}
+                                >
+                                  {selectedProducts.some(p => p.id === product.id) ? '✓ Dodano' : '+ Dodaj'}
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
-                )}
+              )}
+
+              {/* Hint */}
+              <div style={{ 
+                marginTop: '0.75rem', 
+                padding: '10px 12px', 
+                backgroundColor: '#fff3cd', 
+                borderRadius: '4px',
+                fontSize: '11px',
+                color: '#856404',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
+              }}>
+                <span>⚠️</span>
+                <span>Rozchód wewnętrzny zmniejsza stan magazynowy. Upewnij się, że podajesz prawidłową ilość i powód.</span>
               </div>
             </div>
           </div>
         </div>
       )}
-      {showProductModal && <div className="modal-backdrop fade show"></div>}
     </div>
   );
 };

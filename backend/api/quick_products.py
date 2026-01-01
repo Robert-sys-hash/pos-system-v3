@@ -23,7 +23,10 @@ def get_quick_products():
         conn = get_db()
         cursor = conn.cursor()
         
-        # Pobierz szybkie produkty wraz z danymi produktu
+        # Pobierz parametr lokalizacji
+        location_id = request.args.get('location_id', 5, type=int)
+        
+        # Pobierz szybkie produkty wraz z danymi produktu i stanem magazynowym
         cursor.execute('''
             SELECT 
                 qp.id,
@@ -35,12 +38,14 @@ def get_quick_products():
                 p.nazwa as product_nazwa,
                 p.cena_sprzedazy_brutto as product_cena,
                 p.ean as kod_kreskowy,
-                p.jednostka
+                p.jednostka,
+                COALESCE(pm.stan_aktualny, 0) as stock_quantity
             FROM pos_quick_products qp
             LEFT JOIN produkty p ON qp.product_id = p.id
+            LEFT JOIN pos_magazyn pm ON p.id = pm.produkt_id AND pm.lokalizacja = ?
             WHERE qp.aktywny = 1
             ORDER BY qp.kolejnosc ASC, qp.id ASC
-        ''')
+        ''', (location_id,))
         
         quick_products = []
         for row in cursor.fetchall():
@@ -54,7 +59,8 @@ def get_quick_products():
                 'product_nazwa': row['product_nazwa'],
                 'product_cena': row['product_cena'],
                 'kod_kreskowy': row['kod_kreskowy'],
-                'jednostka': row['jednostka']
+                'jednostka': row['jednostka'],
+                'stock_quantity': row['stock_quantity']
             })
         
         conn.close()

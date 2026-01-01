@@ -503,7 +503,19 @@ const TransactionsList = ({ onTransactionSelect, onCorrectionClick, isAdmin = fa
                   #{transaction.id}
                 </div>
                 
-                <div style={{ fontFamily: 'monospace', fontSize: '10px' }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '10px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  {transaction.has_stock_shortage === 1 && (
+                    <span 
+                      title="Sprzedaż z brakiem magazynowym - wymaga uzupełnienia stanu"
+                      style={{ 
+                        color: '#dc3545', 
+                        cursor: 'help',
+                        fontSize: '14px'
+                      }}
+                    >
+                      📦❗
+                    </span>
+                  )}
                   {transaction.receipt_number || '-'}
                 </div>
                 

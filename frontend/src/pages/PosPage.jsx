@@ -689,7 +689,9 @@ const PosPage = () => {
         purchase_price_method: product.purchase_price_method || 'Tabela produkty',
         // Zachowaj informacje o marży dla dynamicznego przeliczania
         margin_percent: null,
-        margin_amount: null
+        margin_amount: null,
+        // Dostępny stan magazynowy dla wyświetlania w koszyku
+        available_stock: product.stock_quantity ?? product.stan_magazynowy ?? product.available_stock ?? 0
       };
         
       setCart([...cart, newCartItem]);
@@ -2143,6 +2145,20 @@ const PosPage = () => {
                                 {item.kod_kreskowy}
                               </div>
                             )}
+                            {/* Wyświetl dostępny stan magazynowy */}
+                            {item.available_stock !== undefined && (
+                              <div style={{ 
+                                fontSize: "9px", 
+                                color: item.available_stock < item.quantity ? "#dc3545" : "#28a745",
+                                fontWeight: item.available_stock < item.quantity ? "600" : "normal"
+                              }}>
+                                {item.available_stock < item.quantity ? (
+                                  <>⚠️ Dostępne: {item.available_stock} szt. (brakuje {item.quantity - item.available_stock})</>
+                                ) : (
+                                  <>📦 Dostępne: {item.available_stock} szt.</>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td
                             style={{ padding: "8px 6px", textAlign: "center" }}
@@ -2766,9 +2782,9 @@ const PosPage = () => {
           {/* Zawartość w zależności od wybranej podsekcji */}
           <div style={{ display: "flex", gap: "15px" }}>
             {receiptsSubTab === "transactions" ? (
-              <div style={{ display: "contents" }}>
-                {/* Lista transakcji */}
-                <div style={{ flex: selectedTransactionId ? "0 0 60%" : "1" }}>
+              <>
+                {/* Lista transakcji - teraz zawsze pełna szerokość */}
+                <div style={{ flex: "1" }}>
                   <TransactionsList
                     onTransactionSelect={handleTransactionSelect}
                     onCorrectionClick={handleCorrectionClick}
@@ -2779,16 +2795,13 @@ const PosPage = () => {
                   />
                 </div>
 
-                {/* Szczegóły transakcji */}
-                {selectedTransactionId && (
-                  <div style={{ flex: "0 0 40%" }}>
-                    <TransactionDetails
-                      transactionId={selectedTransactionId}
-                      onClose={() => setSelectedTransactionId(null)}
-                    />
-                  </div>
-                )}
-              </div>
+                {/* Szczegóły transakcji - teraz jako modal overlay */}
+                <TransactionDetails
+                  transactionId={selectedTransactionId}
+                  isOpen={!!selectedTransactionId}
+                  onClose={() => setSelectedTransactionId(null)}
+                />
+              </>
             ) : (
               <>
                 {/* Sekcja szkiców */}

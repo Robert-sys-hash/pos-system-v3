@@ -161,74 +161,105 @@ const Inventory = () => {
   };
 
   return (
-    <div className="container-fluid">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <h3>📋 Inwentaryzacja</h3>
+    <div style={{ fontSize: '12px' }}>
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center', 
+        marginBottom: '0.5rem'
+      }}>
+        <span style={{ fontWeight: '600', fontSize: '13px' }}>📋 Inwentaryzacja</span>
       </div>
 
       {error && (
-        <div className="alert alert-danger alert-dismissible fade show" role="alert">
+        <div style={{
+          padding: '0.35rem 0.5rem',
+          marginBottom: '0.5rem',
+          backgroundColor: '#f8d7da',
+          color: '#842029',
+          borderRadius: '4px',
+          fontSize: '11px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
           {error}
-          <button type="button" className="btn-close" onClick={() => setError('')}></button>
+          <button 
+            style={{ border: 'none', background: 'none', color: '#842029', cursor: 'pointer', padding: '0' }}
+            onClick={() => setError('')}
+          >×</button>
         </div>
       )}
 
       {success && (
-        <div className="alert alert-success alert-dismissible fade show" role="alert">
+        <div style={{
+          padding: '0.35rem 0.5rem',
+          marginBottom: '0.5rem',
+          backgroundColor: '#d1e7dd',
+          color: '#0f5132',
+          borderRadius: '4px',
+          fontSize: '11px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
           {success}
-          <button type="button" className="btn-close" onClick={() => setSuccess('')}></button>
+          <button 
+            style={{ border: 'none', background: 'none', color: '#0f5132', cursor: 'pointer', padding: '0' }}
+            onClick={() => setSuccess('')}
+          >×</button>
         </div>
       )}
 
-      {/* Zakładki z pięknym formatowaniem */}
+      {/* Zakładki kompaktowe */}
       <div style={{
         display: 'flex',
-        gap: '0.5rem',
-        marginBottom: '1.5rem',
-        padding: '0.75rem',
+        gap: '0.25rem',
+        marginBottom: '0.5rem',
+        padding: '0.35rem',
         backgroundColor: 'white',
-        borderRadius: '0.5rem',
+        borderRadius: '4px',
         border: '1px solid #e9ecef',
-        boxShadow: '0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)'
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08)'
       }}>
         <button
           style={{
-            padding: '0.75rem 1.25rem',
-            fontSize: '0.875rem',
+            padding: '0.3rem 0.6rem',
+            fontSize: '11px',
             fontWeight: '500',
             border: activeTab === 'new' ? '1px solid #6f42c1' : '1px solid #e9ecef',
-            borderRadius: '0.375rem',
+            borderRadius: '3px',
             backgroundColor: activeTab === 'new' ? '#6f42c1' : 'white',
             color: activeTab === 'new' ? 'white' : '#495057',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.25rem',
             transition: 'all 0.15s ease-in-out'
           }}
           onClick={() => setActiveTab('new')}
         >
-          <i className="fas fa-plus"></i>
+          <i className="fas fa-plus" style={{ fontSize: '10px' }}></i>
           Nowa inwentaryzacja
         </button>
         <button
           style={{
-            padding: '0.75rem 1.25rem',
-            fontSize: '0.875rem',
+            padding: '0.3rem 0.6rem',
+            fontSize: '11px',
             fontWeight: '500',
             border: activeTab === 'history' ? '1px solid #6f42c1' : '1px solid #e9ecef',
-            borderRadius: '0.375rem',
+            borderRadius: '3px',
             backgroundColor: activeTab === 'history' ? '#6f42c1' : 'white',
             color: activeTab === 'history' ? 'white' : '#495057',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: '0.5rem',
+            gap: '0.25rem',
             transition: 'all 0.15s ease-in-out'
           }}
           onClick={() => setActiveTab('history')}
         >
-          <i className="fas fa-history"></i>
+          <i className="fas fa-history" style={{ fontSize: '10px' }}></i>
           Historia inwentaryzacji
         </button>
       </div>
@@ -238,25 +269,47 @@ const Inventory = () => {
         <>
           {!isInventoryStarted ? (
             // Panel startowy inwentaryzacji
-            <div className="card">
-              <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="card-title mb-0">Ustawienia inwentaryzacji</h5>
+            <div style={{ 
+              backgroundColor: 'white', 
+              border: '1px solid #e9ecef', 
+              borderRadius: '4px'
+            }}>
+              <div style={{ 
+                padding: '0.4rem 0.6rem', 
+                backgroundColor: '#f8f9fa', 
+                borderBottom: '1px solid #e9ecef',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center'
+              }}>
+                <span style={{ fontWeight: '600', fontSize: '11px' }}>Ustawienia inwentaryzacji</span>
                 <button 
-                  className="btn btn-success"
+                  style={{
+                    padding: '0.3rem 0.6rem',
+                    fontSize: '11px',
+                    backgroundColor: '#198754',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '3px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.25rem'
+                  }}
                   onClick={startInventory}
                   disabled={loading}
                 >
-                  <i className="fas fa-play me-2"></i>
+                  <i className="fas fa-play" style={{ fontSize: '10px' }}></i>
                   Rozpocznij inwentaryzację
                 </button>
               </div>
-              <div className="card-body">
-                <div className="row">
-                  <div className="col-md-6">
-                    <div className="mb-3">
-                      <label className="form-label">Kategoria (opcjonalnie)</label>
+              <div style={{ padding: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <div style={{ flex: '1', minWidth: '200px' }}>
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '10px', fontWeight: '600', display: 'block', marginBottom: '0.15rem' }}>Kategoria (opcjonalnie)</label>
                       <select 
-                        className="form-select"
+                        style={{ width: '100%', padding: '0.25rem 0.5rem', fontSize: '11px', border: '1px solid #ced4da', borderRadius: '3px' }}
                         value={selectedCategory}
                         onChange={(e) => setSelectedCategory(e.target.value)}
                       >
@@ -265,62 +318,62 @@ const Inventory = () => {
                           <option key={cat.id} value={cat.id}>{cat.name}</option>
                         ))}
                       </select>
-                      <small className="text-muted">
-                        Możesz ograniczyć inwentaryzację do wybranej kategorii
-                      </small>
+                      <span style={{ fontSize: '9px', color: '#6c757d' }}>
+                        Możesz ograniczyć do wybranej kategorii
+                      </span>
                     </div>
                   </div>
-                  <div className="col-md-6">
-                    <div className="mb-3">
-                      <label className="form-label">Szukaj produktów</label>
+                  <div style={{ flex: '1', minWidth: '200px' }}>
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <label style={{ fontSize: '10px', fontWeight: '600', display: 'block', marginBottom: '0.15rem' }}>Szukaj produktów</label>
                       <input
                         type="text"
-                        className="form-control"
-                        placeholder="Nazwa produktu, kod, kod kreskowy..."
+                        style={{ width: '100%', padding: '0.25rem 0.5rem', fontSize: '11px', border: '1px solid #ced4da', borderRadius: '3px' }}
+                        placeholder="Nazwa produktu, kod..."
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
-                      <small className="text-muted">
+                      <span style={{ fontSize: '9px', color: '#6c757d' }}>
                         Podgląd produktów do inwentaryzacji
-                      </small>
+                      </span>
                     </div>
                   </div>
                 </div>
 
                 {/* Podgląd produktów */}
                 {(searchTerm || selectedCategory) && (
-                  <div className="mt-4">
-                    <h6>Produkty do inwentaryzacji ({products.length})</h6>
-                    <div className="table-responsive" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-                      <table className="table table-sm">
-                        <thead className="sticky-top bg-white">
+                  <div style={{ marginTop: '0.5rem' }}>
+                    <span style={{ fontWeight: '600', fontSize: '11px' }}>Produkty do inwentaryzacji ({products.length})</span>
+                    <div style={{ maxHeight: '200px', overflowY: 'auto', marginTop: '0.25rem' }}>
+                      <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                        <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa' }}>
                           <tr>
-                            <th>Nazwa</th>
-                            <th>Kod</th>
-                            <th>Kategoria</th>
-                            <th>Stan systemowy</th>
+                            <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Nazwa</th>
+                            <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Kod</th>
+                            <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Kategoria</th>
+                            <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Stan systemowy</th>
                           </tr>
                         </thead>
                         <tbody>
                           {products.map(product => (
-                            <tr key={product.id}>
-                              <td>
+                            <tr key={product.id} style={{ borderBottom: '1px solid #e9ecef' }}>
+                              <td style={{ padding: '0.3rem 0.5rem' }}>
                                 <strong>{product.name}</strong>
                                 {product.description && (
                                   <>
                                     <br />
-                                    <small className="text-muted">{product.description}</small>
+                                    <small style={{ color: '#6c757d', fontSize: '10px' }}>{product.description}</small>
                                   </>
                                 )}
                               </td>
-                              <td>
-                                <code>{product.barcode || product.product_code || 'Brak'}</code>
+                              <td style={{ padding: '0.3rem 0.5rem' }}>
+                                <code style={{ fontSize: '10px', backgroundColor: '#f1f3f4', padding: '1px 4px', borderRadius: '2px' }}>{product.barcode || product.product_code || 'Brak'}</code>
                               </td>
-                              <td>
-                                <small>{product.category_name || 'Brak kategorii'}</small>
+                              <td style={{ padding: '0.3rem 0.5rem' }}>
+                                <small style={{ fontSize: '10px' }}>{product.category_name || 'Brak kategorii'}</small>
                               </td>
-                              <td>
-                                <span className="badge bg-info">
+                              <td style={{ padding: '0.3rem 0.5rem' }}>
+                                <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: '#0dcaf0', color: 'white', borderRadius: '3px' }}>
                                   {product.stock_quantity || 0} {product.unit || 'szt'}
                                 </span>
                               </td>
@@ -335,79 +388,82 @@ const Inventory = () => {
             </div>
           ) : (
             // Panel aktywnej inwentaryzacji
-            <div className="card">
-              <div className="card-header d-flex justify-content-between align-items-center">
-                <h5 className="card-title mb-0">Inwentaryzacja w toku</h5>
+            <div className="card" style={{ fontSize: '12px' }}>
+              <div className="card-header d-flex justify-content-between align-items-center" style={{ padding: '0.4rem 0.75rem' }}>
+                <h5 className="card-title mb-0" style={{ fontSize: '13px', fontWeight: '600' }}>Inwentaryzacja w toku</h5>
                 <div>
                   <button 
-                    className="btn btn-secondary me-2"
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '11px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '3px', marginRight: '0.5rem' }}
                     onClick={cancelInventory}
                   >
-                    <i className="fas fa-times me-2"></i>
+                    <i className="fas fa-times me-1"></i>
                     Anuluj
                   </button>
                   <button 
-                    className="btn btn-success"
+                    style={{ padding: '0.3rem 0.6rem', fontSize: '11px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px' }}
                     onClick={finishInventory}
                     disabled={loading}
                   >
-                    <i className="fas fa-check me-2"></i>
+                    <i className="fas fa-check me-1"></i>
                     Zakończ inwentaryzację
                   </button>
                 </div>
               </div>
-              <div className="card-body">
+              <div className="card-body" style={{ padding: '0.5rem 0.75rem' }}>
                 <div className="table-responsive">
-                  <table className="table">
+                  <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
                     <thead>
                       <tr>
-                        <th>Produkt</th>
-                        <th>Kod</th>
-                        <th>Stan systemowy</th>
-                        <th>Stan rzeczywisty</th>
-                        <th>Różnica</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Produkt</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Kod</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Stan systemowy</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Stan rzeczywisty</th>
+                        <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Różnica</th>
                       </tr>
                     </thead>
                     <tbody>
                       {inventoryData.map((item) => (
-                        <tr key={item.product_id}>
-                          <td>
+                        <tr key={item.product_id} style={{ borderBottom: '1px solid #e9ecef' }}>
+                          <td style={{ padding: '0.3rem 0.5rem' }}>
                             <strong>{item.product_name}</strong>
                             {item.product_description && (
                               <>
                                 <br />
-                                <small className="text-muted">{item.product_description}</small>
+                                <small style={{ color: '#6c757d', fontSize: '10px' }}>{item.product_description}</small>
                               </>
                             )}
                           </td>
-                          <td>
-                            <code>{item.product_code || 'Brak'}</code>
+                          <td style={{ padding: '0.3rem 0.5rem' }}>
+                            <code style={{ fontSize: '10px', backgroundColor: '#f1f3f4', padding: '1px 4px', borderRadius: '2px' }}>{item.product_code || 'Brak'}</code>
                           </td>
-                          <td>
-                            <span className="badge bg-info">
+                          <td style={{ padding: '0.3rem 0.5rem' }}>
+                            <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: '#0dcaf0', color: 'white', borderRadius: '3px' }}>
                               {item.system_count} {item.unit || 'szt'}
                             </span>
                           </td>
-                          <td>
+                          <td style={{ padding: '0.3rem 0.5rem' }}>
                             <input
                               type="number"
-                              className="form-control"
-                              style={{ width: '120px' }}
+                              style={{ width: '80px', fontSize: '11px', padding: '0.2rem 0.4rem', border: '1px solid #ced4da', borderRadius: '3px' }}
                               value={item.actual_count || ''}
                               onChange={(e) => updateInventoryCount(item.product_id, e.target.value)}
                               min="0"
                               placeholder="0"
                             />
                           </td>
-                          <td>
+                          <td style={{ padding: '0.3rem 0.5rem' }}>
                             {item.actual_count !== undefined && item.actual_count !== null && (
-                              <span className={`badge ${
-                                (item.actual_count - item.system_count) === 0 
-                                  ? 'bg-success' 
+                              <span style={{ 
+                                fontSize: '10px', 
+                                padding: '2px 6px', 
+                                color: 'white', 
+                                borderRadius: '3px',
+                                backgroundColor: (item.actual_count - item.system_count) === 0 
+                                  ? '#28a745' 
                                   : (item.actual_count - item.system_count) > 0 
-                                    ? 'bg-warning' 
-                                    : 'bg-danger'
-                              }`}>
+                                    ? '#ffc107' 
+                                    : '#dc3545'
+                              }}>
                                 {item.actual_count - item.system_count > 0 ? '+' : ''}
                                 {item.actual_count - item.system_count}
                               </span>
@@ -426,30 +482,28 @@ const Inventory = () => {
 
       {/* Zakładka historii inwentaryzacji */}
       {activeTab === 'history' && (
-        <div className="card">
-          <div className="card-header">
+        <div className="card" style={{ fontSize: '12px' }}>
+          <div className="card-header" style={{ padding: '0.4rem 0.75rem' }}>
             <div className="d-flex justify-content-between align-items-center">
-              <h5 className="card-title mb-0">Historia inwentaryzacji</h5>
+              <h5 className="card-title mb-0" style={{ fontSize: '13px', fontWeight: '600' }}>Historia inwentaryzacji</h5>
               <div className="d-flex gap-2">
                 <input
                   type="date"
-                  className="form-control form-control-sm"
                   value={dateFilter}
                   onChange={(e) => setDateFilter(e.target.value)}
-                  style={{ width: '150px' }}
+                  style={{ width: '120px', fontSize: '10px', padding: '0.2rem 0.4rem', border: '1px solid #ced4da', borderRadius: '3px' }}
                 />
                 <select
-                  className="form-select form-select-sm"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  style={{ width: '120px' }}
+                  style={{ width: '100px', fontSize: '10px', padding: '0.2rem 0.4rem', border: '1px solid #ced4da', borderRadius: '3px' }}
                 >
                   <option value="">Wszystkie</option>
                   <option value="active">Aktywne</option>
                   <option value="completed">Zakończone</option>
                 </select>
                 <button 
-                  className="btn btn-outline-primary btn-sm"
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '10px', backgroundColor: 'white', color: '#0d6efd', border: '1px solid #0d6efd', borderRadius: '3px' }}
                   onClick={loadInventorySessions}
                 >
                   <i className="fas fa-sync-alt"></i>
@@ -457,61 +511,67 @@ const Inventory = () => {
               </div>
             </div>
           </div>
-          <div className="card-body">
+          <div className="card-body" style={{ padding: '0.5rem 0.75rem' }}>
             {inventorySessions.length === 0 ? (
               <div className="text-center py-4">
                 <div className="text-muted">
                   <i className="fas fa-history fa-2x mb-2"></i>
-                  <p>Brak sesji inwentaryzacji</p>
+                  <p style={{ fontSize: '11px' }}>Brak sesji inwentaryzacji</p>
                 </div>
               </div>
             ) : (
               <div className="table-responsive">
-                <table className="table table-hover">
+                <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
                   <thead>
                     <tr>
-                      <th>Data rozpoczęcia</th>
-                      <th>Data zakończenia</th>
-                      <th>Status</th>
-                      <th>Liczba produktów</th>
-                      <th>Utworzył</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Data rozpoczęcia</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Data zakończenia</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Status</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Liczba produktów</th>
+                      <th style={{ padding: '0.3rem 0.5rem', borderBottom: '1px solid #dee2e6', textAlign: 'left', fontWeight: '600', color: '#495057' }}>Utworzył</th>
                     </tr>
                   </thead>
                   <tbody>
                     {inventorySessions.map((session) => (
-                      <tr key={session.id}>
-                        <td>
+                      <tr key={session.id} style={{ borderBottom: '1px solid #e9ecef' }}>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>
                           {new Date(session.started_at).toLocaleDateString('pl-PL')}
                           <br />
-                          <small className="text-muted">
+                          <small style={{ color: '#6c757d', fontSize: '10px' }}>
                             {new Date(session.started_at).toLocaleTimeString('pl-PL')}
                           </small>
                         </td>
-                        <td>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>
                           {session.finished_at ? (
                             <>
                               {new Date(session.finished_at).toLocaleDateString('pl-PL')}
                               <br />
-                              <small className="text-muted">
+                              <small style={{ color: '#6c757d', fontSize: '10px' }}>
                                 {new Date(session.finished_at).toLocaleTimeString('pl-PL')}
                               </small>
                             </>
                           ) : (
-                            <span className="text-muted">W toku</span>
+                            <span style={{ color: '#6c757d' }}>W toku</span>
                           )}
                         </td>
-                        <td>
-                          <span className={`badge ${session.status === 'completed' ? 'bg-success' : 'bg-warning'}`}>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>
+                          <span style={{ 
+                            fontSize: '10px', 
+                            padding: '2px 6px', 
+                            color: 'white', 
+                            borderRadius: '3px',
+                            backgroundColor: session.status === 'completed' ? '#28a745' : '#ffc107'
+                          }}>
                             {session.status === 'completed' ? 'Zakończona' : 'Aktywna'}
                           </span>
                         </td>
-                        <td>
-                          <span className="badge bg-info">
+                        <td style={{ padding: '0.3rem 0.5rem' }}>
+                          <span style={{ fontSize: '10px', padding: '2px 6px', backgroundColor: '#0dcaf0', color: 'white', borderRadius: '3px' }}>
                             {session.total_products || 0}
                           </span>
                         </td>
-                        <td>
-                          <small>{session.created_by || 'System'}</small>
+                        <td style={{ padding: '0.3rem 0.5rem' }}>
+                          <small style={{ fontSize: '10px' }}>{session.created_by || 'System'}</small>
                         </td>
                       </tr>
                     ))}

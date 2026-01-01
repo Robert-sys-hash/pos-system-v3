@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { transactionService } from '../../services/transactionService';
 
-const TransactionDetails = ({ transactionId, onClose }) => {
+const TransactionDetails = ({ transactionId, onClose, isOpen = true }) => {
   const [transaction, setTransaction] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (transactionId) {
+    if (transactionId && isOpen) {
       loadTransaction();
     }
-  }, [transactionId]);
+  }, [transactionId, isOpen]);
 
   const loadTransaction = async () => {
     setLoading(true);
@@ -59,324 +59,407 @@ const TransactionDetails = ({ transactionId, onClose }) => {
     }).format(amount || 0);
   };
 
-  if (!transactionId) {
-    return (
-      <div style={{ 
-        textAlign: 'center', 
-        padding: '40px', 
-        color: '#666',
-        backgroundColor: '#f8f9fa',
-        borderRadius: '8px'
-      }}>
-        📄 Wybierz transakcję z listy, aby wyświetlić szczegóły
-      </div>
-    );
+  // Nie renderuj jeśli modal jest zamknięty lub brak ID
+  if (!isOpen || !transactionId) {
+    return null;
   }
 
   return (
-    <div style={{ 
-      backgroundColor: 'white', 
-      borderRadius: '8px', 
-      padding: '20px',
-      boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0,0,0,0.5)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 1000,
+      padding: '1rem'
     }}>
-      {/* Header */}
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center', 
-        marginBottom: '20px' 
+      <div style={{
+        background: '#fff',
+        borderRadius: '6px',
+        width: '900px',
+        maxWidth: '95vw',
+        maxHeight: '90vh',
+        overflow: 'hidden',
+        boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15)'
       }}>
-        <h3 style={{ margin: 0, color: '#2c3e50' }}>
-          📄 Szczegóły Transakcji #{transactionId}
-        </h3>
-        <button 
-          onClick={onClose}
-          style={{
-            padding: '8px 16px',
-            backgroundColor: '#6c757d',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '14px'
-          }}
-        >
-          ✕ Zamknij
-        </button>
-      </div>
-
-      {/* Error */}
-      {error && (
-        <div style={{ 
-          backgroundColor: '#f8d7da', 
-          color: '#721c24', 
-          padding: '15px', 
-          borderRadius: '6px', 
-          marginBottom: '20px',
-          border: '1px solid #f5c6cb'
+        {/* Header - styl jak w OpenShiftEnhancedModal */}
+        <div style={{
+          padding: '0.75rem 1rem',
+          background: 'linear-gradient(135deg, #007bff, #6f42c1)',
+          color: 'white',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.75rem'
         }}>
-          ❌ {error}
-        </div>
-      )}
-
-      {/* Loading */}
-      {loading && (
-        <div style={{ 
-          textAlign: 'center', 
-          padding: '40px', 
-          color: '#666' 
-        }}>
-          <i className="fas fa-spinner fa-spin" style={{ fontSize: '24px', marginBottom: '10px' }}></i>
-          <div>Ładowanie szczegółów transakcji...</div>
-        </div>
-      )}
-
-      {/* Szczegóły transakcji */}
-      {!loading && transaction && (
-        <div>
-          {/* Informacje podstawowe */}
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-            gap: '20px',
-            marginBottom: '30px'
+            width: '2rem',
+            height: '2rem',
+            background: 'rgba(255,255,255,0.2)',
+            borderRadius: '5px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '1rem'
           }}>
-            <div style={{ 
-              padding: '15px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '6px',
-              border: '1px solid #dee2e6'
-            }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#495057' }}>Podstawowe</h5>
-              <div style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                <div><strong>ID:</strong> #{transaction.id}</div>
-                <div><strong>Nr Paragonu:</strong> {transaction.numer_paragonu || 'N/A'}</div>
-                <div><strong>Data:</strong> {formatDate(transaction.data_transakcji)}</div>
-                <div><strong>Czas:</strong> {formatTime(transaction.czas_transakcji)}</div>
-                <div><strong>Status:</strong> 
-                  <span style={{
-                    marginLeft: '5px',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    backgroundColor: transaction.status === 'zakonczony' ? '#d4edda' : '#fff3cd',
-                    color: transaction.status === 'zakonczony' ? '#155724' : '#856404'
-                  }}>
-                    {transaction.status === 'zakonczony' ? 'Sfinalizowana' : transaction.status}
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            <div style={{ 
-              padding: '15px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '6px',
-              border: '1px solid #dee2e6'
-            }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#495057' }}>Kasjer & Klient</h5>
-              <div style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                <div><strong>Kasjer:</strong> {transaction.kasjer_login || 'N/A'}</div>
-                <div><strong>Klient:</strong> {transaction.customer_name || 'Klient detaliczny'}</div>
-                <div><strong>Telefon:</strong> {transaction.customer_phone || 'N/A'}</div>
-              </div>
-            </div>
-
-            <div style={{ 
-              padding: '15px',
-              backgroundColor: '#f8f9fa',
-              borderRadius: '6px',
-              border: '1px solid #dee2e6'
-            }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#495057' }}>Płatność</h5>
-              <div style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                <div><strong>Metoda:</strong> 
-                  <span style={{
-                    marginLeft: '5px',
-                    padding: '2px 8px',
-                    borderRadius: '12px',
-                    fontSize: '11px',
-                    backgroundColor: 
-                      transaction.forma_platnosci === 'gotowka' ? '#d4edda' :
-                      transaction.forma_platnosci === 'karta' ? '#cce5ff' :
-                      transaction.forma_platnosci === 'blik' ? '#ffe6cc' : '#f8f9fa',
-                    color:
-                      transaction.forma_platnosci === 'gotowka' ? '#155724' :
-                      transaction.forma_platnosci === 'karta' ? '#004085' :
-                      transaction.forma_platnosci === 'blik' ? '#cc6600' : '#666'
-                  }}>
-                    {transaction.forma_platnosci || 'N/A'}
-                  </span>
-                </div>
-                <div><strong>Otrzymano:</strong> {formatCurrency(transaction.kwota_otrzymana)}</div>
-                <div><strong>Reszta:</strong> {formatCurrency(transaction.kwota_reszty)}</div>
-              </div>
-            </div>
-
-            <div style={{ 
-              padding: '15px',
-              backgroundColor: '#e8f5e8',
-              borderRadius: '6px',
-              border: '1px solid #c3e6c3'
-            }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#155724' }}>Kwoty</h5>
-              <div style={{ fontSize: '13px', lineHeight: '1.4' }}>
-                <div><strong>Netto:</strong> {formatCurrency(transaction.suma_netto)}</div>
-                <div><strong>VAT:</strong> {formatCurrency(transaction.suma_vat)}</div>
-                <div style={{ 
-                  fontSize: '16px', 
-                  fontWeight: '600', 
-                  color: '#155724',
-                  marginTop: '8px',
-                  paddingTop: '8px',
-                  borderTop: '1px solid #c3e6c3'
-                }}>
-                  <strong>BRUTTO:</strong> {formatCurrency(transaction.suma_brutto)}
-                </div>
-              </div>
-            </div>
+            🧾
           </div>
-
-          {/* Pozycje transakcji */}
-          <div style={{ marginTop: '30px' }}>
-            <h5 style={{ margin: '0 0 15px 0', color: '#495057' }}>
-              📦 Pozycje ({transaction.items?.length || 0})
+          <div style={{ flex: 1 }}>
+            <h5 style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>
+              Szczegóły Paragonu #{transactionId}
             </h5>
-            
-            {transaction.items && transaction.items.length > 0 ? (
-              <div>
-                {/* Header tabeli pozycji */}
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '50px 1fr 100px 80px 80px 80px 100px',
-                  gap: '10px',
-                  padding: '12px 15px',
-                  backgroundColor: '#f1f3f4',
-                  borderRadius: '6px 6px 0 0',
-                  border: '1px solid #dee2e6',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  color: '#495057'
-                }}>
-                  <div>Lp.</div>
-                  <div>Produkt</div>
-                  <div>Kod</div>
-                  <div>Ilość</div>
-                  <div>Cena jedn.</div>
-                  <div>VAT</div>
-                  <div>Wartość</div>
-                </div>
-
-                {/* Wiersze pozycji */}
-                <div style={{ border: '1px solid #dee2e6', borderTop: 'none' }}>
-                  {transaction.items.map((item, index) => (
-                    <div 
-                      key={index}
-                      style={{
-                        display: 'grid',
-                        gridTemplateColumns: '50px 1fr 100px 80px 80px 80px 100px',
-                        gap: '10px',
-                        padding: '12px 15px',
-                        borderBottom: index < transaction.items.length - 1 ? '1px solid #dee2e6' : 'none',
-                        backgroundColor: index % 2 === 0 ? '#ffffff' : '#f8f9fa',
-                        fontSize: '13px',
-                        alignItems: 'center'
-                      }}
-                    >
-                      <div>{index + 1}</div>
-                      <div style={{ fontWeight: '500' }}>
-                        {item.product_name || item.nazwa_produktu || item.nazwa}
-                      </div>
-                      <div style={{ fontFamily: 'monospace', fontSize: '11px' }}>
-                        {item.barcode || item.kod_produktu || '-'}
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
-                        {item.ilosc || item.quantity} {item.jednostka || item.unit || 'szt'}
-                      </div>
-                      <div style={{ textAlign: 'right' }}>
-                        {formatCurrency(item.cena_jednostkowa || item.unit_price)}
-                      </div>
-                      <div style={{ textAlign: 'center' }}>
-                        {(item.stawka_vat || 23)}%
-                      </div>
-                      <div style={{ textAlign: 'right', fontWeight: '600' }}>
-                        {formatCurrency(item.wartosc_brutto || item.cena_calkowita || item.total_price)}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Footer z podsumowaniem pozycji */}
-                <div style={{
-                  padding: '10px 15px',
-                  backgroundColor: '#f8f9fa',
-                  borderRadius: '0 0 6px 6px',
-                  border: '1px solid #dee2e6',
-                  borderTop: 'none',
-                  fontSize: '12px',
-                  color: '#666'
-                }}>
-                  Pozycji: <strong>{transaction.items.length}</strong> |
-                  Łączna ilość: <strong>
-                    {transaction.items.reduce((sum, item) => sum + (item.ilosc || item.quantity || 0), 0)}
-                  </strong>
-                </div>
-              </div>
-            ) : (
-              <div style={{ 
-                textAlign: 'center', 
-                padding: '30px', 
-                color: '#666',
-                backgroundColor: '#f8f9fa',
-                borderRadius: '6px'
-              }}>
-                📭 Brak pozycji w transakcji
-              </div>
-            )}
+            <p style={{ margin: 0, fontSize: '11px', opacity: 0.9 }}>
+              {transaction?.numer_paragonu || 'Ładowanie...'}
+            </p>
           </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'none',
+              border: 'none',
+              fontSize: '1.25rem',
+              color: 'white',
+              cursor: 'pointer',
+              padding: '0.25rem',
+              lineHeight: 1
+            }}
+          >
+            ✕
+          </button>
+        </div>
 
-          {/* Akcje */}
-          <div style={{ 
-            marginTop: '30px', 
-            padding: '20px',
-            backgroundColor: '#f8f9fa',
-            borderRadius: '6px',
-            textAlign: 'center'
-          }}>
+        {/* Body */}
+        <div style={{ padding: '1rem', maxHeight: 'calc(90vh - 120px)', overflowY: 'auto' }}>
+          {/* Error */}
+          {error && (
+            <div style={{ 
+              backgroundColor: '#f8d7da', 
+              color: '#721c24', 
+              padding: '10px 12px', 
+              borderRadius: '4px', 
+              marginBottom: '12px',
+              border: '1px solid #f5c6cb',
+              fontSize: '12px'
+            }}>
+              ❌ {error}
+            </div>
+          )}
+
+          {/* Loading */}
+          {loading && (
+            <div style={{ textAlign: 'center', padding: '2rem' }}>
+              <div style={{ 
+                width: '40px', 
+                height: '40px', 
+                border: '4px solid #e9ecef',
+                borderTop: '4px solid #007bff',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+                margin: '0 auto'
+              }}></div>
+              <p style={{ marginTop: '1rem', color: '#6c757d', fontSize: '12px' }}>Ładowanie szczegółów...</p>
+            </div>
+          )}
+
+          {/* Szczegóły transakcji */}
+          {!loading && transaction && (
+            <div>
+              {/* Kafelki z podstawowymi informacjami */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(4, 1fr)',
+                gap: '10px',
+                marginBottom: '16px'
+              }}>
+                {/* Podstawowe */}
+                <div style={{ 
+                  padding: '12px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '4px',
+                  border: '1px solid #dee2e6'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '4px', fontWeight: '500' }}>PODSTAWOWE</div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                    <div><strong>ID:</strong> #{transaction.id}</div>
+                    <div><strong>Nr:</strong> {transaction.numer_paragonu || 'N/A'}</div>
+                    <div><strong>Data:</strong> {formatDate(transaction.data_transakcji)}</div>
+                    <div><strong>Czas:</strong> {formatTime(transaction.czas_transakcji)}</div>
+                    <div style={{ marginTop: '4px' }}>
+                      <span style={{
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontSize: '10px',
+                        backgroundColor: transaction.status === 'zakonczony' ? '#d4edda' : '#fff3cd',
+                        color: transaction.status === 'zakonczony' ? '#155724' : '#856404',
+                        fontWeight: '500'
+                      }}>
+                        {transaction.status === 'zakonczony' ? '✓ Sfinalizowana' : transaction.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Kasjer & Klient */}
+                <div style={{ 
+                  padding: '12px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '4px',
+                  border: '1px solid #dee2e6'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '4px', fontWeight: '500' }}>KASJER & KLIENT</div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                    <div><strong>Kasjer:</strong> {transaction.kasjer_login || 'N/A'}</div>
+                    <div><strong>Klient:</strong> {transaction.customer_name || 'Klient detaliczny'}</div>
+                    <div><strong>Telefon:</strong> {transaction.customer_phone || '-'}</div>
+                  </div>
+                </div>
+
+                {/* Płatność */}
+                <div style={{ 
+                  padding: '12px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '4px',
+                  border: '1px solid #dee2e6'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '4px', fontWeight: '500' }}>PŁATNOŚĆ</div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                    <div>
+                      <strong>Metoda:</strong>
+                      <span style={{
+                        marginLeft: '4px',
+                        padding: '2px 6px',
+                        borderRadius: '10px',
+                        fontSize: '10px',
+                        backgroundColor: 
+                          transaction.forma_platnosci === 'gotowka' ? '#d4edda' :
+                          transaction.forma_platnosci === 'karta' ? '#cce5ff' :
+                          transaction.forma_platnosci === 'blik' ? '#ffe6cc' : '#f8f9fa',
+                        color:
+                          transaction.forma_platnosci === 'gotowka' ? '#155724' :
+                          transaction.forma_platnosci === 'karta' ? '#004085' :
+                          transaction.forma_platnosci === 'blik' ? '#cc6600' : '#666'
+                      }}>
+                        {transaction.forma_platnosci || 'N/A'}
+                      </span>
+                    </div>
+                    <div><strong>Otrzymano:</strong> {formatCurrency(transaction.kwota_otrzymana)}</div>
+                    <div><strong>Reszta:</strong> {formatCurrency(transaction.kwota_reszty)}</div>
+                  </div>
+                </div>
+
+                {/* Kwoty - wyróżniony */}
+                <div style={{ 
+                  padding: '12px',
+                  backgroundColor: '#d4edda',
+                  borderRadius: '4px',
+                  border: '1px solid #c3e6cb'
+                }}>
+                  <div style={{ fontSize: '10px', color: '#155724', marginBottom: '4px', fontWeight: '500' }}>KWOTY</div>
+                  <div style={{ fontSize: '11px', lineHeight: '1.6' }}>
+                    <div><strong>Netto:</strong> {formatCurrency(transaction.suma_netto)}</div>
+                    <div><strong>VAT:</strong> {formatCurrency(transaction.suma_vat)}</div>
+                    <div style={{ 
+                      fontSize: '14px', 
+                      fontWeight: '700', 
+                      color: '#155724',
+                      marginTop: '6px',
+                      paddingTop: '6px',
+                      borderTop: '1px solid #c3e6cb'
+                    }}>
+                      {formatCurrency(transaction.suma_brutto)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pozycje transakcji */}
+              <div style={{ marginTop: '12px' }}>
+                <div style={{ 
+                  fontSize: '11px', 
+                  fontWeight: '600', 
+                  color: '#495057', 
+                  marginBottom: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}>
+                  <span>📦</span>
+                  <span>Pozycje ({transaction.items?.length || 0})</span>
+                </div>
+                
+                {transaction.items && transaction.items.length > 0 ? (
+                  <div style={{ 
+                    border: '1px solid #dee2e6',
+                    borderRadius: '4px',
+                    overflow: 'hidden'
+                  }}>
+                    {/* Header tabeli */}
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '40px 1fr 90px 60px 80px 60px 90px',
+                      gap: '8px',
+                      padding: '8px 10px',
+                      backgroundColor: '#f8f9fa',
+                      borderBottom: '2px solid #dee2e6',
+                      fontSize: '10px',
+                      fontWeight: '600',
+                      color: '#495057'
+                    }}>
+                      <div>Lp.</div>
+                      <div>Produkt</div>
+                      <div>Kod</div>
+                      <div style={{ textAlign: 'center' }}>Ilość</div>
+                      <div style={{ textAlign: 'right' }}>Cena jedn.</div>
+                      <div style={{ textAlign: 'center' }}>VAT</div>
+                      <div style={{ textAlign: 'right' }}>Wartość</div>
+                    </div>
+
+                    {/* Wiersze */}
+                    <div style={{ maxHeight: '250px', overflowY: 'auto' }}>
+                      {transaction.items.map((item, index) => (
+                        <div 
+                          key={index}
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: '40px 1fr 90px 60px 80px 60px 90px',
+                            gap: '8px',
+                            padding: '8px 10px',
+                            borderBottom: index < transaction.items.length - 1 ? '1px solid #f0f0f0' : 'none',
+                            backgroundColor: index % 2 === 0 ? '#ffffff' : '#fafafa',
+                            fontSize: '11px',
+                            alignItems: 'center'
+                          }}
+                        >
+                          <div style={{ color: '#6c757d' }}>{index + 1}</div>
+                          <div style={{ fontWeight: '500', color: '#212529' }}>
+                            {item.product_name || item.nazwa_produktu || item.nazwa}
+                          </div>
+                          <div>
+                            <code style={{ 
+                              fontSize: '10px',
+                              backgroundColor: '#e9ecef',
+                              padding: '2px 4px',
+                              borderRadius: '3px'
+                            }}>
+                              {item.barcode || item.kod_produktu || '-'}
+                            </code>
+                          </div>
+                          <div style={{ textAlign: 'center' }}>
+                            {item.ilosc || item.quantity} {item.jednostka || item.unit || 'szt'}
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            {formatCurrency(item.cena_jednostkowa || item.unit_price)}
+                          </div>
+                          <div style={{ textAlign: 'center', fontSize: '10px' }}>
+                            {(item.stawka_vat || 23)}%
+                          </div>
+                          <div style={{ textAlign: 'right', fontWeight: '600', color: '#28a745' }}>
+                            {formatCurrency(item.wartosc_brutto || item.cena_calkowita || item.total_price)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div style={{
+                      padding: '8px 10px',
+                      backgroundColor: '#f8f9fa',
+                      borderTop: '1px solid #dee2e6',
+                      fontSize: '10px',
+                      color: '#6c757d',
+                      display: 'flex',
+                      justifyContent: 'space-between'
+                    }}>
+                      <span>Pozycji: <strong>{transaction.items.length}</strong></span>
+                      <span>Łączna ilość: <strong>
+                        {transaction.items.reduce((sum, item) => sum + (item.ilosc || item.quantity || 0), 0)}
+                      </strong></span>
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ 
+                    textAlign: 'center', 
+                    padding: '20px', 
+                    color: '#6c757d',
+                    backgroundColor: '#f8f9fa',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}>
+                    📭 Brak pozycji w transakcji
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer z akcjami */}
+        <div style={{
+          padding: '12px 16px',
+          borderTop: '1px solid #dee2e6',
+          backgroundColor: '#f8f9fa',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center'
+        }}>
+          <button
+            onClick={loadTransaction}
+            style={{
+              padding: '8px 16px',
+              fontSize: '12px',
+              backgroundColor: '#6c757d',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}
+          >
+            🔄 Odśwież
+          </button>
+          
+          <div style={{ display: 'flex', gap: '8px' }}>
             <button
               onClick={() => window.open(`/pos/receipt/${transactionId}`, '_blank')}
               style={{
-                padding: '10px 20px',
-                fontSize: '14px',
+                padding: '8px 16px',
+                fontSize: '12px',
                 backgroundColor: '#28a745',
                 color: 'white',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: '4px',
                 cursor: 'pointer',
-                marginRight: '10px'
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
               }}
             >
               🖨️ Drukuj paragon
             </button>
             
             <button
-              onClick={loadTransaction}
+              onClick={onClose}
               style={{
-                padding: '10px 20px',
-                fontSize: '14px',
+                padding: '8px 16px',
+                fontSize: '12px',
                 backgroundColor: '#007bff',
                 color: 'white',
                 border: 'none',
-                borderRadius: '6px',
+                borderRadius: '4px',
                 cursor: 'pointer'
               }}
             >
-              🔄 Odśwież
+              Zamknij
             </button>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 };
