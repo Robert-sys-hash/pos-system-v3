@@ -171,10 +171,37 @@ def close_shift_enhanced():
         stats_result = execute_query(shift_stats_sql, (cashier, shift['data_zmiany']))
         shift_stats = stats_result[0] if stats_result else {}
         
-        # Oblicz różnice w kasie
+        # Pobierz location_id ze zmiany lub parametru
+        location_id = data.get('location_id') or shift.get('location_id')
+        
+        # Pobierz sumę safebag z bieżącego dnia dla tej lokalizacji
+        safebag_today_sql = """
+        SELECT COALESCE(SUM(kwota), 0) as safebag_total
+        FROM safebag_deposits
+        WHERE data_wplaty = ? AND location_id = ?
+        """
+        safebag_result = execute_query(safebag_today_sql, (shift['data_zmiany'], location_id))
+        safebag_today = safebag_result[0]['safebag_total'] if safebag_result else 0
+        
+        # Pobierz całkowity stan safebag (suma wszystkich wpłat dla lokalizacji)
+        safebag_total_sql = """
+        SELECT COALESCE(SUM(kwota), 0) as safebag_balance
+        FROM safebag_deposits
+        WHERE location_id = ?
+        """
+        safebag_balance_result = execute_query(safebag_total_sql, (location_id,))
+        safebag_balance = safebag_balance_result[0]['safebag_balance'] if safebag_balance_result else 0
+        
+        # Oblicz różnice w kasie (uwzględniając safebag!)
+        # Oczekiwana gotówka w kasie = Kasa systemowa - wpłaty do safebaga tego dnia
         expected_cash = shift['saldo_poczatkowe'] + shift_stats.get('cash_sales', 0)
+        expected_drawer_cash = ending_cash - safebag_today  # Oczekiwana gotówka w szufladzie po wpłacie do safebaga
+        
+        # Różnica kasy = Kasa fizyczna - Oczekiwana gotówka w szufladzie
+        # Jeśli wpłacono 100 zł do safebaga, to w szufladzie powinno być mniej o 100 zł
+        cash_physical_difference = ending_cash_physical - expected_drawer_cash
+        
         cash_difference = ending_cash - expected_cash
-        cash_physical_difference = ending_cash_physical - ending_cash
         card_terminal_difference = card_terminal_actual - card_terminal_system
         
         # Utwórz szczegółowy raport zamknięcia
@@ -190,8 +217,9 @@ def close_shift_enhanced():
             kasa_fiskalna_raport,
             social_media_tiktok, social_media_facebook, social_media_instagram, social_media_google,
             osiagniecia_sprzedaz, osiagniecia_praca,
-            uwagi_zamkniecia
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            uwagi_zamkniecia,
+            safebag_wplaty, safebag_stan, location_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         
         report_id = execute_insert(daily_report_sql, (
@@ -202,7 +230,8 @@ def close_shift_enhanced():
             social_media.get('tiktok', ''), social_media.get('facebook', ''),
             social_media.get('instagram', ''), social_media.get('google_business', ''),
             daily_achievements.get('sales_description', ''), daily_achievements.get('work_description', ''),
-            notes
+            notes,
+            safebag_today, safebag_balance, location_id
         ))
         
         # Zamknij zmianę

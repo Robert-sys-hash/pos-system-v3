@@ -1181,50 +1181,75 @@ const PosPage = () => {
     <div
       className="pos-page"
       style={{
-        padding: "20px",
-        backgroundColor: "#f5f5f5",
+        padding: "0.75rem",
+        backgroundColor: "#f8f9fa",
         minHeight: "100vh",
+        fontSize: "12px"
       }}
     >
-      {/* Header jak w V2 */}
+      {/* Header - kompaktowy styl */}
       <div
         style={{
           backgroundColor: "#4472C4",
           color: "white",
-          padding: "15px 20px",
-          marginBottom: "20px",
-          borderRadius: "8px",
+          padding: "0.5rem 1rem",
+          marginBottom: "0.75rem",
+          borderRadius: "0.375rem",
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
+          boxShadow: "0 2px 4px rgba(0, 0, 0, 0.1)"
         }}
       >
         <div>
-          <h2 style={{ margin: 0, fontSize: "24px" }}>System POS</h2>
-          <div style={{ fontSize: "14px", opacity: 0.9 }}>
-            Zmiana: | Kasjer: {currentShift?.kasjer_login || "admin"} |{" "}
-            {new Date().toLocaleDateString()}
+          <h5 style={{ margin: 0, fontSize: "14px", fontWeight: "600" }}>🛒 System POS</h5>
+          <div style={{ fontSize: "10px", opacity: 0.9 }}>
+            Kasjer: {currentShift?.kasjer_login || "admin"} | {new Date().toLocaleDateString()}
           </div>
         </div>
-        {/* Przyciski akcji jak w V2 */}
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+        {/* Przyciski akcji - kompaktowe */}
+        <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
           <button
-            className={`btn ${activeTab === "pos" ? "btn-success" : "btn-outline-light"}`}
-            style={{ fontSize: "14px" }}
+            style={{
+              padding: "0.35rem 0.75rem",
+              fontSize: "11px",
+              fontWeight: "500",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              backgroundColor: activeTab === "pos" ? "#28a745" : "rgba(255,255,255,0.2)",
+              color: "white"
+            }}
             onClick={() => setActiveTab("pos")}
           >
             🛒 Kasa
           </button>
           <button
-            className={`btn ${activeTab === "paragony" ? "btn-success" : "btn-outline-light"}`}
-            style={{ fontSize: "14px" }}
+            style={{
+              padding: "0.35rem 0.75rem",
+              fontSize: "11px",
+              fontWeight: "500",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              backgroundColor: activeTab === "paragony" ? "#28a745" : "rgba(255,255,255,0.2)",
+              color: "white"
+            }}
             onClick={() => setActiveTab("paragony")}
           >
             📄 Paragony
           </button>
           <button
-            className={`btn ${activeTab === "raporty" ? "btn-success" : "btn-outline-light"}`}
-            style={{ fontSize: "14px" }}
+            style={{
+              padding: "0.35rem 0.75rem",
+              fontSize: "11px",
+              fontWeight: "500",
+              border: "none",
+              borderRadius: "4px",
+              cursor: "pointer",
+              backgroundColor: activeTab === "raporty" ? "#28a745" : "rgba(255,255,255,0.2)",
+              color: "white"
+            }}
             onClick={() => {
               setActiveTab("raporty");
               loadDailyClosureReports();
@@ -1232,24 +1257,56 @@ const PosPage = () => {
           >
             📊 Raporty
           </button>
-          <button className="btn btn-outline-light" onClick={saveDraft}>
-            Zapisz szkic
+          <button 
+            style={{
+              padding: "0.35rem 0.75rem",
+              fontSize: "11px",
+              fontWeight: "500",
+              border: "1px solid rgba(255,255,255,0.5)",
+              borderRadius: "4px",
+              cursor: "pointer",
+              backgroundColor: "transparent",
+              color: "white"
+            }}
+            onClick={saveDraft}
+          >
+            💾 Szkic
           </button>
           {currentShift ? (
             <button
-              className="btn btn-warning"
+              style={{
+                padding: "0.35rem 0.75rem",
+                fontSize: "11px",
+                fontWeight: "600",
+                border: "none",
+                borderRadius: "4px",
+                cursor: loading ? "not-allowed" : "pointer",
+                backgroundColor: "#dc3545",
+                color: "white",
+                opacity: loading ? 0.7 : 1
+              }}
               onClick={closeShift}
               disabled={loading}
             >
-              {loading ? "Zamykanie..." : "Zamknij zmianę"}
+              🔒 {loading ? "..." : "Zamknij"}
             </button>
           ) : (
             <button
-              className="btn btn-success"
+              style={{
+                padding: "0.35rem 0.75rem",
+                fontSize: "11px",
+                fontWeight: "600",
+                border: "none",
+                borderRadius: "4px",
+                cursor: loading ? "not-allowed" : "pointer",
+                backgroundColor: "#28a745",
+                color: "white",
+                opacity: loading ? 0.7 : 1
+              }}
               onClick={openShift}
               disabled={loading}
             >
-              {loading ? "Otwieranie..." : "Otwórz zmianę"}
+              🔓 {loading ? "..." : "Otwórz zmianę"}
             </button>
           )}
         </div>
@@ -1258,66 +1315,68 @@ const PosPage = () => {
       {/* Ostrzeżenie gdy nie wybrano lokalizacji */}
       {!currentLocationId && (
         <div style={{
-          backgroundColor: '#ffc107',
-          color: '#212529',
-          padding: '15px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-          border: '2px solid #f0ad4e',
+          backgroundColor: '#fff3cd',
+          color: '#856404',
+          padding: '0.5rem 0.75rem',
+          borderRadius: '4px',
+          marginBottom: '0.75rem',
+          border: '1px solid #ffc107',
           textAlign: 'center',
-          fontSize: '16px',
+          fontSize: '11px',
           fontWeight: '600'
         }}>
           ⚠️ Wybierz lokalizację w prawym górnym rogu przed utworzeniem paragonu!
         </div>
       )}
 
-      {/* Statystyki jak w V2 */}
+      {/* Statystyki - kompaktowy styl */}
       <div
         style={{
           display: "flex",
-          gap: "20px",
-          marginBottom: "20px",
+          gap: "0.5rem",
+          marginBottom: "0.75rem",
           flexWrap: "wrap",
         }}
       >
         <div
           style={{
             backgroundColor: "white",
-            border: "2px solid #4472C4",
-            borderRadius: "6px",
-            padding: "12px",
+            borderLeft: "3px solid #4472C4",
+            borderRadius: "4px",
+            padding: "0.5rem 0.75rem",
             textAlign: "center",
-            minWidth: "120px",
+            minWidth: "90px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
           }}
         >
           <div
-            style={{ fontSize: "24px", fontWeight: "bold", color: "#4472C4" }}
+            style={{ fontSize: "16px", fontWeight: "700", color: "#4472C4" }}
           >
             {stats.receiptsToday}
           </div>
-          <div style={{ fontSize: "12px", color: "#666" }}>
-            Paragony dzisiaj
+          <div style={{ fontSize: "10px", color: "#6c757d" }}>
+            Paragony
           </div>
         </div>
 
         <div
           style={{
             backgroundColor: "white",
-            border: "2px solid #70AD47",
-            borderRadius: "6px",
-            padding: "12px",
+            borderLeft: "3px solid #28a745",
+            borderRadius: "4px",
+            padding: "0.5rem 0.75rem",
             textAlign: "center",
-            minWidth: "120px",
+            minWidth: "90px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
           }}
         >
           <div
-            style={{ fontSize: "24px", fontWeight: "bold", color: "#70AD47" }}
+            style={{ fontSize: "16px", fontWeight: "700", color: "#28a745" }}
           >
             {stats.dailyRevenue.toFixed(2)}
           </div>
-          <div style={{ fontSize: "12px", color: "#666" }}>
-            Obrót dzienny (zł)
+          <div style={{ fontSize: "10px", color: "#6c757d" }}>
+            Obrót (zł)
           </div>
         </div>
         {/* ...pozostała zawartość głównej strony... */}
@@ -1325,67 +1384,65 @@ const PosPage = () => {
         <div
           style={{
             backgroundColor: "white",
-            border: "2px solid #00B0F0",
-            borderRadius: "6px",
-            padding: "12px",
+            borderLeft: "3px solid #17a2b8",
+            borderRadius: "4px",
+            padding: "0.5rem 0.75rem",
             textAlign: "center",
-            minWidth: "120px",
+            minWidth: "90px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
           }}
         >
           <div
-            style={{ fontSize: "24px", fontWeight: "bold", color: "#00B0F0" }}
+            style={{ fontSize: "16px", fontWeight: "700", color: "#17a2b8" }}
           >
             {stats.averageReceipt.toFixed(2)}
           </div>
-          <div style={{ fontSize: "12px", color: "#666" }}>
-            Średnia paragonu (zł)
+          <div style={{ fontSize: "10px", color: "#6c757d" }}>
+            Średnia (zł)
           </div>
         </div>
 
-        {/* Cel sprzedaży miesięczny */}
+        {/* Cel sprzedaży miesięczny - kompaktowy */}
         <div
           style={{
             backgroundColor: "white",
-            border: "2px solid #FFC000",
-            borderRadius: "8px",
-            padding: "15px",
-            minWidth: "250px",
+            borderLeft: "3px solid #ffc107",
+            borderRadius: "4px",
+            padding: "0.5rem 0.75rem",
+            minWidth: "180px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
           }}
         >
           <div
-            style={{ fontSize: "16px", fontWeight: "bold", color: "#FFC000", marginBottom: "8px" }}
+            style={{ fontSize: "11px", fontWeight: "600", color: "#856404", marginBottom: "4px" }}
           >
             🎯 Cel miesięczny
           </div>
           
           {salesTarget.has_target ? (
             <>
-              <div style={{ fontSize: "12px", color: "#666", marginBottom: "5px" }}>
+              <div style={{ fontSize: "10px", color: "#6c757d", marginBottom: "3px" }}>
                 Cel: {salesTarget.target_amount.toLocaleString()} zł
               </div>
               
               {/* Pasek postępu */}
               <div style={{ 
                 width: "100%", 
-                backgroundColor: "#f0f0f0", 
-                borderRadius: "10px", 
-                height: "8px",
-                marginBottom: "5px"
+                backgroundColor: "#e9ecef", 
+                borderRadius: "4px", 
+                height: "5px",
+                marginBottom: "3px"
               }}>
                 <div style={{
-                  width: `${salesTarget.progress_percentage}%`,
-                  backgroundColor: salesTarget.progress_percentage >= 100 ? "#28a745" : "#FFC000",
+                  width: `${Math.min(salesTarget.progress_percentage, 100)}%`,
+                  backgroundColor: salesTarget.progress_percentage >= 100 ? "#28a745" : "#ffc107",
                   height: "100%",
-                  borderRadius: "10px",
+                  borderRadius: "4px",
                   transition: "width 0.3s ease"
                 }}></div>
               </div>
               
-              <div style={{ fontSize: "11px", color: "#666" }}>
-                Osiągnięto: {salesTarget.current_revenue.toLocaleString()} zł ({salesTarget.progress_percentage.toFixed(1)}%)
-              </div>
-              
-              <div style={{ fontSize: "11px", color: salesTarget.remaining_amount > 0 ? "#dc3545" : "#28a745" }}>
+              <div style={{ fontSize: "10px", color: salesTarget.remaining_amount > 0 ? "#dc3545" : "#28a745" }}>
                 {salesTarget.remaining_amount > 0 
                   ? `Pozostało: ${salesTarget.remaining_amount.toLocaleString()} zł`
                   : "🎉 Cel osiągnięty!"
@@ -1393,128 +1450,138 @@ const PosPage = () => {
               </div>
             </>
           ) : (
-            <div style={{ fontSize: "12px", color: "#666" }}>
-              Brak ustalonego celu dla tego miesiąca
+            <div style={{ fontSize: "10px", color: "#6c757d" }}>
+              Brak celu
             </div>
           )}
         </div>
 
-        {/* Szybkie akcje */}
+        {/* Szybkie akcje - kompaktowe */}
         <div
           style={{
             backgroundColor: "white",
-            border: "2px solid #7030A0",
-            borderRadius: "8px",
-            padding: "15px",
-            minWidth: "200px",
+            borderLeft: "3px solid #6f42c1",
+            borderRadius: "4px",
+            padding: "0.5rem 0.75rem",
+            minWidth: "130px",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.08)"
           }}
         >
           <div
             style={{
-              fontSize: "16px",
-              fontWeight: "bold",
-              color: "#7030A0",
-              marginBottom: "10px",
+              fontSize: "11px",
+              fontWeight: "600",
+              color: "#6f42c1",
+              marginBottom: "6px",
             }}
           >
-            Szybkie akcje
+            ⚡ Szybkie akcje
           </div>
           <button
-            className="btn btn-sm btn-primary"
-            style={{ width: "100%", marginBottom: "5px" }}
+            style={{
+              width: "100%",
+              padding: "0.25rem 0.5rem",
+              fontSize: "10px",
+              fontWeight: "500",
+              border: "none",
+              borderRadius: "3px",
+              cursor: "pointer",
+              backgroundColor: "#0d6efd",
+              color: "white",
+              marginBottom: "4px"
+            }}
             onClick={() => window.open("/reports/daily", "_blank")}
           >
-            📊 Raporty dnia
+            📊 Raporty
           </button>
           {currentShift ? (
             <button
-              className="btn btn-sm btn-warning"
-              style={{ width: "100%" }}
+              style={{
+                width: "100%",
+                padding: "0.25rem 0.5rem",
+                fontSize: "10px",
+                fontWeight: "500",
+                border: "none",
+                borderRadius: "3px",
+                cursor: loading ? "not-allowed" : "pointer",
+                backgroundColor: "#dc3545",
+                color: "white"
+              }}
               onClick={closeShift}
               disabled={loading}
             >
-              {loading ? "Zamykanie..." : "👤 Zamknij zmianę"}
+              � Zamknij
             </button>
           ) : (
             <button
-              className="btn btn-sm btn-success"
-              style={{ width: "100%" }}
+              style={{
+                width: "100%",
+                padding: "0.25rem 0.5rem",
+                fontSize: "10px",
+                fontWeight: "500",
+                border: "none",
+                borderRadius: "3px",
+                cursor: loading ? "not-allowed" : "pointer",
+                backgroundColor: "#28a745",
+                color: "white"
+              }}
               onClick={openShift}
               disabled={loading}
             >
-              {loading ? "Otwieranie..." : "🔓 Otwórz zmianę"}
+              🔓 Otwórz
             </button>
           )}
         </div>
       </div>
 
-      {/* Główna sekcja POS - jednolity layout */}
+      {/* Główna sekcja POS - kompaktowy styl */}
       {activeTab === "pos" && (
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          {/* Jedna główna kolumna */}
-          {/* Koszyk z wbudowaną wyszukiwarką */}
+          {/* Koszyk z wbudowaną wyszukiwarką - kompaktowy */}
           <div
             style={{
               backgroundColor: "white",
-              border: "1px solid #e9ecef",
-              borderRadius: "0.5rem",
-              marginBottom: "1rem",
-              boxShadow: "0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)",
+              border: "1px solid #dee2e6",
+              borderRadius: "0.375rem",
+              marginBottom: "0.75rem",
+              boxShadow: "0 1px 3px rgba(0, 0, 0, 0.08)",
             }}
           >
             <div
               style={{
-                padding: "1rem 1.5rem",
+                padding: "0.5rem 0.75rem",
                 borderBottom: "1px solid #e9ecef",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
                 flexWrap: "wrap",
-                gap: "1rem",
+                gap: "0.5rem",
+                backgroundColor: "#f8f9fa"
               }}
             >
               <div
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "0.75rem",
+                  gap: "0.5rem",
                 }}
               >
-                <div
-                  style={{
-                    width: "2.5rem",
-                    height: "2.5rem",
-                    backgroundColor: "#d1e7dd",
-                    borderRadius: "0.5rem",
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    border: "2px solid #198754",
-                  }}
-                >
-                  <i
-                    className="fas fa-shopping-cart"
-                    style={{
-                      color: "#198754",
-                      fontSize: "1rem",
-                    }}
-                  ></i>
-                </div>
+                <span style={{ fontSize: "1rem" }}>🛒</span>
                 <div>
-                  <h3
+                  <h6
                     style={{
                       margin: 0,
-                      fontSize: "1.1rem",
+                      fontSize: "12px",
                       fontWeight: "600",
                       color: "#212529",
                     }}
                   >
                     Koszyk
-                  </h3>
+                  </h6>
                   <p
                     style={{
-                      margin: "0.25rem 0 0 0",
-                      fontSize: "0.8rem",
+                      margin: 0,
+                      fontSize: "10px",
                       color: "#6c757d",
                     }}
                   >
@@ -1526,27 +1593,27 @@ const PosPage = () => {
                 <div
                   style={{
                     display: "flex",
-                    gap: "0.75rem",
+                    gap: "0.5rem",
                     alignItems: "center",
-                    marginLeft: "1rem",
+                    marginLeft: "0.75rem",
                     flexWrap: "wrap",
                   }}
                 >
                   {/* Kategoria */}
-                  <div style={{ minWidth: "140px" }}>
+                  <div style={{ minWidth: "120px" }}>
                     <select
                       value={selectedCategory}
                       onChange={(e) => setSelectedCategory(e.target.value)}
                       style={{
                         width: "100%",
-                        padding: "0.25rem 0.5rem",
-                        fontSize: "0.75rem",
+                        padding: "0.25rem 0.4rem",
+                        fontSize: "10px",
                         border: "1px solid #ced4da",
-                        borderRadius: "0.25rem",
+                        borderRadius: "3px",
                         boxSizing: "border-box",
                       }}
                     >
-                      <option value="">🏷️ Wszystkie kategorie</option>
+                      <option value="">🏷️ Wszystkie</option>
                       {categories.map((category, index) => (
                         <option key={index} value={category.name}>
                           {category.name} ({category.product_count || 0})
@@ -1560,12 +1627,11 @@ const PosPage = () => {
                     style={{
                       display: "flex",
                       alignItems: "center",
-                      padding: "0.25rem 0.5rem",
-                      fontSize: "0.75rem",
+                      padding: "0.2rem 0.4rem",
+                      fontSize: "10px",
                       border: "1px solid #e9ecef",
-                      borderRadius: "0.25rem",
-                      backgroundColor: "#f8f9fa",
-                      minWidth: "120px",
+                      borderRadius: "3px",
+                      backgroundColor: "white",
                     }}
                   >
                     <input
@@ -1573,21 +1639,17 @@ const PosPage = () => {
                       id="onlyAvailableCart"
                       checked={onlyAvailable}
                       onChange={(e) => setOnlyAvailable(e.target.checked)}
-                      style={{ marginRight: "0.4rem" }}
+                      style={{ marginRight: "0.3rem" }}
                     />
                     <label
                       htmlFor="onlyAvailableCart"
                       style={{
                         margin: 0,
-                        fontSize: "0.75rem",
+                        fontSize: "10px",
                         color: "#495057",
                       }}
                     >
-                      <i
-                        className="fas fa-eye me-1"
-                        style={{ color: "#28a745" }}
-                      ></i>
-                      Dostępne
+                      ✓ Dostępne
                     </label>
                   </div>
 
@@ -1596,9 +1658,9 @@ const PosPage = () => {
                     <div
                       style={{
                         display: "flex",
-                        gap: "0.5rem",
+                        gap: "0.3rem",
                         alignItems: "center",
-                        marginLeft: "0.5rem",
+                        marginLeft: "0.3rem",
                         paddingLeft: "0.5rem",
                         borderLeft: "1px solid #dee2e6",
                       }}
@@ -1609,8 +1671,8 @@ const PosPage = () => {
                           onClick={() => handleQuickProductAdd(qp)}
                           title={`${qp.product_nazwa || qp.nazwa} - ${(qp.product_cena || 0).toFixed(2)} zł`}
                           style={{
-                            padding: "0.35rem 0.6rem",
-                            fontSize: "0.75rem",
+                            padding: "0.2rem 0.4rem",
+                            fontSize: "10px",
                             border: "1px solid #6f42c1",
                             borderRadius: "0.375rem",
                             backgroundColor: "#f8f5ff",
@@ -1641,59 +1703,40 @@ const PosPage = () => {
                 </div>
               </div>
 
-              <div style={{ display: "flex", gap: "0.5rem" }}>
+              <div style={{ display: "flex", gap: "0.3rem" }}>
                 {cart.length > 0 && (
                   <>
                     <button
                       onClick={saveDraft}
                       style={{
-                        padding: "0.5rem 0.875rem",
-                        fontSize: "0.8rem",
+                        padding: "0.3rem 0.5rem",
+                        fontSize: "10px",
                         border: "1px solid #6c757d",
-                        borderRadius: "0.375rem",
+                        borderRadius: "3px",
                         backgroundColor: "white",
                         color: "#6c757d",
                         cursor: "pointer",
-                        fontWeight: "500",
-                        transition: "all 0.15s ease-in-out",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = "#6c757d";
-                        e.target.style.color = "white";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = "white";
-                        e.target.style.color = "#6c757d";
+                        fontWeight: "500"
                       }}
                       title="Zapisz jako szkic"
                     >
-                      <i className="fas fa-save me-1"></i>
-                      Szkic
+                      💾 Szkic
                     </button>
                     <button
                       onClick={clearCart}
                       style={{
-                        padding: "0.5rem 0.875rem",
-                        fontSize: "0.8rem",
+                        padding: "0.3rem 0.5rem",
+                        fontSize: "10px",
                         border: "1px solid #dc3545",
-                        borderRadius: "0.375rem",
+                        borderRadius: "3px",
                         backgroundColor: "white",
                         color: "#dc3545",
                         cursor: "pointer",
-                        fontWeight: "500",
-                        transition: "all 0.15s ease-in-out",
+                        fontWeight: "500"
                       }}
-                      onMouseEnter={(e) => {
-                        e.target.style.backgroundColor = "#dc3545";
-                        e.target.style.color = "white";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.target.style.backgroundColor = "white";
-                        e.target.style.color = "#dc3545";
-                      }}
+                      title="Wyczyść koszyk"
                     >
-                      <i className="fas fa-trash me-1"></i>
-                      Wyczyść
+                      🗑️ Wyczyść
                     </button>
                   </>
                 )}
@@ -2411,50 +2454,31 @@ const PosPage = () => {
               </div>
             </div>
           </div>
-          {/* Sekcja płatności - na dole */}
+          {/* Sekcja płatności - na dole - KOMPAKTOWA */}
           <div
             style={{
               backgroundColor: "white",
               border: "1px solid #e9ecef",
-              borderRadius: "8px",
-              padding: "1rem",
-              boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+              borderRadius: "6px",
+              padding: "0.75rem",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
             }}
           >
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
-                gap: "0.5rem",
-                marginBottom: "1rem",
-                paddingBottom: "0.75rem",
+                gap: "0.4rem",
+                marginBottom: "0.75rem",
+                paddingBottom: "0.5rem",
                 borderBottom: "1px solid #e9ecef",
               }}
             >
-              <div
-                style={{
-                  width: "1.75rem",
-                  height: "1.75rem",
-                  backgroundColor: "#e3f2fd",
-                  borderRadius: "6px",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  border: "1px solid #1976d2",
-                }}
-              >
-                <i
-                  className="fas fa-cash-register"
-                  style={{
-                    color: "#1976d2",
-                    fontSize: "0.75rem",
-                  }}
-                ></i>
-              </div>
+              <span style={{ fontSize: "14px" }}>💳</span>
               <h3
                 style={{
                   margin: 0,
-                  fontSize: "0.9rem",
+                  fontSize: "12px",
                   fontWeight: "600",
                   color: "#212529",
                 }}
@@ -2464,10 +2488,10 @@ const PosPage = () => {
               <div
                 style={{
                   marginLeft: "auto",
-                  fontSize: "0.9rem",
+                  fontSize: "14px",
                   fontWeight: "700",
                   color: "#198754",
-                  padding: "0.25rem 0.5rem",
+                  padding: "0.2rem 0.5rem",
                   backgroundColor: "#d1e7dd",
                   borderRadius: "4px",
                   border: "1px solid #198754",
@@ -2477,65 +2501,33 @@ const PosPage = () => {
               </div>
             </div>
 
-            {/* Metody płatności - style magazynu */}
-            <div style={{ marginBottom: "1rem" }}>
+            {/* Metody płatności - kompaktowe */}
+            <div style={{ marginBottom: "0.75rem" }}>
               <div
                 style={{
-                  fontSize: "0.75rem",
+                  fontSize: "10px",
                   fontWeight: "600",
                   color: "#6c757d",
-                  marginBottom: "0.75rem",
+                  marginBottom: "0.5rem",
                   textTransform: "uppercase",
                   letterSpacing: "0.5px",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "0.375rem",
                 }}
               >
-                <i
-                  className="fas fa-credit-card"
-                  style={{ color: "#6c757d" }}
-                ></i>
-                Metoda płatności
+                💰 Metoda płatności
               </div>
               <div
                 style={{
                   display: "grid",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-                  gap: "0.75rem",
+                  gridTemplateColumns: "repeat(5, 1fr)",
+                  gap: "0.4rem",
                 }}
               >
                 {[
-                  {
-                    value: "gotowka",
-                    label: "Gotówka",
-                    icon: "fas fa-money-bill-wave",
-                    color: "#198754",
-                  },
-                  {
-                    value: "karta",
-                    label: "Karta",
-                    icon: "fas fa-credit-card",
-                    color: "#0d6efd",
-                  },
-                  {
-                    value: "blik",
-                    label: "BLIK",
-                    icon: "fas fa-mobile-alt",
-                    color: "#ff6b35",
-                  },
-                  {
-                    value: "kupon",
-                    label: "Kupon",
-                    icon: "fas fa-ticket-alt",
-                    color: "#6f42c1",
-                  },
-                  {
-                    value: "dzielona",
-                    label: "Dzielona",
-                    icon: "fas fa-coins",
-                    color: "#fd7e14",
-                  },
+                  { value: "gotowka", label: "Gotówka", icon: "💵", color: "#198754" },
+                  { value: "karta", label: "Karta", icon: "💳", color: "#0d6efd" },
+                  { value: "blik", label: "BLIK", icon: "📱", color: "#ff6b35" },
+                  { value: "kupon", label: "Kupon", icon: "🎟️", color: "#6f42c1" },
+                  { value: "dzielona", label: "Dzielona", icon: "💰", color: "#fd7e14" },
                 ].map((method) => (
                   <button
                     key={method.value}
@@ -2547,170 +2539,65 @@ const PosPage = () => {
                       }
                     }}
                     style={{
-                      padding: "0.75rem",
-                      fontSize: "0.75rem",
+                      padding: "0.4rem 0.5rem",
+                      fontSize: "10px",
                       fontWeight: "600",
                       border: "1px solid #e9ecef",
-                      borderLeft: `4px solid ${method.color}`,
-                      borderRadius: "0.375rem",
+                      borderLeft: `3px solid ${method.color}`,
+                      borderRadius: "4px",
                       backgroundColor:
                         paymentMethod === method.value ? method.color : "white",
                       color:
                         paymentMethod === method.value ? "white" : "#495057",
                       cursor: "pointer",
-                      transition: "all 0.15s ease-in-out",
                       display: "flex",
+                      flexDirection: "column",
                       alignItems: "center",
-                      gap: "0.5rem",
-                      boxShadow: "0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)",
-                      minHeight: "50px",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (paymentMethod !== method.value) {
-                        e.target.style.backgroundColor = "#f8f9fa";
-                        e.target.style.transform = "translateY(-1px)";
-                        e.target.style.boxShadow = `0 0.25rem 0.5rem rgba(${
-                          method.color === "#198754"
-                            ? "25, 135, 84"
-                            : method.color === "#0d6efd"
-                              ? "13, 110, 253"
-                              : method.color === "#ff6b35"
-                                ? "255, 107, 53"
-                                : "111, 66, 193"
-                        }, 0.25)`;
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (paymentMethod !== method.value) {
-                        e.target.style.backgroundColor = "white";
-                        e.target.style.transform = "translateY(0)";
-                        e.target.style.boxShadow =
-                          "0 0.125rem 0.25rem rgba(0, 0, 0, 0.075)";
-                      }
+                      gap: "0.2rem",
+                      boxShadow: "0 1px 2px rgba(0, 0, 0, 0.05)",
                     }}
                   >
-                    <div
-                      style={{
-                        width: "1.5rem",
-                        height: "1.5rem",
-                        backgroundColor:
-                          paymentMethod === method.value
-                            ? "rgba(255,255,255,0.2)"
-                            : method.color === "#198754"
-                              ? "#d1e7dd"
-                              : method.color === "#0d6efd"
-                                ? "#e7f1ff"
-                                : method.color === "#ff6b35"
-                                  ? "#ffe6d9"
-                                  : "#e2d9f3",
-                        borderRadius: "0.25rem",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <i
-                        className={method.icon}
-                        style={{
-                          color:
-                            paymentMethod === method.value
-                              ? "white"
-                              : method.color,
-                          fontSize: "0.75rem",
-                        }}
-                      ></i>
-                    </div>
+                    <span style={{ fontSize: "14px" }}>{method.icon}</span>
                     <span>{method.label}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Przycisk Rabaty */}
-            <div style={{ marginBottom: "1rem" }}>
-              <div
-                style={{
-                  fontSize: "12px",
-                  color: "red",
-                  marginBottom: "5px",
-                  fontWeight: "bold",
-                }}
-              >
-                DEBUG: showDiscountModal = {showDiscountModal.toString()}
-              </div>
-              <button
-                onClick={() => {
-                  console.log("Przycisk rabaty kliknięty!");
-                  console.log(
-                    "Aktualny stan showDiscountModal:",
-                    showDiscountModal,
-                  );
-                  alert(
-                    "Przycisk rabaty kliknięty! Stan modal: " +
-                      showDiscountModal,
-                  );
-                  setShowDiscountModal(true);
-                  console.log("setShowDiscountModal(true) wykonane");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
-                  border: "3px solid red", // Zmieniam na czerwony żeby łatwiej było zobaczyć
-                  borderRadius: "0.375rem",
-                  backgroundColor: "yellow", // Żółte tło
-                  color: "black",
-                  cursor: "pointer",
-                  fontWeight: "600",
-                  transition: "all 0.15s ease-in-out",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.5rem",
-                  zIndex: 100, // Dodaję z-index
-                }}
-                onMouseEnter={(e) => {
-                  e.target.style.backgroundColor = "#0d6efd";
-                  e.target.style.color = "white";
-                }}
-                onMouseLeave={(e) => {
-                  e.target.style.backgroundColor = "white";
-                  e.target.style.color = "#0d6efd";
-                }}
-              >
-                <FaPercent />
-                Rabaty
-              </button>
-            </div>
-
-            {/* DEBUG INFO */}
-            <div style={{ fontSize: "0.7rem", color: "red", marginBottom: "0.5rem" }}>
-              DEBUG: Koszyk={cart.length}, Loading={loading.toString()}, Zmiana={!!currentShift ? "TAK" : "NIE"}, 
-              Metoda={paymentMethod}, Disabled={cart.length === 0 || loading || !currentShift ? "TAK" : "NIE"}
-            </div>
-            
             {/* Przyciski płatności - kompaktowe */}
-            <div style={{ display: "flex", gap: "0.5rem" }}>
+            <div style={{ display: "flex", gap: "0.4rem" }}>
               <button
-                onClick={() => {
-                  alert("PRZYCISK ZAPŁAĆ KLIKNIĘTY!");
-                  console.log("🔍 BUTTON DEBUG:", {
-                    cartLength: cart.length,
-                    loading: loading,
-                    currentShift: !!currentShift,
-                    paymentMethod: paymentMethod,
-                    disabled: cart.length === 0 || loading || !currentShift
-                  });
-                  processPayment();
+                onClick={() => setShowDiscountModal(true)}
+                style={{
+                  flex: 1,
+                  padding: "0.4rem 0.5rem",
+                  fontSize: "10px",
+                  fontWeight: "600",
+                  border: "1px solid #6f42c1",
+                  borderRadius: "4px",
+                  backgroundColor: "#f8f5ff",
+                  color: "#6f42c1",
+                  cursor: "pointer",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  gap: "0.1rem",
                 }}
+              >
+                <span style={{ fontSize: "12px" }}>🏷️</span>
+                <span>Rabaty</span>
+              </button>
+              
+              <button
+                onClick={() => processPayment()}
                 disabled={cart.length === 0 || loading || !currentShift}
                 style={{
-                  flex: 2,
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
+                  flex: 3,
+                  padding: "0.5rem",
+                  fontSize: "12px",
                   fontWeight: "600",
                   border: "none",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   backgroundColor:
                     cart.length === 0 || !currentShift ? "#6c757d" : "#198754",
                   color: "white",
@@ -2721,35 +2608,13 @@ const PosPage = () => {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "0.375rem",
-                  transition: "all 0.15s ease-in-out",
-                }}
-                onMouseEnter={(e) => {
-                  if (cart.length > 0 && !loading) {
-                    e.target.style.backgroundColor = "#157347";
-                    e.target.style.transform = "translateY(-1px)";
-                    e.target.style.boxShadow =
-                      "0 4px 8px rgba(25, 135, 84, 0.3)";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (cart.length > 0 && !loading) {
-                    e.target.style.backgroundColor = "#198754";
-                    e.target.style.transform = "translateY(0)";
-                    e.target.style.boxShadow = "none";
-                  }
+                  gap: "0.3rem",
                 }}
               >
                 {loading ? (
-                  <>
-                    <i className="fas fa-spinner fa-spin"></i>
-                    Przetwarzanie...
-                  </>
+                  <>⏳ Przetwarzanie...</>
                 ) : (
-                  <>
-                    <i className="fas fa-credit-card"></i>
-                    Zapłać
-                  </>
+                  <>💳 Zapłać {getFinalTotal().toFixed(2)} zł</>
                 )}
               </button>
 
@@ -2758,10 +2623,10 @@ const PosPage = () => {
                 disabled={cart.length === 0 || loading || !currentShift}
                 style={{
                   flex: 1,
-                  padding: "0.75rem",
-                  fontSize: "0.75rem",
+                  padding: "0.4rem 0.5rem",
+                  fontSize: "10px",
                   border: "1px solid #6c757d",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   backgroundColor:
                     cart.length === 0 || !currentShift ? "#e9ecef" : "#f8f9fa",
                   color:
@@ -2770,28 +2635,15 @@ const PosPage = () => {
                     cart.length === 0 || !currentShift
                       ? "not-allowed"
                       : "pointer",
-                  fontWeight: "500",
-                  transition: "all 0.15s ease-in-out",
+                  fontWeight: "600",
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.25rem",
-                }}
-                onMouseEnter={(e) => {
-                  if (cart.length > 0 && !loading && currentShift) {
-                    e.target.style.backgroundColor = "#6c757d";
-                    e.target.style.color = "white";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (cart.length > 0 && !loading && currentShift) {
-                    e.target.style.backgroundColor = "#f8f9fa";
-                    e.target.style.color = "#6c757d";
-                  }
+                  gap: "0.1rem",
                 }}
               >
-                <i className="fas fa-save" style={{ fontSize: "0.7rem" }}></i>
-                Szkic
+                <span style={{ fontSize: "12px" }}>💾</span>
+                <span>Szkic</span>
               </button>
 
               <button
@@ -2799,35 +2651,22 @@ const PosPage = () => {
                 disabled={cart.length === 0}
                 style={{
                   flex: 1,
-                  padding: "0.75rem",
-                  fontSize: "0.75rem",
+                  padding: "0.4rem 0.5rem",
+                  fontSize: "10px",
                   border: "1px solid #dc3545",
-                  borderRadius: "6px",
-                  backgroundColor: "#f8f9fa",
+                  borderRadius: "4px",
+                  backgroundColor: "#fff5f5",
                   color: "#dc3545",
                   cursor: cart.length === 0 ? "not-allowed" : "pointer",
-                  fontWeight: "500",
-                  transition: "all 0.15s ease-in-out",
+                  fontWeight: "600",
                   display: "flex",
+                  flexDirection: "column",
                   alignItems: "center",
-                  justifyContent: "center",
-                  gap: "0.25rem",
-                }}
-                onMouseEnter={(e) => {
-                  if (cart.length > 0) {
-                    e.target.style.backgroundColor = "#dc3545";
-                    e.target.style.color = "white";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (cart.length > 0) {
-                    e.target.style.backgroundColor = "#f8f9fa";
-                    e.target.style.color = "#dc3545";
-                  }
+                  gap: "0.1rem",
                 }}
               >
-                <i className="fas fa-trash" style={{ fontSize: "0.7rem" }}></i>
-                Wyczyść
+                <span style={{ fontSize: "12px" }}>🗑️</span>
+                <span>Wyczyść</span>
               </button>
             </div>
           </div>
@@ -2837,23 +2676,24 @@ const PosPage = () => {
       {/* Sekcja Paragony */}
       {activeTab === "paragony" && (
         <div>
-          {/* Zakładki podsekcji - Transakcje/Szkice */}
+          {/* Zakładki podsekcji - Transakcje/Szkice - KOMPAKTOWE */}
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "8px",
-              padding: "1rem",
-              marginBottom: "1rem",
+              borderRadius: "6px",
+              padding: "0.75rem",
+              marginBottom: "0.75rem",
               border: "1px solid #e9ecef",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
             }}
           >
             <div
               style={{
                 display: "flex",
-                gap: "0.5rem",
+                gap: "0.4rem",
                 borderBottom: "1px solid #e9ecef",
-                paddingBottom: "0.75rem",
-                marginBottom: "0.75rem",
+                paddingBottom: "0.5rem",
+                marginBottom: "0.5rem",
               }}
             >
               <button
@@ -2863,35 +2703,23 @@ const PosPage = () => {
                 }}
                 style={{
                   flex: 1,
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
+                  padding: "0.4rem 0.5rem",
+                  fontSize: "11px",
                   fontWeight: "600",
                   border: "1px solid #e9ecef",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   backgroundColor:
                     receiptsSubTab === "transactions" ? "#0d6efd" : "white",
                   color:
                     receiptsSubTab === "transactions" ? "white" : "#495057",
                   cursor: "pointer",
-                  transition: "all 0.15s ease-in-out",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "0.5rem",
-                }}
-                onMouseEnter={(e) => {
-                  if (receiptsSubTab !== "transactions") {
-                    e.target.style.backgroundColor = "#f8f9fa";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (receiptsSubTab !== "transactions") {
-                    e.target.style.backgroundColor = "white";
-                  }
+                  gap: "0.3rem",
                 }}
               >
-                <i className="fas fa-receipt"></i>
-                Transakcje
+                📄 Transakcje
               </button>
 
               <button
@@ -2901,40 +2729,28 @@ const PosPage = () => {
                 }}
                 style={{
                   flex: 1,
-                  padding: "0.75rem",
-                  fontSize: "0.875rem",
+                  padding: "0.4rem 0.5rem",
+                  fontSize: "11px",
                   fontWeight: "600",
                   border: "1px solid #e9ecef",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   backgroundColor:
                     receiptsSubTab === "drafts" ? "#6f42c1" : "white",
                   color: receiptsSubTab === "drafts" ? "white" : "#495057",
                   cursor: "pointer",
-                  transition: "all 0.15s ease-in-out",
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  gap: "0.5rem",
-                }}
-                onMouseEnter={(e) => {
-                  if (receiptsSubTab !== "drafts") {
-                    e.target.style.backgroundColor = "#f8f9fa";
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (receiptsSubTab !== "drafts") {
-                    e.target.style.backgroundColor = "white";
-                  }
+                  gap: "0.3rem",
                 }}
               >
-                <i className="fas fa-drafting-compass"></i>
-                Szkice
+                📝 Szkice
               </button>
             </div>
 
             <div
               style={{
-                fontSize: "0.875rem",
+                fontSize: "10px",
                 color: "#6c757d",
                 textAlign: "center",
               }}
@@ -2946,7 +2762,7 @@ const PosPage = () => {
           </div>
 
           {/* Zawartość w zależności od wybranej podsekcji */}
-          <div style={{ display: "flex", gap: "20px" }}>
+          <div style={{ display: "flex", gap: "15px" }}>
             {receiptsSubTab === "transactions" ? (
               <div style={{ display: "contents" }}>
                 {/* Lista transakcji */}
@@ -2983,26 +2799,27 @@ const PosPage = () => {
         </div>
       )}
 
-      {/* Sekcja Raporty zamknięć dnia */}
+      {/* Sekcja Raporty zamknięć dnia - KOMPAKTOWA */}
       {activeTab === "raporty" && (
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "8px",
-              padding: "1.5rem",
-              marginBottom: "1rem",
+              borderRadius: "6px",
+              padding: "0.75rem",
+              marginBottom: "0.75rem",
               border: "1px solid #e9ecef",
+              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
             }}
           >
-            <h3 style={{ margin: "0 0 1rem 0", fontSize: "1.25rem", fontWeight: "600" }}>
+            <h3 style={{ margin: "0 0 0.75rem 0", fontSize: "13px", fontWeight: "600" }}>
               📊 Raporty zamknięć dnia
             </h3>
 
             {/* Filtry dat */}
-            <div style={{ display: "flex", gap: "12px", marginBottom: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: "8px", marginBottom: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
               <div>
-                <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#666", fontWeight: "500" }}>
+                <label style={{ display: "block", fontSize: "10px", marginBottom: "3px", color: "#666", fontWeight: "500" }}>
                   Od
                 </label>
                 <input
@@ -3010,16 +2827,16 @@ const PosPage = () => {
                   value={reportFilters.date_from}
                   onChange={(e) => setReportFilters(prev => ({ ...prev, date_from: e.target.value }))}
                   style={{
-                    padding: "7px 10px",
+                    padding: "0.25rem 0.5rem",
                     border: "1px solid #ddd",
                     borderRadius: "4px",
-                    fontSize: "13px",
-                    height: "34px"
+                    fontSize: "11px",
+                    height: "28px"
                   }}
                 />
               </div>
               <div>
-                <label style={{ display: "block", fontSize: "11px", marginBottom: "4px", color: "#666", fontWeight: "500" }}>
+                <label style={{ display: "block", fontSize: "10px", marginBottom: "3px", color: "#666", fontWeight: "500" }}>
                   Do
                 </label>
                 <input
@@ -3027,11 +2844,11 @@ const PosPage = () => {
                   value={reportFilters.date_to}
                   onChange={(e) => setReportFilters(prev => ({ ...prev, date_to: e.target.value }))}
                   style={{
-                    padding: "7px 10px",
+                    padding: "0.25rem 0.5rem",
                     border: "1px solid #ddd",
                     borderRadius: "4px",
-                    fontSize: "13px",
-                    height: "34px"
+                    fontSize: "11px",
+                    height: "28px"
                   }}
                 />
               </div>
@@ -3039,13 +2856,13 @@ const PosPage = () => {
                 onClick={loadDailyClosureReports}
                 disabled={reportsLoading}
                 style={{
-                  padding: "7px 15px",
-                  height: "34px",
+                  padding: "0.25rem 0.75rem",
+                  height: "28px",
                   backgroundColor: "#007bff",
                   color: "white",
                   border: "none",
                   borderRadius: "4px",
-                  fontSize: "13px",
+                  fontSize: "11px",
                   cursor: reportsLoading ? "not-allowed" : "pointer"
                 }}
               >
@@ -3055,25 +2872,25 @@ const PosPage = () => {
 
             {/* Lista raportów */}
             {reportsLoading ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>
+              <div style={{ textAlign: "center", padding: "1rem", color: "#6c757d", fontSize: "11px" }}>
                 ⏳ Ładowanie raportów...
               </div>
             ) : dailyClosureReports.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "2rem", color: "#6c757d" }}>
+              <div style={{ textAlign: "center", padding: "1rem", color: "#6c757d", fontSize: "11px" }}>
                 📭 Brak raportów zamknięć w wybranym okresie
               </div>
             ) : (
               <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
                   <thead>
                     <tr style={{ backgroundColor: "#f8f9fa" }}>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Data</th>
-                      <th style={{ padding: "10px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Kasjer</th>
-                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Transakcje</th>
-                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Gotówka</th>
-                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Karta</th>
-                      <th style={{ padding: "10px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Razem</th>
-                      <th style={{ padding: "10px", textAlign: "center", borderBottom: "2px solid #dee2e6" }}>Akcje</th>
+                      <th style={{ padding: "6px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Data</th>
+                      <th style={{ padding: "6px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Kasjer</th>
+                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Transakcje</th>
+                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Gotówka</th>
+                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Karta</th>
+                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Razem</th>
+                      <th style={{ padding: "6px", textAlign: "center", borderBottom: "2px solid #dee2e6" }}>Akcje</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -3087,37 +2904,37 @@ const PosPage = () => {
                         }}
                         onClick={() => setSelectedReport(report)}
                       >
-                        <td style={{ padding: "10px" }}>
+                        <td style={{ padding: "6px" }}>
                           {report.data_zamkniecia || report.date || '-'}
                         </td>
-                        <td style={{ padding: "10px" }}>
+                        <td style={{ padding: "6px" }}>
                           {report.kasjer_login || report.cashier || '-'}
                         </td>
-                        <td style={{ padding: "10px", textAlign: "right" }}>
+                        <td style={{ padding: "6px", textAlign: "right" }}>
                           {report.liczba_transakcji || report.transactions_count || 0}
                         </td>
-                        <td style={{ padding: "10px", textAlign: "right", color: "#198754" }}>
+                        <td style={{ padding: "6px", textAlign: "right", color: "#198754" }}>
                           {(report.suma_gotowka || report.cash_total || 0).toFixed(2)} zł
                         </td>
-                        <td style={{ padding: "10px", textAlign: "right", color: "#0d6efd" }}>
+                        <td style={{ padding: "6px", textAlign: "right", color: "#0d6efd" }}>
                           {(report.suma_karta || report.card_total || 0).toFixed(2)} zł
                         </td>
-                        <td style={{ padding: "10px", textAlign: "right", fontWeight: "bold" }}>
+                        <td style={{ padding: "6px", textAlign: "right", fontWeight: "bold" }}>
                           {(report.suma_ogolna || report.total || 0).toFixed(2)} zł
                         </td>
-                        <td style={{ padding: "10px", textAlign: "center" }}>
+                        <td style={{ padding: "6px", textAlign: "center" }}>
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               setSelectedReport(report);
                             }}
                             style={{
-                              padding: "4px 10px",
-                              fontSize: "12px",
+                              padding: "3px 8px",
+                              fontSize: "10px",
                               backgroundColor: "#6c757d",
                               color: "white",
                               border: "none",
-                              borderRadius: "4px",
+                              borderRadius: "3px",
                               cursor: "pointer"
                             }}
                           >
@@ -3132,29 +2949,30 @@ const PosPage = () => {
             )}
           </div>
 
-          {/* Szczegóły wybranego raportu */}
+          {/* Szczegóły wybranego raportu - KOMPAKTOWE */}
           {selectedReport && (
             <div
               style={{
                 backgroundColor: "white",
-                borderRadius: "8px",
-                padding: "1.5rem",
+                borderRadius: "6px",
+                padding: "0.75rem",
                 border: "1px solid #e9ecef",
+                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
               }}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "1rem" }}>
-                <h4 style={{ margin: 0, fontSize: "1.1rem", fontWeight: "600" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+                <h4 style={{ margin: 0, fontSize: "12px", fontWeight: "600" }}>
                   📋 Szczegóły raportu z dnia {selectedReport.data_zamkniecia || selectedReport.date}
                 </h4>
                 <button
                   onClick={() => setSelectedReport(null)}
                   style={{
-                    padding: "4px 10px",
-                    fontSize: "12px",
+                    padding: "3px 8px",
+                    fontSize: "10px",
                     backgroundColor: "#dc3545",
                     color: "white",
                     border: "none",
-                    borderRadius: "4px",
+                    borderRadius: "3px",
                     cursor: "pointer"
                   }}
                 >
@@ -3162,56 +2980,56 @@ const PosPage = () => {
                 </button>
               </div>
 
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: "1rem" }}>
-                <div style={{ padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
-                  <div style={{ fontSize: "12px", color: "#6c757d", marginBottom: "4px" }}>Kasjer</div>
-                  <div style={{ fontSize: "16px", fontWeight: "600" }}>{selectedReport.kasjer_login || selectedReport.cashier || '-'}</div>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.5rem" }}>
+                <div style={{ padding: "0.5rem", backgroundColor: "#f8f9fa", borderRadius: "4px", borderLeft: "3px solid #6c757d" }}>
+                  <div style={{ fontSize: "10px", color: "#6c757d", marginBottom: "2px" }}>Kasjer</div>
+                  <div style={{ fontSize: "12px", fontWeight: "600" }}>{selectedReport.kasjer_login || selectedReport.cashier || '-'}</div>
                 </div>
-                <div style={{ padding: "1rem", backgroundColor: "#d4edda", borderRadius: "6px" }}>
-                  <div style={{ fontSize: "12px", color: "#155724", marginBottom: "4px" }}>Gotówka</div>
-                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#155724" }}>
+                <div style={{ padding: "0.5rem", backgroundColor: "#d4edda", borderRadius: "4px", borderLeft: "3px solid #198754" }}>
+                  <div style={{ fontSize: "10px", color: "#155724", marginBottom: "2px" }}>💵 Gotówka</div>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#155724" }}>
                     {(selectedReport.suma_gotowka || selectedReport.cash_total || 0).toFixed(2)} zł
                   </div>
                 </div>
-                <div style={{ padding: "1rem", backgroundColor: "#cce5ff", borderRadius: "6px" }}>
-                  <div style={{ fontSize: "12px", color: "#004085", marginBottom: "4px" }}>Karta</div>
-                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#004085" }}>
+                <div style={{ padding: "0.5rem", backgroundColor: "#cce5ff", borderRadius: "4px", borderLeft: "3px solid #0d6efd" }}>
+                  <div style={{ fontSize: "10px", color: "#004085", marginBottom: "2px" }}>💳 Karta</div>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#004085" }}>
                     {(selectedReport.suma_karta || selectedReport.card_total || 0).toFixed(2)} zł
                   </div>
                 </div>
-                <div style={{ padding: "1rem", backgroundColor: "#fff3cd", borderRadius: "6px" }}>
-                  <div style={{ fontSize: "12px", color: "#856404", marginBottom: "4px" }}>BLIK</div>
-                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#856404" }}>
+                <div style={{ padding: "0.5rem", backgroundColor: "#fff3cd", borderRadius: "4px", borderLeft: "3px solid #ffc107" }}>
+                  <div style={{ fontSize: "10px", color: "#856404", marginBottom: "2px" }}>📱 BLIK</div>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#856404" }}>
                     {(selectedReport.suma_blik || selectedReport.blik_total || 0).toFixed(2)} zł
                   </div>
                 </div>
-                <div style={{ padding: "1rem", backgroundColor: "#e2d5f1", borderRadius: "6px" }}>
-                  <div style={{ fontSize: "12px", color: "#6f42c1", marginBottom: "4px" }}>Kupony</div>
-                  <div style={{ fontSize: "16px", fontWeight: "600", color: "#6f42c1" }}>
+                <div style={{ padding: "0.5rem", backgroundColor: "#e2d5f1", borderRadius: "4px", borderLeft: "3px solid #6f42c1" }}>
+                  <div style={{ fontSize: "10px", color: "#6f42c1", marginBottom: "2px" }}>🎟️ Kupony</div>
+                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#6f42c1" }}>
                     {(selectedReport.suma_kupon || selectedReport.coupon_total || 0).toFixed(2)} zł
                   </div>
                 </div>
-                <div style={{ padding: "1rem", backgroundColor: "#343a40", borderRadius: "6px", color: "white" }}>
-                  <div style={{ fontSize: "12px", opacity: 0.8, marginBottom: "4px" }}>RAZEM</div>
-                  <div style={{ fontSize: "20px", fontWeight: "bold" }}>
+                <div style={{ padding: "0.5rem", backgroundColor: "#343a40", borderRadius: "4px", color: "white" }}>
+                  <div style={{ fontSize: "10px", opacity: 0.8, marginBottom: "2px" }}>💰 RAZEM</div>
+                  <div style={{ fontSize: "14px", fontWeight: "bold" }}>
                     {(selectedReport.suma_ogolna || selectedReport.total || 0).toFixed(2)} zł
                   </div>
                 </div>
               </div>
 
               {/* Dodatkowe informacje */}
-              <div style={{ marginTop: "1rem", padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "6px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: "1rem", fontSize: "13px" }}>
+              <div style={{ marginTop: "0.75rem", padding: "0.5rem", backgroundColor: "#f8f9fa", borderRadius: "4px" }}>
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.5rem", fontSize: "11px" }}>
                   <div>
-                    <span style={{ color: "#6c757d" }}>Liczba transakcji:</span>{" "}
+                    <span style={{ color: "#6c757d" }}>Transakcje:</span>{" "}
                     <strong>{selectedReport.liczba_transakcji || selectedReport.transactions_count || 0}</strong>
                   </div>
                   <div>
-                    <span style={{ color: "#6c757d" }}>Stan początkowy kasy:</span>{" "}
+                    <span style={{ color: "#6c757d" }}>Stan początkowy:</span>{" "}
                     <strong>{(selectedReport.stan_poczatkowy || selectedReport.opening_balance || 0).toFixed(2)} zł</strong>
                   </div>
                   <div>
-                    <span style={{ color: "#6c757d" }}>Stan końcowy kasy:</span>{" "}
+                    <span style={{ color: "#6c757d" }}>Stan końcowy:</span>{" "}
                     <strong>{(selectedReport.stan_koncowy || selectedReport.closing_balance || 0).toFixed(2)} zł</strong>
                   </div>
                   <div>
@@ -3224,7 +3042,7 @@ const PosPage = () => {
                   </div>
                 </div>
                 {selectedReport.uwagi && (
-                  <div style={{ marginTop: "1rem", paddingTop: "1rem", borderTop: "1px solid #dee2e6" }}>
+                  <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid #dee2e6", fontSize: "11px" }}>
                     <span style={{ color: "#6c757d" }}>Uwagi:</span>{" "}
                     <span>{selectedReport.uwagi}</span>
                   </div>
@@ -3232,16 +3050,16 @@ const PosPage = () => {
               </div>
 
               {/* Przycisk drukowania */}
-              <div style={{ marginTop: "1rem", textAlign: "right" }}>
+              <div style={{ marginTop: "0.75rem", textAlign: "right" }}>
                 <button
                   onClick={() => window.print()}
                   style={{
-                    padding: "8px 20px",
-                    fontSize: "14px",
+                    padding: "0.3rem 0.75rem",
+                    fontSize: "10px",
                     backgroundColor: "#198754",
                     color: "white",
                     border: "none",
-                    borderRadius: "4px",
+                    borderRadius: "3px",
                     cursor: "pointer"
                   }}
                 >
@@ -3253,7 +3071,7 @@ const PosPage = () => {
         </div>
       )}
 
-      {/* Modal wyboru klienta */}
+      {/* Modal wyboru klienta - KOMPAKTOWY */}
       {showCustomerModal && (
         <div
           style={{
@@ -3266,33 +3084,33 @@ const PosPage = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1000,
+            zIndex: 1050,
           }}
         >
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "0.5rem",
-              padding: "2rem",
-              maxWidth: "600px",
+              borderRadius: "6px",
+              maxWidth: "500px",
               width: "90%",
               maxHeight: "80vh",
-              overflow: "auto",
-              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.2)",
+              overflow: "hidden",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
             }}
           >
+            {/* Header */}
             <div
               style={{
+                backgroundColor: "#0d6efd",
+                color: "white",
+                padding: "0.75rem 1rem",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
-                marginBottom: "1.5rem",
-                paddingBottom: "0.75rem",
-                borderBottom: "1px solid #e9ecef",
               }}
             >
-              <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: "600" }}>
-                Wybierz klienta
+              <h3 style={{ margin: 0, fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                👤 Wybierz klienta
               </h3>
               <button
                 onClick={() => {
@@ -3300,47 +3118,59 @@ const PosPage = () => {
                   setSelectedCustomer(null);
                 }}
                 style={{
-                  background: "none",
+                  background: "rgba(255,255,255,0.2)",
                   border: "none",
-                  fontSize: "1.5rem",
+                  fontSize: "14px",
                   cursor: "pointer",
-                  color: "#6c757d",
+                  color: "white",
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 ×
               </button>
             </div>
 
-            <CustomerSearch
-              onCustomerSelect={(customer) => {
-                setSelectedCustomer(customer);
-                setShowCustomerModal(false);
-              }}
-              selectedCustomer={selectedCustomer}
-            />
+            {/* Content */}
+            <div style={{ padding: "0.75rem", maxHeight: "60vh", overflowY: "auto" }}>
+              <CustomerSearch
+                onCustomerSelect={(customer) => {
+                  setSelectedCustomer(customer);
+                  setShowCustomerModal(false);
+                }}
+                selectedCustomer={selectedCustomer}
+              />
+            </div>
 
+            {/* Footer */}
             <div
               style={{
                 display: "flex",
-                gap: "0.75rem",
-                marginTop: "1.5rem",
-                paddingTop: "0.75rem",
+                gap: "0.5rem",
+                padding: "0.75rem",
                 borderTop: "1px solid #e9ecef",
+                backgroundColor: "#f8f9fa",
               }}
             >
               <button
                 onClick={() => setShowCustomerModal(false)}
                 style={{
-                  padding: "0.5rem 1rem",
+                  flex: 1,
+                  padding: "0.4rem 0.75rem",
+                  fontSize: "11px",
                   backgroundColor: "#6c757d",
                   color: "white",
                   border: "none",
-                  borderRadius: "0.375rem",
+                  borderRadius: "4px",
                   cursor: "pointer",
-                  fontWeight: "500",
+                  fontWeight: "600",
                 }}
               >
-                Anuluj
+                ❌ Anuluj
               </button>
               <button
                 onClick={() => {
@@ -3348,23 +3178,25 @@ const PosPage = () => {
                   setShowCustomerModal(false);
                 }}
                 style={{
-                  padding: "0.5rem 1rem",
+                  flex: 1,
+                  padding: "0.4rem 0.75rem",
+                  fontSize: "11px",
                   backgroundColor: "#dc3545",
                   color: "white",
                   border: "none",
-                  borderRadius: "0.375rem",
+                  borderRadius: "4px",
                   cursor: "pointer",
-                  fontWeight: "500",
+                  fontWeight: "600",
                 }}
               >
-                Usuń klienta
+                🗑️ Usuń klienta
               </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Modal rabatów */}
+      {/* Modal rabatów - KOMPAKTOWY */}
       {showDiscountModal && (
         <div
           style={{
@@ -3373,91 +3205,95 @@ const PosPage = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: "rgba(255, 0, 0, 0.8)", // Zmieniam na czerwony żeby łatwiej było zobaczyć
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 9999, // Zwiększam z-index
+            zIndex: 1050,
           }}
           onClick={(e) => {
-            // Zamknij modal po kliknięciu w tło
             if (e.target === e.currentTarget) {
-              console.log("Kliknięto w tło modala - zamykanie");
               setShowDiscountModal(false);
             }
           }}
         >
-          {console.log(
-            "Modal rabatów renderuje się! showDiscountModal:",
-            showDiscountModal,
-          )}
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "0.5rem",
+              borderRadius: "6px",
               width: "90%",
-              maxWidth: "600px",
+              maxWidth: "500px",
               maxHeight: "80vh",
-              overflow: "auto",
-              boxShadow: "0 0.5rem 1rem rgba(0, 0, 0, 0.15)",
+              overflow: "hidden",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
             }}
           >
+            {/* Header - fioletowy dla rabatów */}
             <div
               style={{
-                padding: "1.5rem",
-                borderBottom: "1px solid #e9ecef",
+                backgroundColor: "#6f42c1",
+                color: "white",
+                padding: "0.75rem 1rem",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
               }}
             >
-              <h5 style={{ margin: 0, fontWeight: "600" }}>Dostępne rabaty</h5>
+              <h5 style={{ margin: 0, fontSize: "13px", fontWeight: "600", display: "flex", alignItems: "center", gap: "0.4rem" }}>
+                🏷️ Dostępne rabaty
+              </h5>
               <button
                 onClick={() => setShowDiscountModal(false)}
                 style={{
-                  background: "none",
+                  background: "rgba(255,255,255,0.2)",
                   border: "none",
-                  fontSize: "1.5rem",
+                  fontSize: "14px",
                   cursor: "pointer",
-                  color: "#6c757d",
-                  lineHeight: 1,
+                  color: "white",
+                  width: "24px",
+                  height: "24px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
                 }}
               >
                 ×
               </button>
             </div>
 
-            <div style={{ padding: "1.5rem" }}>
+            <div style={{ padding: "0.75rem", maxHeight: "60vh", overflowY: "auto" }}>
               {availableDiscounts.length === 0 ? (
                 <div
                   style={{
                     textAlign: "center",
-                    padding: "2rem",
+                    padding: "1.5rem",
                     color: "#6c757d",
+                    fontSize: "11px",
                   }}
                 >
-                  <FaPercent
-                    style={{ fontSize: "3rem", marginBottom: "1rem" }}
-                  />
-                  <p>Brak dostępnych rabatów</p>
+                  <span style={{ fontSize: "24px", display: "block", marginBottom: "0.5rem" }}>🏷️</span>
+                  <p style={{ margin: 0 }}>Brak dostępnych rabatów</p>
                 </div>
               ) : (
-                <div style={{ display: "grid", gap: "1rem" }}>
+                <div style={{ display: "grid", gap: "0.5rem" }}>
                   {availableDiscounts.map((discount) => (
                     <div
                       key={discount.id}
                       style={{
                         border: "1px solid #e9ecef",
-                        borderRadius: "0.375rem",
-                        padding: "1rem",
+                        borderLeft: "3px solid #6f42c1",
+                        borderRadius: "4px",
+                        padding: "0.5rem",
                         display: "flex",
                         justifyContent: "space-between",
                         alignItems: "center",
+                        backgroundColor: "#f8f9fa",
                       }}
                     >
                       <div>
                         <h6
-                          style={{ margin: "0 0 0.5rem 0", fontWeight: "600" }}
+                          style={{ margin: "0 0 0.25rem 0", fontWeight: "600", fontSize: "11px" }}
                         >
                           {discount.nazwa}
                         </h6>
@@ -3465,33 +3301,31 @@ const PosPage = () => {
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "1rem",
+                            gap: "0.5rem",
                           }}
                         >
                           <span
                             style={{
                               display: "inline-flex",
                               alignItems: "center",
-                              gap: "0.25rem",
+                              gap: "0.2rem",
                               color: "#198754",
-                              fontWeight: "500",
+                              fontWeight: "600",
+                              fontSize: "11px",
+                              backgroundColor: "#d4edda",
+                              padding: "0.15rem 0.4rem",
+                              borderRadius: "3px",
                             }}
                           >
                             {discount.typ_rabatu === "procentowy" ? (
-                              <>
-                                <FaPercent size={12} />
-                                {discount.wartosc}%
-                              </>
+                              <>{discount.wartosc}%</>
                             ) : (
-                              <>
-                                <FaEuroSign size={12} />
-                                {discount.wartosc} zł
-                              </>
+                              <>{discount.wartosc} zł</>
                             )}
                           </span>
                           {discount.opis && (
                             <span
-                              style={{ fontSize: "0.8rem", color: "#6c757d" }}
+                              style={{ fontSize: "10px", color: "#6c757d" }}
                             >
                               {discount.opis}
                             </span>
@@ -3504,7 +3338,8 @@ const PosPage = () => {
                           (d) => d.id === discount.id,
                         )}
                         style={{
-                          padding: "0.5rem 1rem",
+                          padding: "0.3rem 0.6rem",
+                          fontSize: "10px",
                           backgroundColor: appliedDiscounts.some(
                             (d) => d.id === discount.id,
                           )
@@ -3512,19 +3347,18 @@ const PosPage = () => {
                             : "#198754",
                           color: "white",
                           border: "none",
-                          borderRadius: "0.375rem",
+                          borderRadius: "3px",
                           cursor: appliedDiscounts.some(
                             (d) => d.id === discount.id,
                           )
                             ? "not-allowed"
                             : "pointer",
-                          fontWeight: "500",
-                          fontSize: "0.8rem",
+                          fontWeight: "600",
                         }}
                       >
                         {appliedDiscounts.some((d) => d.id === discount.id)
-                          ? "Zastosowany"
-                          : "Zastosuj"}
+                          ? "✓ Dodany"
+                          : "+ Dodaj"}
                       </button>
                     </div>
                   ))}
@@ -3535,38 +3369,39 @@ const PosPage = () => {
               {appliedDiscounts.length > 0 && (
                 <div
                   style={{
-                    marginTop: "2rem",
-                    paddingTop: "1.5rem",
+                    marginTop: "0.75rem",
+                    paddingTop: "0.75rem",
                     borderTop: "1px solid #e9ecef",
                   }}
                 >
-                  <h6 style={{ marginBottom: "1rem", fontWeight: "600" }}>
-                    Zastosowane rabaty
+                  <h6 style={{ marginBottom: "0.5rem", fontWeight: "600", fontSize: "11px", color: "#6c757d" }}>
+                    ✅ Zastosowane rabaty
                   </h6>
-                  <div style={{ display: "grid", gap: "0.5rem" }}>
+                  <div style={{ display: "grid", gap: "0.3rem" }}>
                     {appliedDiscounts.map((discount) => (
                       <div
                         key={discount.id}
                         style={{
-                          background: "#f8f9fa",
-                          padding: "0.75rem",
-                          borderRadius: "0.375rem",
+                          background: "#d4edda",
+                          padding: "0.4rem 0.5rem",
+                          borderRadius: "4px",
+                          borderLeft: "3px solid #198754",
                           display: "flex",
                           justifyContent: "space-between",
                           alignItems: "center",
                         }}
                       >
-                        <span style={{ fontWeight: "500" }}>
+                        <span style={{ fontWeight: "500", fontSize: "10px" }}>
                           {discount.nazwa}
                         </span>
                         <div
                           style={{
                             display: "flex",
                             alignItems: "center",
-                            gap: "0.5rem",
+                            gap: "0.4rem",
                           }}
                         >
-                          <span style={{ color: "#198754", fontWeight: "500" }}>
+                          <span style={{ color: "#155724", fontWeight: "600", fontSize: "10px" }}>
                             {discount.typ_rabatu === "procentowy"
                               ? `${discount.wartosc}%`
                               : `${discount.wartosc} zł`}
@@ -3574,15 +3409,16 @@ const PosPage = () => {
                           <button
                             onClick={() => removeDiscount(discount.czasowe_id)}
                             style={{
-                              background: "none",
+                              background: "#dc3545",
                               border: "none",
-                              color: "#dc3545",
+                              color: "white",
                               cursor: "pointer",
-                              fontSize: "1rem",
-                              padding: "0.25rem",
+                              fontSize: "10px",
+                              padding: "0.15rem 0.3rem",
+                              borderRadius: "3px",
                             }}
                           >
-                            <FaTimes />
+                            ✕
                           </button>
                         </div>
                       </div>
@@ -3884,7 +3720,7 @@ const PosPage = () => {
         </div>
       )}
 
-      {/* Modal płatności dzielonej */}
+      {/* Modal płatności dzielonej - KOMPAKTOWY */}
       {showSplitPaymentModal && (
         <div
           style={{
@@ -3897,7 +3733,7 @@ const PosPage = () => {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 1000,
+            zIndex: 1050,
           }}
           onClick={(e) => {
             if (e.target === e.currentTarget) {
@@ -3909,41 +3745,43 @@ const PosPage = () => {
           <div
             style={{
               backgroundColor: "white",
-              borderRadius: "12px",
-              padding: "2rem",
-              minWidth: "500px",
+              borderRadius: "6px",
+              minWidth: "400px",
               maxWidth: "90vw",
               maxHeight: "90vh",
-              overflow: "auto",
-              boxShadow: "0 10px 30px rgba(0, 0, 0, 0.3)",
+              overflow: "hidden",
+              boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Nagłówek */}
-            <div style={{ display: "flex", alignItems: "center", marginBottom: "1.5rem" }}>
-              <i className="fas fa-coins" style={{ color: "#fd7e14", fontSize: "1.5rem", marginRight: "0.75rem" }}></i>
-              <h3 style={{ margin: 0, color: "#fd7e14", fontWeight: "600" }}>
+            {/* Nagłówek - pomarańczowy */}
+            <div style={{ 
+              backgroundColor: "#fd7e14", 
+              color: "white", 
+              padding: "0.75rem 1rem",
+              display: "flex",
+              alignItems: "center",
+              gap: "0.4rem"
+            }}>
+              <span style={{ fontSize: "14px" }}>💰</span>
+              <h3 style={{ margin: 0, fontSize: "13px", fontWeight: "600" }}>
                 Płatność dzielona
               </h3>
             </div>
 
-            {/* Kwota do zapłaty */}
-            <div style={{ marginBottom: "1.5rem", padding: "1rem", backgroundColor: "#f8f9fa", borderRadius: "8px" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div style={{ padding: "0.75rem", maxHeight: "70vh", overflowY: "auto" }}>
+              {/* Kwota do zapłaty */}
+              <div style={{ marginBottom: "0.75rem", padding: "0.5rem", backgroundColor: "#f8f9fa", borderRadius: "4px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div>
-                  <div style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.25rem" }}>
-                    Kwota do zapłaty:
-                  </div>
-                  <div style={{ fontSize: "1.5rem", fontWeight: "700", color: "#fd7e14" }}>
+                  <div style={{ fontSize: "10px", color: "#6c757d" }}>Do zapłaty:</div>
+                  <div style={{ fontSize: "14px", fontWeight: "700", color: "#fd7e14" }}>
                     {getFinalTotal().toFixed(2)} zł
                   </div>
                 </div>
-                <div>
-                  <div style={{ fontSize: "0.875rem", color: "#6c757d", marginBottom: "0.25rem" }}>
-                    Suma płatności:
-                  </div>
+                <div style={{ textAlign: "right" }}>
+                  <div style={{ fontSize: "10px", color: "#6c757d" }}>Suma:</div>
                   <div style={{ 
-                    fontSize: "1.25rem", 
+                    fontSize: "12px", 
                     fontWeight: "600", 
                     color: Math.abs(getTotalSplitAmount() - getFinalTotal()) < 0.01 ? "#198754" : "#dc3545" 
                   }}>
@@ -3951,25 +3789,25 @@ const PosPage = () => {
                   </div>
                 </div>
               </div>
-            </div>
 
-            {/* Metody płatności */}
-            <div style={{ marginBottom: "1.5rem" }}>
-              {splitPayments.map((payment) => (
-                <div key={payment.method} style={{ 
-                  marginBottom: "1rem", 
-                  padding: "1rem", 
-                  border: "1px solid #e9ecef", 
-                  borderRadius: "8px",
-                  borderLeft: `4px solid ${payment.color}`
-                }}>
-                  <div style={{ display: "flex", alignItems: "center", marginBottom: "0.75rem" }}>
-                    <i className={payment.icon} style={{ color: payment.color, marginRight: "0.5rem" }}></i>
-                    <span style={{ fontWeight: "500", fontSize: "0.875rem" }}>{payment.label}</span>
-                  </div>
-                  
-                  <div style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
-                    <div style={{ flex: 1 }}>
+              {/* Metody płatności */}
+              <div style={{ display: "grid", gap: "0.5rem" }}>
+                {splitPayments.map((payment) => (
+                  <div key={payment.method} style={{ 
+                    padding: "0.5rem", 
+                    border: "1px solid #e9ecef", 
+                    borderRadius: "4px",
+                    borderLeft: `3px solid ${payment.color}`,
+                    backgroundColor: "#fafbfc"
+                  }}>
+                    <div style={{ display: "flex", alignItems: "center", marginBottom: "0.4rem" }}>
+                      <span style={{ marginRight: "0.3rem" }}>
+                        {payment.method === 'gotowka' ? '💵' : payment.method === 'karta' ? '💳' : payment.method === 'blik' ? '📱' : '🎟️'}
+                      </span>
+                      <span style={{ fontWeight: "600", fontSize: "11px" }}>{payment.label}</span>
+                    </div>
+                    
+                    <div style={{ display: "flex", gap: "0.4rem", alignItems: "center" }}>
                       <input
                         type="number"
                         placeholder="0.00"
@@ -3978,104 +3816,107 @@ const PosPage = () => {
                         value={payment.amount || ''}
                         onChange={(e) => updateSplitPaymentAmount(payment.method, e.target.value)}
                         style={{
-                          width: "100%",
-                          padding: "0.5rem",
+                          flex: 1,
+                          padding: "0.3rem 0.5rem",
                           border: "1px solid #ced4da",
-                          borderRadius: "6px",
-                          fontSize: "0.875rem"
+                          borderRadius: "4px",
+                          fontSize: "11px"
                         }}
                       />
-                    </div>
-                    
-                    {payment.method === 'kupon' && (
-                      <div style={{ flex: 1 }}>
+                      
+                      {payment.method === 'kupon' && (
                         <input
                           type="text"
                           placeholder="Kod kuponu"
                           value={payment.couponCode || ''}
                           onChange={(e) => updateSplitPaymentCouponCode(e.target.value)}
                           style={{
-                            width: "100%",
-                            padding: "0.5rem",
+                            flex: 1,
+                            padding: "0.3rem 0.5rem",
                             border: "1px solid #ced4da",
-                            borderRadius: "6px",
-                            fontSize: "0.875rem"
+                            borderRadius: "4px",
+                            fontSize: "11px"
                           }}
                         />
-                      </div>
-                    )}
-                    
-                    <button
-                      onClick={() => updateSplitPaymentAmount(payment.method, getFinalTotal() - getTotalSplitAmount() + (payment.amount || 0))}
-                      style={{
-                        padding: "0.5rem 0.75rem",
-                        border: "1px solid #ced4da",
-                        borderRadius: "6px",
-                        backgroundColor: "white",
-                        cursor: "pointer",
-                        fontSize: "0.75rem"
-                      }}
-                      title="Wypełnij resztę"
-                    >
-                      <i className="fas fa-fill"></i>
-                    </button>
+                      )}
+                      
+                      <button
+                        onClick={() => updateSplitPaymentAmount(payment.method, getFinalTotal() - getTotalSplitAmount() + (payment.amount || 0))}
+                        style={{
+                          padding: "0.3rem 0.5rem",
+                          border: "1px solid #ced4da",
+                          borderRadius: "4px",
+                          backgroundColor: "white",
+                          fontSize: "10px",
+                          cursor: "pointer"
+                        }}
+                        title="Wypełnij resztę"
+                      >
+                        🔄
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Błąd */}
+              {splitPaymentError && (
+                <div style={{ 
+                  marginTop: "0.5rem", 
+                  padding: "0.4rem", 
+                  backgroundColor: "#f8d7da", 
+                  color: "#721c24", 
+                  borderRadius: "4px",
+                  fontSize: "10px"
+                }}>
+                  ⚠️ {splitPaymentError}
                 </div>
-              ))}
+              )}
             </div>
 
-            {/* Błąd */}
-            {splitPaymentError && (
-              <div style={{ 
-                marginBottom: "1rem", 
-                padding: "0.75rem", 
-                backgroundColor: "#f8d7da", 
-                color: "#721c24", 
-                borderRadius: "6px",
-                fontSize: "0.875rem"
-              }}>
-                <i className="fas fa-exclamation-triangle" style={{ marginRight: "0.5rem" }}></i>
-                {splitPaymentError}
-              </div>
-            )}
-
-            {/* Przyciski */}
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+            {/* Przyciski - footer */}
+            <div style={{ 
+              display: "flex", 
+              gap: "0.5rem", 
+              padding: "0.75rem", 
+              borderTop: "1px solid #e9ecef",
+              backgroundColor: "#f8f9fa" 
+            }}>
               <button
                 onClick={() => {
                   setShowSplitPaymentModal(false);
                   resetSplitPayments();
                 }}
                 style={{
-                  padding: "0.75rem 1.5rem",
+                  flex: 1,
+                  padding: "0.4rem 0.75rem",
                   border: "1px solid #ced4da",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   backgroundColor: "white",
                   color: "#495057",
                   cursor: "pointer",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
+                  fontSize: "11px",
+                  fontWeight: "600",
                 }}
               >
-                <i className="fas fa-times" style={{ marginRight: "0.5rem" }}></i>
-                Anuluj
+                ❌ Anuluj
               </button>
               <button
                 onClick={processSplitPayment}
                 disabled={Math.abs(getTotalSplitAmount() - getFinalTotal()) > 0.01}
                 style={{
-                  padding: "0.75rem 1.5rem",
+                  flex: 2,
+                  padding: "0.4rem 0.75rem",
                   border: "none",
-                  borderRadius: "6px",
+                  borderRadius: "4px",
                   backgroundColor: Math.abs(getTotalSplitAmount() - getFinalTotal()) < 0.01 ? "#fd7e14" : "#6c757d",
                   color: "white",
                   cursor: Math.abs(getTotalSplitAmount() - getFinalTotal()) < 0.01 ? "pointer" : "not-allowed",
-                  fontSize: "0.875rem",
-                  fontWeight: "500",
+                  fontSize: "11px",
+                  fontWeight: "600",
                 }}
               >
-                <i className="fas fa-check" style={{ marginRight: "0.5rem" }}></i>
-                Zapłać
+                ✓ Zapłać
               </button>
             </div>
           </div>

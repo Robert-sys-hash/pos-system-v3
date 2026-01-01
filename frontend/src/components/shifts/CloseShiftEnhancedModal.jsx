@@ -165,6 +165,7 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
       const shiftEnhancedService = (await import('../../services/shiftEnhancedService')).default;
       const response = await shiftEnhancedService.closeShiftEnhanced({
         ...formData,
+        location_id: locationId,
         cash_status: cashStatus,
         cash_validation: validateCash(),
         terminal_validation: validateTerminal(),

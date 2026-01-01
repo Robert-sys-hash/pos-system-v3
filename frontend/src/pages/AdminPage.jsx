@@ -16,6 +16,7 @@ const AdminPage = () => {
   const [systemInfo, setSystemInfo] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
   const [categories, setCategories] = useState([]);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [newCategoryParentId, setNewCategoryParentId] = useState('');
@@ -3906,89 +3907,92 @@ const AdminPage = () => {
       {/* Lista zamknięć dziennych */}
       <div style={{
         border: '1px solid #e9ecef',
-        borderRadius: '0.375rem',
+        borderRadius: '4px',
         backgroundColor: 'white',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
       }}>
         <div style={{
-          padding: '1rem',
-          backgroundColor: '#f8f9fa',
+          padding: '0.4rem 0.6rem',
+          background: 'linear-gradient(135deg, #4a6fa5 0%, #3d5a8c 100%)',
           borderBottom: '1px solid #e9ecef',
           fontWeight: '600',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          color: 'white'
         }}>
           <div>
-            <span>📋 Historia zamknięć dziennych</span>
-            <div style={{ fontSize: '0.75rem', fontWeight: '400', color: '#6c757d', marginTop: '0.25rem' }}>
-              Obejmuje: podsumowanie finansowe, różnice kasowe, aktywność social media, osiągnięcia dnia i notatki pracowników
+            <span style={{ fontSize: '11px' }}>📋 Historia zamknięć dziennych</span>
+            <div style={{ fontSize: '9px', fontWeight: '400', opacity: 0.9, marginTop: '2px' }}>
+              💰 Finanse • 📊 Różnice • 📱 Social Media • 🎯 Osiągnięcia • 📝 Notatki
             </div>
           </div>
-          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <label style={{ fontSize: '0.875rem', fontWeight: '500' }}>Od:</label>
-              <input
-                type="date"
-                value={dailyClosureFilters.date_from}
-                onChange={(e) => setDailyClosureFilters(prev => ({ ...prev, date_from: e.target.value }))}
-                style={{
-                  padding: '0.5rem',
-                  border: '1px solid #ced4da',
-                  borderRadius: '0.25rem',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <label style={{ fontSize: '0.875rem', fontWeight: '500' }}>Do:</label>
-              <input
-                type="date"
-                value={dailyClosureFilters.date_to}
-                onChange={(e) => setDailyClosureFilters(prev => ({ ...prev, date_to: e.target.value }))}
-                style={{
-                  padding: '0.5rem',
-                  border: '1px solid #ced4da',
-                  borderRadius: '0.25rem',
-                  fontSize: '0.875rem'
-                }}
-              />
-              <input
-                type="text"
-                value={dailyClosureFilters.cashier}
-                onChange={(e) => setDailyClosureFilters(prev => ({ ...prev, cashier: e.target.value }))}
-                placeholder="Kasjer..."
-                style={{
-                  padding: '0.5rem',
-                  border: '1px solid #ced4da',
-                  borderRadius: '0.25rem',
-                  fontSize: '0.875rem',
-                  width: '120px'
-                }}
-              />
-              <button
-                onClick={loadDailyClosureReports}
-                style={{
-                  padding: '0.5rem 1rem',
-                  backgroundColor: '#007bff',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer',
-                  fontSize: '0.875rem'
-                }}
-              >
-                🔍 Szukaj
-              </button>
-            </div>
+          <div style={{ display: 'flex', gap: '4px', alignItems: 'center' }}>
+            <span style={{ fontSize: '9px' }}>Od:</span>
+            <input
+              type="date"
+              value={dailyClosureFilters.date_from}
+              onChange={(e) => setDailyClosureFilters(prev => ({ ...prev, date_from: e.target.value }))}
+              style={{
+                padding: '2px 4px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '3px',
+                fontSize: '9px',
+                backgroundColor: 'rgba(255,255,255,0.9)'
+              }}
+            />
+            <span style={{ fontSize: '9px' }}>Do:</span>
+            <input
+              type="date"
+              value={dailyClosureFilters.date_to}
+              onChange={(e) => setDailyClosureFilters(prev => ({ ...prev, date_to: e.target.value }))}
+              style={{
+                padding: '2px 4px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '3px',
+                fontSize: '9px',
+                backgroundColor: 'rgba(255,255,255,0.9)'
+              }}
+            />
+            <input
+              type="text"
+              value={dailyClosureFilters.cashier}
+              onChange={(e) => setDailyClosureFilters(prev => ({ ...prev, cashier: e.target.value }))}
+              placeholder="Kasjer..."
+              style={{
+                padding: '2px 4px',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '3px',
+                fontSize: '9px',
+                width: '70px',
+                backgroundColor: 'rgba(255,255,255,0.9)'
+              }}
+            />
+            <button
+              onClick={loadDailyClosureReports}
+              style={{
+                padding: '3px 8px',
+                backgroundColor: 'rgba(255,255,255,0.2)',
+                color: 'white',
+                border: '1px solid rgba(255,255,255,0.3)',
+                borderRadius: '3px',
+                cursor: 'pointer',
+                fontSize: '9px'
+              }}
+            >
+              🔍 Szukaj
+            </button>
             <button
               onClick={() => exportDailyClosures(dailyClosureReports)}
               style={{
-                padding: '0.5rem 1rem',
+                padding: '3px 8px',
                 backgroundColor: '#28a745',
                 color: 'white',
                 border: 'none',
-                borderRadius: '0.375rem',
+                borderRadius: '3px',
                 cursor: 'pointer',
-                fontSize: '0.875rem'
+                fontSize: '9px'
               }}
             >
               📤 Eksport
@@ -3998,169 +4002,194 @@ const AdminPage = () => {
 
         {/* Legenda wskaźników */}
         <div style={{
-          padding: '0.75rem 1rem',
+          padding: '4px 8px',
           backgroundColor: '#f1f3f4',
           borderBottom: '1px solid #e9ecef',
-          fontSize: '0.75rem',
-          color: '#6c757d'
+          fontSize: '9px',
+          color: '#6c757d',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          flexWrap: 'wrap'
         }}>
-          <strong>Wskaźniki dodatkowych danych:</strong>
-          <span style={{ marginLeft: '1rem' }}>📱 Social Media</span>
-          <span style={{ marginLeft: '1rem' }}>🎯 Osiągnięcia</span>
-          <span style={{ marginLeft: '1rem' }}>📝 Notatki</span>
-          <span style={{ marginLeft: '1rem', fontStyle: 'italic' }}>- kliknij "Szczegóły" aby zobaczyć pełne informacje</span>
+          <strong>Legenda:</strong>
+          <span style={{ backgroundColor: '#f3e5f5', padding: '1px 4px', borderRadius: '2px' }}>📱 Social Media</span>
+          <span style={{ backgroundColor: '#fff3cd', padding: '1px 4px', borderRadius: '2px' }}>🎯 Osiągnięcia</span>
+          <span style={{ backgroundColor: '#d1ecf1', padding: '1px 4px', borderRadius: '2px' }}>📝 Notatki</span>
+          <span style={{ backgroundColor: '#fff8e1', padding: '1px 4px', borderRadius: '2px' }}>💰 Safebag</span>
+          <span style={{ fontStyle: 'italic' }}>- kliknij "👁️" aby zobaczyć pełne dane</span>
         </div>
 
-        <div style={{ overflow: 'auto', maxHeight: '600px' }}>
+        <div style={{ overflow: 'auto', maxHeight: '500px' }}>
           {dailyClosureReports && dailyClosureReports.length > 0 ? (
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-              <thead style={{ backgroundColor: '#f8f9fa', position: 'sticky', top: 0 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+              <thead style={{ backgroundColor: '#e9ecef', position: 'sticky', top: 0 }}>
                 <tr>
-                  <th style={{ padding: '0.75rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Data / Kasjer
+                  <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    📅 Data / Kasjer
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Gotówka
+                  <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    💵 Gotówka
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Karty
+                  <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    💳 Karty
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'right', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Różnica kasa
+                  <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    📊 Różnice
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Transakcje
+                  <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    🧾 Trans.
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Dodatkowe
+                  <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    📋 Dane
                   </th>
-                  <th style={{ padding: '0.75rem', textAlign: 'center', fontSize: '0.875rem', fontWeight: '600', borderBottom: '1px solid #e9ecef' }}>
-                    Akcje
+                  <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                    ⚙️ Akcje
                   </th>
                 </tr>
               </thead>
               <tbody>
                 {dailyClosureReports.map((report, index) => (
                   <tr key={report.id} style={{ backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem', borderBottom: '1px solid #e9ecef' }}>
-                      <div style={{ fontWeight: '500' }}>
+                    <td style={{ padding: '5px 8px', fontSize: '10px', borderBottom: '1px solid #e9ecef' }}>
+                      <div style={{ fontWeight: '600', color: '#2c3e50' }}>
                         {new Date(report.data_zamkniecia).toLocaleDateString('pl-PL')}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-                        {report.kasjer_login || 'System'}
-                      </div>
-                      <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
-                        {report.czas_zamkniecia?.split('.')[0] || ''}
+                      <div style={{ fontSize: '9px', color: '#6c757d' }}>
+                        👤 {report.kasjer_login || 'System'} • ⏰ {report.czas_zamkniecia?.split('.')[0] || ''}
                       </div>
                     </td>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem', textAlign: 'right', borderBottom: '1px solid #e9ecef' }}>
-                      <div style={{ fontWeight: '500' }}>
+                    <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'right', borderBottom: '1px solid #e9ecef' }}>
+                      <div style={{ fontWeight: '600', color: '#28a745' }}>
                         {parseFloat(report.kasa_fizyczna || 0).toFixed(2)} zł
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+                      <div style={{ fontSize: '9px', color: '#6c757d' }}>
                         sys: {parseFloat(report.kasa_system || 0).toFixed(2)} zł
                       </div>
                     </td>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem', textAlign: 'right', borderBottom: '1px solid #e9ecef' }}>
-                      <div style={{ fontWeight: '500' }}>
+                    <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'right', borderBottom: '1px solid #e9ecef' }}>
+                      <div style={{ fontWeight: '600', color: '#007bff' }}>
                         {parseFloat(report.sprzedaz_karta || 0).toFixed(2)} zł
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: '#6c757d' }}>
+                      <div style={{ fontSize: '9px', color: '#6c757d' }}>
                         term: {parseFloat(report.terminal_rzeczywisty || 0).toFixed(2)} zł
                       </div>
                     </td>
                     <td style={{ 
-                      padding: '0.75rem', 
-                      fontSize: '0.875rem', 
+                      padding: '5px 8px', 
+                      fontSize: '10px', 
                       textAlign: 'right', 
-                      borderBottom: '1px solid #e9ecef', 
-                      color: (report.roznica_kasa || 0) < 0 ? '#dc3545' : (report.roznica_kasa || 0) > 0 ? '#28a745' : '#495057',
-                      fontWeight: '500'
+                      borderBottom: '1px solid #e9ecef'
                     }}>
-                      {parseFloat(report.roznica_kasa || 0).toFixed(2)} zł
+                      <div style={{ 
+                        fontWeight: '600',
+                        color: (report.roznica_kasa || 0) < 0 ? '#dc3545' : (report.roznica_kasa || 0) > 0 ? '#28a745' : '#495057'
+                      }}>
+                        Kasa: {parseFloat(report.roznica_kasa || 0).toFixed(2)} zł
+                      </div>
+                      <div style={{ 
+                        fontSize: '9px',
+                        color: (report.roznica_terminal || 0) < 0 ? '#dc3545' : (report.roznica_terminal || 0) > 0 ? '#28a745' : '#6c757d'
+                      }}>
+                        Term: {parseFloat(report.roznica_terminal || 0).toFixed(2)} zł
+                      </div>
                     </td>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
+                    <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
                       <span style={{
-                        padding: '0.25rem 0.5rem',
+                        padding: '2px 6px',
                         backgroundColor: '#e7f3ff',
                         color: '#0056b3',
-                        borderRadius: '0.25rem',
-                        fontSize: '0.75rem',
-                        fontWeight: '500'
+                        borderRadius: '3px',
+                        fontSize: '10px',
+                        fontWeight: '600'
                       }}>
                         {report.liczba_transakcji || 0}
                       </span>
                     </td>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
-                      <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                    <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
+                      <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
                         {(report.social_media_tiktok || report.social_media_facebook || 
                           report.social_media_instagram || report.social_media_google) && (
                           <span style={{
-                            padding: '0.2rem 0.3rem',
+                            padding: '2px 4px',
                             backgroundColor: '#f3e5f5',
                             color: '#6f42c1',
-                            borderRadius: '0.2rem',
-                            fontSize: '0.65rem',
-                            fontWeight: '500'
-                          }}>
+                            borderRadius: '2px',
+                            fontSize: '9px'
+                          }} title="Social Media">
                             📱
                           </span>
                         )}
                         {(report.osiagniecia_sprzedaz || report.osiagniecia_praca) && (
                           <span style={{
-                            padding: '0.2rem 0.3rem',
+                            padding: '2px 4px',
                             backgroundColor: '#fff3cd',
                             color: '#856404',
-                            borderRadius: '0.2rem',
-                            fontSize: '0.65rem',
-                            fontWeight: '500'
-                          }}>
+                            borderRadius: '2px',
+                            fontSize: '9px'
+                          }} title="Osiągnięcia">
                             🎯
                           </span>
                         )}
                         {report.uwagi_zamkniecia && (
                           <span style={{
-                            padding: '0.2rem 0.3rem',
+                            padding: '2px 4px',
                             backgroundColor: '#d1ecf1',
                             color: '#0c5460',
-                            borderRadius: '0.2rem',
-                            fontSize: '0.65rem',
-                            fontWeight: '500'
-                          }}>
+                            borderRadius: '2px',
+                            fontSize: '9px'
+                          }} title="Notatki">
                             📝
                           </span>
                         )}
+                        {(report.safebag_wplaty > 0 || report.safebag_stan > 0) && (
+                          <span style={{
+                            padding: '2px 4px',
+                            backgroundColor: '#fff8e1',
+                            color: '#e65100',
+                            borderRadius: '2px',
+                            fontSize: '9px'
+                          }} title={`Safebag: wpłaty ${parseFloat(report.safebag_wplaty || 0).toFixed(2)} zł, stan ${parseFloat(report.safebag_stan || 0).toFixed(2)} zł`}>
+                            💰
+                          </span>
+                        )}
+                        {!(report.social_media_tiktok || report.social_media_facebook || 
+                          report.social_media_instagram || report.social_media_google ||
+                          report.osiagniecia_sprzedaz || report.osiagniecia_praca || report.uwagi_zamkniecia ||
+                          report.safebag_wplaty > 0 || report.safebag_stan > 0) && (
+                          <span style={{ fontSize: '9px', color: '#adb5bd' }}>—</span>
+                        )}
                       </div>
                     </td>
-                    <td style={{ padding: '0.75rem', fontSize: '0.875rem', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
-                      <div style={{ display: 'flex', gap: '0.25rem', justifyContent: 'center' }}>
+                    <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
+                      <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
                         <button
                           onClick={() => viewClosureDetails(report)}
                           style={{
-                            padding: '0.25rem 0.5rem',
+                            padding: '3px 6px',
                             backgroundColor: '#007bff',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '0.25rem',
+                            borderRadius: '3px',
                             cursor: 'pointer',
-                            fontSize: '0.75rem'
+                            fontSize: '9px'
                           }}
                         >
-                          👁️ Szczegóły
+                          👁️
                         </button>
                         <button
                           onClick={() => printClosureReport(report)}
                           style={{
-                            padding: '0.25rem 0.5rem',
+                            padding: '3px 6px',
                             backgroundColor: '#28a745',
                             color: 'white',
                             border: 'none',
-                            borderRadius: '0.25rem',
+                            borderRadius: '3px',
                             cursor: 'pointer',
-                            fontSize: '0.75rem'
+                            fontSize: '9px'
                           }}
                         >
-                          🖨️ Drukuj
+                          🖨️
                         </button>
                       </div>
                     </td>
@@ -4171,11 +4200,11 @@ const AdminPage = () => {
           ) : (
             <div style={{
               textAlign: 'center',
-              padding: '2rem',
+              padding: '1.5rem',
               color: '#6c757d'
             }}>
-              <p>Brak raportów zamknięć dla wybranych kryteriów</p>
-              <p style={{ fontSize: '0.875rem', marginTop: '0.5rem' }}>
+              <p style={{ margin: 0, fontSize: '11px' }}>📭 Brak raportów zamknięć dla wybranych kryteriów</p>
+              <p style={{ fontSize: '10px', marginTop: '0.3rem', color: '#adb5bd' }}>
                 Użyj filtrów powyżej aby wygenerować raporty zamknięć dziennych
               </p>
             </div>
@@ -4199,180 +4228,203 @@ const AdminPage = () => {
         }}>
           <div style={{
             backgroundColor: 'white',
-            borderRadius: '0.5rem',
-            padding: '1.5rem',
-            maxWidth: '800px',
-            width: '90%',
-            maxHeight: '80vh',
-            overflow: 'auto'
+            borderRadius: '8px',
+            maxWidth: '700px',
+            width: '95%',
+            maxHeight: '85vh',
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
           }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-              <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: '600' }}>
-                📊 Szczegóły zamknięcia dziennego
-              </h3>
+            {/* Nagłówek modalu */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #4a6fa5 0%, #3d5a8c 100%)',
+              color: 'white',
+              padding: '0.5rem 0.75rem',
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '12px', fontWeight: '600' }}>
+                  📊 Szczegóły zamknięcia dziennego
+                </h3>
+                <div style={{ fontSize: '10px', opacity: 0.9, marginTop: '2px' }}>
+                  📅 {new Date(selectedClosure.data_zamkniecia).toLocaleDateString('pl-PL')} • 👤 {selectedClosure.kasjer_login || selectedClosure.uzytkownik_nazwa || 'System'}
+                </div>
+              </div>
               <button
                 onClick={() => setShowClosureDetails(false)}
                 style={{
-                  padding: '0.5rem',
-                  backgroundColor: '#6c757d',
+                  padding: '4px 8px',
+                  backgroundColor: 'rgba(255,255,255,0.2)',
                   color: 'white',
-                  border: 'none',
-                  borderRadius: '0.375rem',
-                  cursor: 'pointer'
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '10px'
                 }}
               >
-                ✕
+                ✕ Zamknij
               </button>
             </div>
 
-            <div style={{ display: 'grid', gap: '1rem' }}>
+            <div style={{ padding: '0.5rem', overflow: 'auto', maxHeight: 'calc(85vh - 80px)' }}>
+              <div style={{ display: 'grid', gap: '0.4rem' }}>
+              
               {/* Podstawowe informacje */}
-              <div style={{ padding: '1rem', backgroundColor: '#f8f9fa', borderRadius: '0.375rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+              <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', borderLeft: '3px solid #6c757d' }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#495057' }}>
                   📅 Informacje podstawowe
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
                   <div>
-                    <strong>Data zamknięcia:</strong> {new Date(selectedClosure.data_zamkniecia).toLocaleString('pl-PL')}
+                    <span style={{ color: '#6c757d' }}>Data zamknięcia:</span><br/>
+                    <strong>{new Date(selectedClosure.data_zamkniecia).toLocaleString('pl-PL')}</strong>
                   </div>
                   <div>
-                    <strong>Użytkownik:</strong> {selectedClosure.uzytkownik_nazwa || 'System'}
+                    <span style={{ color: '#6c757d' }}>Użytkownik:</span><br/>
+                    <strong>{selectedClosure.uzytkownik_nazwa || selectedClosure.kasjer_login || 'System'}</strong>
                   </div>
                   <div>
-                    <strong>Okres:</strong> {new Date(selectedClosure.data_od).toLocaleDateString('pl-PL')} - {new Date(selectedClosure.data_do).toLocaleDateString('pl-PL')}
+                    <span style={{ color: '#6c757d' }}>Okres:</span><br/>
+                    <strong>{selectedClosure.data_od ? new Date(selectedClosure.data_od).toLocaleDateString('pl-PL') : '—'} - {selectedClosure.data_do ? new Date(selectedClosure.data_do).toLocaleDateString('pl-PL') : '—'}</strong>
                   </div>
                 </div>
               </div>
 
               {/* Podsumowanie finansowe */}
-              <div style={{ padding: '1rem', backgroundColor: '#e7f3ff', borderRadius: '0.375rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+              <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#e7f3ff', borderRadius: '4px', borderLeft: '3px solid #007bff' }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#0056b3' }}>
                   💰 Podsumowanie finansowe
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
-                  <div>
-                    <strong>Kasa system:</strong> {parseFloat(selectedClosure.kasa_system || 0).toFixed(2)} zł
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasa system:</span><br/>
+                    <strong>{parseFloat(selectedClosure.kasa_system || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <strong>Kasa fizyczna:</strong> {parseFloat(selectedClosure.kasa_fizyczna || 0).toFixed(2)} zł
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasa fizyczna:</span><br/>
+                    <strong>{parseFloat(selectedClosure.kasa_fizyczna || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <strong>Różnica kasa:</strong> 
-                    <span style={{ 
-                      color: (selectedClosure.roznica_kasa || 0) < 0 ? '#dc3545' : (selectedClosure.roznica_kasa || 0) > 0 ? '#28a745' : '#495057',
-                      fontWeight: '600' 
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Różnica kasa:</span><br/>
+                    <strong style={{ 
+                      color: (selectedClosure.roznica_kasa || 0) < 0 ? '#dc3545' : (selectedClosure.roznica_kasa || 0) > 0 ? '#28a745' : '#495057'
                     }}>
                       {parseFloat(selectedClosure.roznica_kasa || 0).toFixed(2)} zł
-                    </span>
+                    </strong>
                   </div>
-                  <div>
-                    <strong>Terminal system:</strong> {parseFloat(selectedClosure.terminal_system || 0).toFixed(2)} zł
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Terminal system:</span><br/>
+                    <strong>{parseFloat(selectedClosure.terminal_system || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <strong>Terminal rzeczywisty:</strong> {parseFloat(selectedClosure.terminal_rzeczywisty || 0).toFixed(2)} zł
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Terminal rzeczywisty:</span><br/>
+                    <strong>{parseFloat(selectedClosure.terminal_rzeczywisty || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <strong>Różnica terminal:</strong> 
-                    <span style={{ 
-                      color: (selectedClosure.roznica_terminal || 0) < 0 ? '#dc3545' : (selectedClosure.roznica_terminal || 0) > 0 ? '#28a745' : '#495057',
-                      fontWeight: '600' 
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Różnica terminal:</span><br/>
+                    <strong style={{ 
+                      color: (selectedClosure.roznica_terminal || 0) < 0 ? '#dc3545' : (selectedClosure.roznica_terminal || 0) > 0 ? '#28a745' : '#495057'
                     }}>
                       {parseFloat(selectedClosure.roznica_terminal || 0).toFixed(2)} zł
-                    </span>
+                    </strong>
                   </div>
-                  <div>
-                    <strong>Kasa fiskalna:</strong> {parseFloat(selectedClosure.kasa_fiskalna_raport || 0).toFixed(2)} zł
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasa fiskalna:</span><br/>
+                    <strong>{parseFloat(selectedClosure.kasa_fiskalna_raport || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <strong>Sprzedaż gotówka:</strong> {parseFloat(selectedClosure.sprzedaz_gotowka || 0).toFixed(2)} zł
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Sprzedaż gotówka:</span><br/>
+                    <strong style={{ color: '#28a745' }}>{parseFloat(selectedClosure.sprzedaz_gotowka || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <strong>Sprzedaż karta:</strong> {parseFloat(selectedClosure.sprzedaz_karta || 0).toFixed(2)} zł
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Sprzedaż karta:</span><br/>
+                    <strong style={{ color: '#007bff' }}>{parseFloat(selectedClosure.sprzedaz_karta || 0).toFixed(2)} zł</strong>
                   </div>
                 </div>
               </div>
 
               {/* Statystyki transakcji */}
-              <div style={{ padding: '1rem', backgroundColor: '#e8f5e8', borderRadius: '0.375rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+              <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#e8f5e8', borderRadius: '4px', borderLeft: '3px solid #28a745' }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#1e7e34' }}>
                   📈 Statystyki transakcji
                 </h4>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.5rem' }}>
-                  <div>
-                    <strong>Liczba transakcji:</strong> {selectedClosure.liczba_transakcji || 0}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Transakcje:</span><br/>
+                    <strong style={{ fontSize: '12px', color: '#28a745' }}>{selectedClosure.liczba_transakcji || 0}</strong>
                   </div>
-                  <div>
-                    <strong>Kasjer:</strong> {selectedClosure.kasjer_login || 'System'}
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasjer:</span><br/>
+                    <strong>{selectedClosure.kasjer_login || 'System'}</strong>
                   </div>
-                  <div>
-                    <strong>Czas rozpoczęcia:</strong> {selectedClosure.czas_rozpoczecia || 'Brak danych'}
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Rozpoczęcie:</span><br/>
+                    <strong>{selectedClosure.czas_rozpoczecia || '—'}</strong>
                   </div>
-                  <div>
-                    <strong>Czas zamknięcia:</strong> {selectedClosure.czas_zamkniecia?.split('.')[0] || 'Brak danych'}
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Zamknięcie:</span><br/>
+                    <strong>{selectedClosure.czas_zamkniecia?.split('.')[0] || '—'}</strong>
                   </div>
                 </div>
               </div>
 
+              {/* Safebag */}
+              {(selectedClosure.safebag_wplaty > 0 || selectedClosure.safebag_stan > 0) && (
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#fff8e1', borderRadius: '4px', borderLeft: '3px solid #ff9800' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#e65100' }}>
+                    💰 Safebag
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                      <span style={{ color: '#6c757d' }}>Wpłaty tego dnia:</span><br/>
+                      <strong style={{ color: '#ff9800' }}>{parseFloat(selectedClosure.safebag_wplaty || 0).toFixed(2)} zł</strong>
+                    </div>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                      <span style={{ color: '#6c757d' }}>Stan safebag:</span><br/>
+                      <strong style={{ color: '#e65100' }}>{parseFloat(selectedClosure.safebag_stan || 0).toFixed(2)} zł</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Social Media */}
               {(selectedClosure.social_media_tiktok || selectedClosure.social_media_facebook || 
                 selectedClosure.social_media_instagram || selectedClosure.social_media_google) && (
-                <div style={{ padding: '1rem', backgroundColor: '#f3e5f5', borderRadius: '0.375rem' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#f3e5f5', borderRadius: '4px', borderLeft: '3px solid #6f42c1' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#5a3d8a' }}>
                     📱 Aktywność w Social Media
                   </h4>
-                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
                     {selectedClosure.social_media_tiktok && (
-                      <div>
-                        <strong>TikTok:</strong>
-                        <div style={{ 
-                          marginTop: '0.25rem',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.875rem'
-                        }}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <strong>🎵 TikTok:</strong>
+                        <div style={{ marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                           {selectedClosure.social_media_tiktok}
                         </div>
                       </div>
                     )}
                     {selectedClosure.social_media_facebook && (
-                      <div>
-                        <strong>Facebook:</strong>
-                        <div style={{ 
-                          marginTop: '0.25rem',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.875rem'
-                        }}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <strong>📘 Facebook:</strong>
+                        <div style={{ marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                           {selectedClosure.social_media_facebook}
                         </div>
                       </div>
                     )}
                     {selectedClosure.social_media_instagram && (
-                      <div>
-                        <strong>Instagram:</strong>
-                        <div style={{ 
-                          marginTop: '0.25rem',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.875rem'
-                        }}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <strong>📷 Instagram:</strong>
+                        <div style={{ marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                           {selectedClosure.social_media_instagram}
                         </div>
                       </div>
                     )}
                     {selectedClosure.social_media_google && (
-                      <div>
-                        <strong>Google Business:</strong>
-                        <div style={{ 
-                          marginTop: '0.25rem',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.875rem'
-                        }}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <strong>🔍 Google Business:</strong>
+                        <div style={{ marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                           {selectedClosure.social_media_google}
                         </div>
                       </div>
@@ -4383,35 +4435,23 @@ const AdminPage = () => {
 
               {/* Osiągnięcia dnia */}
               {(selectedClosure.osiagniecia_sprzedaz || selectedClosure.osiagniecia_praca) && (
-                <div style={{ padding: '1rem', backgroundColor: '#fff3cd', borderRadius: '0.375rem' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#fff3cd', borderRadius: '4px', borderLeft: '3px solid #ffc107' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#856404' }}>
                     🎯 Osiągnięcia dnia
                   </h4>
-                  <div style={{ display: 'grid', gap: '0.75rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
                     {selectedClosure.osiagniecia_sprzedaz && (
-                      <div>
-                        <strong>Sprzedaż:</strong>
-                        <div style={{ 
-                          marginTop: '0.25rem',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.875rem'
-                        }}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <strong>💰 Sprzedaż:</strong>
+                        <div style={{ marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                           {selectedClosure.osiagniecia_sprzedaz}
                         </div>
                       </div>
                     )}
                     {selectedClosure.osiagniecia_praca && (
-                      <div>
-                        <strong>Praca w sklepie:</strong>
-                        <div style={{ 
-                          marginTop: '0.25rem',
-                          padding: '0.5rem',
-                          backgroundColor: 'rgba(255, 255, 255, 0.7)',
-                          borderRadius: '0.25rem',
-                          fontSize: '0.875rem'
-                        }}>
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <strong>🏪 Praca w sklepie:</strong>
+                        <div style={{ marginTop: '2px', whiteSpace: 'pre-wrap' }}>
                           {selectedClosure.osiagniecia_praca}
                         </div>
                       </div>
@@ -4422,15 +4462,15 @@ const AdminPage = () => {
 
               {/* Uwagi zamknięcia */}
               {selectedClosure.uwagi_zamkniecia && (
-                <div style={{ padding: '1rem', backgroundColor: '#d1ecf1', borderRadius: '0.375rem' }}>
-                  <h4 style={{ margin: '0 0 0.5rem 0', fontSize: '1rem', fontWeight: '600' }}>
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#d1ecf1', borderRadius: '4px', borderLeft: '3px solid #17a2b8' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#0c5460' }}>
                     📝 Uwagi dotyczące zamknięcia dnia
                   </h4>
                   <div style={{ 
-                    padding: '0.75rem',
-                    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-                    borderRadius: '0.25rem',
-                    fontSize: '0.875rem',
+                    padding: '4px 6px',
+                    backgroundColor: 'rgba(255, 255, 255, 0.6)',
+                    borderRadius: '3px',
+                    fontSize: '10px',
                     whiteSpace: 'pre-wrap'
                   }}>
                     {selectedClosure.uwagi_zamkniecia}
@@ -4439,17 +4479,17 @@ const AdminPage = () => {
               )}
 
               {/* Akcje */}
-              <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+              <div style={{ display: 'flex', gap: '0.3rem', justifyContent: 'flex-end', marginTop: '0.3rem' }}>
                 <button
                   onClick={() => printClosureReport(selectedClosure)}
                   style={{
-                    padding: '0.5rem 1rem',
+                    padding: '4px 10px',
                     backgroundColor: '#28a745',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '0.375rem',
+                    borderRadius: '3px',
                     cursor: 'pointer',
-                    fontSize: '0.875rem'
+                    fontSize: '10px'
                   }}
                 >
                   🖨️ Drukuj raport
@@ -4457,17 +4497,18 @@ const AdminPage = () => {
                 <button
                   onClick={() => exportSingleClosure(selectedClosure)}
                   style={{
-                    padding: '0.5rem 1rem',
+                    padding: '4px 10px',
                     backgroundColor: '#007bff',
                     color: 'white',
                     border: 'none',
-                    borderRadius: '0.375rem',
+                    borderRadius: '3px',
                     cursor: 'pointer',
-                    fontSize: '0.875rem'
+                    fontSize: '10px'
                   }}
                 >
                   📤 Eksportuj
                 </button>
+              </div>
               </div>
             </div>
           </div>

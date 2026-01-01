@@ -24,6 +24,7 @@ const PurchaseInvoicesListPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedInvoices, setSelectedInvoices] = useState([]);
+  const [selectedLocation, setSelectedLocation] = useState(null);
   
   // Filtry i wyszukiwanie
   const [filters, setFilters] = useState({
