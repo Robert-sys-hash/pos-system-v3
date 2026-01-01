@@ -174,16 +174,11 @@ def close_shift_enhanced():
         # Pobierz location_id ze zmiany lub parametru
         location_id = data.get('location_id') or shift.get('location_id')
         
-        # Pobierz sumę safebag z bieżącego dnia dla tej lokalizacji
-        safebag_today_sql = """
-        SELECT COALESCE(SUM(kwota), 0) as safebag_total
-        FROM safebag_deposits
-        WHERE data_wplaty = ? AND location_id = ?
-        """
-        safebag_result = execute_query(safebag_today_sql, (shift['data_zmiany'], location_id))
-        safebag_today = safebag_result[0]['safebag_total'] if safebag_result else 0
+        # Pobierz kwotę wpłaty do safebaga Z BIEŻĄCEGO ZAMKNIĘCIA (nie sumę z całego dnia!)
+        # To jest kwota którą użytkownik właśnie wpisał przy zamykaniu tej zmiany
+        safebag_current_deposit = data.get('safebag_amount', 0)
         
-        # Pobierz całkowity stan safebag (suma wszystkich wpłat dla lokalizacji)
+        # Pobierz całkowity stan safebag (suma wszystkich wpłat dla lokalizacji) - do wyświetlenia
         safebag_total_sql = """
         SELECT COALESCE(SUM(kwota), 0) as safebag_balance
         FROM safebag_deposits
@@ -193,12 +188,12 @@ def close_shift_enhanced():
         safebag_balance = safebag_balance_result[0]['safebag_balance'] if safebag_balance_result else 0
         
         # Oblicz różnice w kasie (uwzględniając safebag!)
-        # Oczekiwana gotówka w kasie = Kasa systemowa - wpłaty do safebaga tego dnia
+        # Oczekiwana gotówka w kasie = Kasa systemowa - wpłata do safebaga w TEJ ZMIANIE
         expected_cash = shift['saldo_poczatkowe'] + shift_stats.get('cash_sales', 0)
-        expected_drawer_cash = ending_cash - safebag_today  # Oczekiwana gotówka w szufladzie po wpłacie do safebaga
+        expected_drawer_cash = ending_cash - safebag_current_deposit  # Oczekiwana gotówka w szufladzie po wpłacie do safebaga
         
         # Różnica kasy = Kasa fizyczna - Oczekiwana gotówka w szufladzie
-        # Jeśli wpłacono 100 zł do safebaga, to w szufladzie powinno być mniej o 100 zł
+        # Jeśli wpłacono 200 zł do safebaga, to w szufladzie powinno być mniej o 200 zł
         cash_physical_difference = ending_cash_physical - expected_drawer_cash
         
         cash_difference = ending_cash - expected_cash
@@ -231,7 +226,7 @@ def close_shift_enhanced():
             social_media.get('instagram', ''), social_media.get('google_business', ''),
             daily_achievements.get('sales_description', ''), daily_achievements.get('work_description', ''),
             notes,
-            safebag_today, safebag_balance, location_id
+            safebag_current_deposit, safebag_balance, location_id
         ))
         
         # Zamknij zmianę

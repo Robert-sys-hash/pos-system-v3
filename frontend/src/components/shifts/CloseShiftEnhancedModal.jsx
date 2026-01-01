@@ -80,7 +80,11 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
     try {
       const today = new Date().toISOString().split('T')[0];
       const response = await axios.get(`${API_URL}/shifts/cash-status`, {
-        params: { location_id: locationId, date: today }
+        params: { 
+          location_id: locationId, 
+          date: today,
+          shift_id: currentShift?.id  // Przekaż ID bieżącej zmiany
+        }
       });
       if (response.data.success) {
         setCashStatus(response.data.data);
@@ -659,7 +663,7 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                 💳 Terminal kartowy
               </h6>
 
-              {/* Podsumowanie z systemu */}
+              {/* Podsumowanie z systemu - ZMIANA + DZIEŃ */}
               {cashStatus?.terminal && (
                 <div style={{ 
                   marginBottom: '0.75rem', 
@@ -668,14 +672,43 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                   borderRadius: '4px',
                   fontSize: '11px'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                    <span>Karta:</span>
-                    <strong>{cashStatus.terminal.card_sales.toFixed(2)} zł</strong>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px' }}>
-                    <span>BLIK:</span>
-                    <strong>{cashStatus.terminal.blik_sales.toFixed(2)} zł</strong>
-                  </div>
+                  {/* Dane bieżącej zmiany */}
+                  {cashStatus.shift_data?.terminal && (
+                    <>
+                      <div style={{ fontSize: '10px', fontWeight: '600', color: '#0056b3', marginBottom: '4px', borderBottom: '1px solid #b8daff', paddingBottom: '3px' }}>
+                        📍 BIEŻĄCA ZMIANA:
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span>Karta (zmiana):</span>
+                        <strong>{cashStatus.shift_data.terminal.card_sales.toFixed(2)} zł</strong>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2px' }}>
+                        <span>BLIK (zmiana):</span>
+                        <strong>{cashStatus.shift_data.terminal.blik_sales.toFixed(2)} zł</strong>
+                      </div>
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        backgroundColor: 'rgba(0,86,179,0.1)',
+                        padding: '3px 4px',
+                        borderRadius: '3px',
+                        marginBottom: '6px'
+                      }}>
+                        <span style={{ fontWeight: '600' }}>SUMA ZMIANA:</span>
+                        <strong style={{ color: '#0d6efd' }}>{cashStatus.shift_data.terminal.total.toFixed(2)} zł</strong>
+                      </div>
+                    </>
+                  )}
+                  
+                  {/* Poprzednie zmiany tego dnia */}
+                  {cashStatus.day_previous_shifts?.terminal_total > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '3px', color: '#6c757d', fontSize: '10px' }}>
+                      <span>Poprz. zmiany dnia:</span>
+                      <span>{cashStatus.day_previous_shifts.terminal_total.toFixed(2)} zł</span>
+                    </div>
+                  )}
+                  
+                  {/* Suma dzienna - całkowita */}
                   <div style={{ 
                     display: 'flex', 
                     justifyContent: 'space-between', 
@@ -683,8 +716,8 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                     paddingTop: '3px',
                     marginTop: '3px'
                   }}>
-                    <span style={{ fontWeight: '600' }}>SUMA (system):</span>
-                    <strong style={{ color: '#0d6efd' }}>{cashStatus.terminal.total.toFixed(2)} zł</strong>
+                    <span style={{ fontWeight: '600', fontSize: '10px' }}>📅 CAŁY DZIEŃ:</span>
+                    <strong style={{ color: '#495057', fontSize: '11px' }}>{cashStatus.terminal.total.toFixed(2)} zł</strong>
                   </div>
                 </div>
               )}
@@ -697,7 +730,7 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                   color: '#6c757d',
                   marginBottom: '3px'
                 }}>
-                  Kwota z wydruku terminala (zł)
+                  Kwota z wydruku terminala - ZMIANA (zł)
                 </label>
                 <input
                   type="number"
@@ -716,22 +749,22 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                 />
               </div>
 
-              {/* Walidacja terminala */}
-              {cashStatus?.terminal && (
+              {/* Walidacja terminala - porównanie z bieżącą zmianą */}
+              {cashStatus?.current_shift?.terminal && (
                 <div style={{
                   padding: '0.5rem',
-                  background: Math.abs(formData.card_terminal_actual - cashStatus.terminal.total) <= 1 ? '#d4edda' : '#f8d7da',
-                  border: `1px solid ${Math.abs(formData.card_terminal_actual - cashStatus.terminal.total) <= 1 ? '#c3e6cb' : '#f5c6cb'}`,
+                  background: Math.abs(formData.card_terminal_actual - cashStatus.current_shift.terminal.total) <= 1 ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${Math.abs(formData.card_terminal_actual - cashStatus.current_shift.terminal.total) <= 1 ? '#c3e6cb' : '#f5c6cb'}`,
                   borderRadius: '3px',
                   marginBottom: '0.75rem',
                   fontSize: '11px'
                 }}>
-                  {Math.abs(formData.card_terminal_actual - cashStatus.terminal.total) <= 1 ? (
-                    <strong style={{ color: '#155724' }}>✅ Terminal OK</strong>
+                  {Math.abs(formData.card_terminal_actual - cashStatus.current_shift.terminal.total) <= 1 ? (
+                    <strong style={{ color: '#155724' }}>✅ Terminal OK (zgodny ze zmianą)</strong>
                   ) : (
                     <strong style={{ color: '#721c24' }}>
-                      ❌ Różnica: {(formData.card_terminal_actual - cashStatus.terminal.total) > 0 ? '+' : ''}
-                      {(formData.card_terminal_actual - cashStatus.terminal.total).toFixed(2)} zł
+                      ❌ Różnica ze zmianą: {(formData.card_terminal_actual - cashStatus.current_shift.terminal.total) > 0 ? '+' : ''}
+                      {(formData.card_terminal_actual - cashStatus.current_shift.terminal.total).toFixed(2)} zł
                     </strong>
                   )}
                 </div>
@@ -742,27 +775,46 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                 🧾 Raport fiskalny
               </h6>
 
-              {/* Podsumowanie z systemu */}
-              {cashStatus?.fiscal && (
-                <div style={{ 
-                  marginBottom: '0.75rem', 
-                  padding: '0.5rem', 
-                  background: '#f0f9ff', 
-                  borderRadius: '4px',
-                  fontSize: '11px'
-                }}>
-                  <div style={{ 
-                    display: 'flex', 
-                    justifyContent: 'space-between'
-                  }}>
-                    <span style={{ fontWeight: '600' }}>Oczekiwany raport (sprzedaż):</span>
-                    <strong style={{ color: '#0d6efd' }}>{cashStatus.fiscal.expected_total.toFixed(2)} zł</strong>
+              {/* Dane BIEŻĄCEJ ZMIANY - fiskalny */}
+              {cashStatus?.current_shift?.fiscal && (
+                <div style={{ marginBottom: '0.5rem', padding: '0.4rem', background: '#e7f1ff', borderRadius: '4px', fontSize: '10px' }}>
+                  <div style={{ fontSize: '10px', fontWeight: '600', color: '#0056b3', marginBottom: '4px' }}>
+                    📊 ZMIANA (bieżąca):
                   </div>
-                  {cashStatus.fiscal.today_returns > 0 && (
-                    <div style={{ fontSize: '10px', color: '#6c757d', marginTop: '3px' }}>
-                      ℹ️ Zwroty ({cashStatus.fiscal.today_returns.toFixed(2)} zł) nie są uwzględniane w raporcie fiskalnym
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>Sprzedaż fiskalna:</span>
+                    <strong style={{ color: '#0d6efd' }}>{cashStatus.current_shift.fiscal.sales?.toFixed(2) || '0.00'} zł</strong>
+                  </div>
+                  {cashStatus.current_shift.fiscal.returns > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc3545' }}>
+                      <span>Zwroty:</span>
+                      <span>-{cashStatus.current_shift.fiscal.returns.toFixed(2)} zł</span>
                     </div>
                   )}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '3px', paddingTop: '3px', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+                    <span style={{ fontWeight: '600' }}>Oczekiwany raport:</span>
+                    <strong style={{ color: '#0d6efd' }}>{cashStatus.current_shift.fiscal.expected_total?.toFixed(2) || '0.00'} zł</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Dane z POPRZEDNICH ZMIAN dzisiejszych - fiskalny */}
+              {cashStatus?.previous_shifts?.fiscal && cashStatus.previous_shifts.fiscal.total > 0 && (
+                <div style={{ marginBottom: '0.5rem', padding: '0.4rem', background: '#fff3cd', borderRadius: '4px', fontSize: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: '600' }}>📅 DZIEŃ (poprzednie zmiany):</span>
+                    <strong style={{ color: '#856404' }}>{cashStatus.previous_shifts.fiscal.total.toFixed(2)} zł</strong>
+                  </div>
+                </div>
+              )}
+
+              {/* Suma dzienna fiskalna - tylko jeśli były poprzednie zmiany */}
+              {cashStatus?.fiscal && cashStatus?.previous_shifts?.fiscal?.total > 0 && (
+                <div style={{ marginBottom: '0.5rem', padding: '0.4rem', background: '#f8f9fa', borderRadius: '4px', fontSize: '10px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontWeight: '600' }}>📆 SUMA DZIENNA:</span>
+                    <strong style={{ color: '#495057' }}>{cashStatus.fiscal.expected_total.toFixed(2)} zł</strong>
+                  </div>
                 </div>
               )}
 
@@ -774,7 +826,7 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                   color: '#6c757d',
                   marginBottom: '3px'
                 }}>
-                  Kwota z wydruku raportu dobowego (zł)
+                  Kwota z wydruku raportu zmianowego (zł)
                 </label>
                 <input
                   type="number"
@@ -793,22 +845,22 @@ const CloseShiftEnhancedModal = ({ isOpen, onClose, onSuccess, currentShift, loc
                 />
               </div>
 
-              {/* Walidacja raportu fiskalnego */}
-              {cashStatus?.fiscal && (
+              {/* Walidacja raportu fiskalnego - porównanie z bieżącą zmianą */}
+              {cashStatus?.current_shift?.fiscal && (
                 <div style={{
                   padding: '0.5rem',
-                  background: Math.abs(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) <= 1 ? '#d4edda' : '#f8d7da',
-                  border: `1px solid ${Math.abs(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) <= 1 ? '#c3e6cb' : '#f5c6cb'}`,
+                  background: Math.abs(formData.fiscal_printer_report - cashStatus.current_shift.fiscal.expected_total) <= 1 ? '#d4edda' : '#f8d7da',
+                  border: `1px solid ${Math.abs(formData.fiscal_printer_report - cashStatus.current_shift.fiscal.expected_total) <= 1 ? '#c3e6cb' : '#f5c6cb'}`,
                   borderRadius: '3px',
                   marginBottom: '0.75rem',
                   fontSize: '11px'
                 }}>
-                  {Math.abs(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) <= 1 ? (
-                    <strong style={{ color: '#155724' }}>✅ Raport fiskalny OK</strong>
+                  {Math.abs(formData.fiscal_printer_report - cashStatus.current_shift.fiscal.expected_total) <= 1 ? (
+                    <strong style={{ color: '#155724' }}>✅ Raport fiskalny OK (zgodny ze zmianą)</strong>
                   ) : (
                     <strong style={{ color: '#721c24' }}>
-                      ❌ Różnica: {(formData.fiscal_printer_report - cashStatus.fiscal.expected_total) > 0 ? '+' : ''}
-                      {(formData.fiscal_printer_report - cashStatus.fiscal.expected_total).toFixed(2)} zł
+                      ❌ Różnica ze zmianą: {(formData.fiscal_printer_report - cashStatus.current_shift.fiscal.expected_total) > 0 ? '+' : ''}
+                      {(formData.fiscal_printer_report - cashStatus.current_shift.fiscal.expected_total).toFixed(2)} zł
                     </strong>
                   )}
                 </div>

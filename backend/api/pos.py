@@ -1355,7 +1355,8 @@ def complete_cart_transaction(transakcja_id):
         kwota_reszty = 0
         kwota_gotowka = 0
         kwota_karta = 0
-        metoda_karta = None  # Będzie zawierać 'karta' lub 'blik'
+        kwota_blik = 0  # Osobna kolumna dla BLIK
+        metoda_karta = None  # Będzie zawierać 'karta', 'blik' lub 'karta+blik'
         
         # Oblicz finalną kwotę po rabacie
         rabat_kwota = transakcja.get('rabat_kwota', 0) or 0
@@ -1370,11 +1371,18 @@ def complete_cart_transaction(transakcja_id):
                     kwota_gotowka += amount
                 elif method in ['karta', 'card']:
                     kwota_karta += amount
-                    metoda_karta = 'karta'
                 elif method == 'blik':
-                    kwota_karta += amount  # BLIK traktujemy jako kartę
-                    metoda_karta = 'blik'
-            print(f"DEBUG: Płatność dzielona - gotówka: {kwota_gotowka}, karta/blik: {kwota_karta}, metoda_karta: {metoda_karta}")
+                    kwota_blik += amount
+            
+            # Ustal metoda_karta na podstawie tego co było użyte
+            if kwota_karta > 0 and kwota_blik > 0:
+                metoda_karta = 'karta+blik'
+            elif kwota_karta > 0:
+                metoda_karta = 'karta'
+            elif kwota_blik > 0:
+                metoda_karta = 'blik'
+            
+            print(f"DEBUG: Płatność dzielona - gotówka: {kwota_gotowka}, karta: {kwota_karta}, blik: {kwota_blik}, metoda_karta: {metoda_karta}")
         elif kwota_otrzymana:
             kwota_otrzymana_float = float(kwota_otrzymana)
             if metoda_platnosci == 'gotowka':
@@ -1385,7 +1393,7 @@ def complete_cart_transaction(transakcja_id):
                 metoda_karta = 'karta'
                 kwota_reszty = 0  # Przy płatności kartą nie ma reszty
             elif metoda_platnosci == 'blik':
-                kwota_karta = final_amount  # BLIK traktujemy jako kartę
+                kwota_blik = final_amount  # BLIK osobna kolumna
                 metoda_karta = 'blik'
                 kwota_reszty = 0
         else:
@@ -1396,7 +1404,7 @@ def complete_cart_transaction(transakcja_id):
                 kwota_karta = final_amount
                 metoda_karta = 'karta'
             elif metoda_platnosci == 'blik':
-                kwota_karta = final_amount
+                kwota_blik = final_amount  # BLIK osobna kolumna
                 metoda_karta = 'blik'
         
         # Wygeneruj numer paragonu jeśli nie istnieje
@@ -1425,6 +1433,7 @@ def complete_cart_transaction(transakcja_id):
             kwota_reszty = ?,
             kwota_gotowka = ?,
             kwota_karta = ?,
+            kwota_blik = ?,
             metoda_karta = ?,
             uwagi = ?,
             numer_paragonu = ?
@@ -1433,7 +1442,7 @@ def complete_cart_transaction(transakcja_id):
         
         result = execute_insert(update_query, (
             metoda_platnosci, customer_id, kwota_otrzymana, kwota_reszty, 
-            kwota_gotowka, kwota_karta, metoda_karta, notatka, numer_paragonu, transakcja_id
+            kwota_gotowka, kwota_karta, kwota_blik, metoda_karta, notatka, numer_paragonu, transakcja_id
         ))
         
         if result is not None:

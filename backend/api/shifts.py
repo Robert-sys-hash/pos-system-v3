@@ -361,7 +361,7 @@ def debug_shifts_tables():
 def get_cash_status():
     """
     Pobierz stan gotówki dla lokalizacji
-    GET /api/shifts/cash-status?location_id=5&date=2025-12-31
+    GET /api/shifts/cash-status?location_id=5&date=2025-12-31&shift_id=123
     
     Zwraca:
     - system_cash: gotówka w systemie (całkowita dla lokalizacji)
@@ -369,10 +369,13 @@ def get_cash_status():
     - today_cash_returns: zwroty gotówkowe z danego dnia
     - safebag_total: suma wpłat do safebaga w bieżącym miesiącu
     - expected_drawer_cash: oczekiwana gotówka w kasie (system_cash - safebag_total)
+    - shift_data: dane tylko dla bieżącej zmiany (terminal, kasa fiskalna)
+    - day_previous_shifts: suma z poprzednich zamkniętych zmian tego dnia
     """
     try:
         location_id = request.args.get('location_id', type=int)
         target_date = request.args.get('date', date.today().isoformat())
+        shift_id = request.args.get('shift_id', type=int)
         
         if not location_id:
             return error_response("Parametr 'location_id' jest wymagany", 400)
@@ -488,13 +491,13 @@ def get_cash_status():
         # 5. Oczekiwana gotówka w kasie (system_cash - safebag)
         expected_drawer_cash = system_cash - safebag_total
         
-        # 6. Płatności kartą z danego dnia (terminal) - używamy kwota_karta i metoda_karta
-        # Obsługuje zarówno pojedyncze płatności kartą jak i płatności dzielone
+        # 6. Płatności kartą z danego dnia (terminal)
+        # Obsługuje zarówno nowe dane (kwota_karta) jak i stare (gdzie BLIK był w kwota_karta)
         today_card_sql = """
         SELECT COALESCE(SUM(
             CASE 
                 WHEN forma_platnosci = 'karta' THEN suma_brutto
-                WHEN kwota_karta > 0 AND (metoda_karta = 'karta' OR metoda_karta IS NULL) THEN kwota_karta
+                WHEN COALESCE(kwota_karta, 0) > 0 AND (metoda_karta = 'karta' OR metoda_karta = 'karta+blik' OR metoda_karta IS NULL) THEN kwota_karta
                 ELSE 0
             END
         ), 0) as total
@@ -507,11 +510,13 @@ def get_cash_status():
         today_card_sales = today_card[0]['total'] if today_card else 0
         
         # 7. Płatności BLIK z danego dnia (terminal)
+        # Obsługuje nowe dane (kwota_blik) oraz stare (gdzie BLIK był w kwota_karta z metoda_karta='blik')
         today_blik_sql = """
         SELECT COALESCE(SUM(
             CASE 
                 WHEN forma_platnosci = 'blik' THEN suma_brutto
-                WHEN kwota_karta > 0 AND metoda_karta = 'blik' THEN kwota_karta
+                WHEN COALESCE(kwota_blik, 0) > 0 THEN kwota_blik
+                WHEN COALESCE(kwota_karta, 0) > 0 AND metoda_karta = 'blik' THEN kwota_karta
                 ELSE 0
             END
         ), 0) as total
@@ -552,6 +557,119 @@ def get_cash_status():
         # Oczekiwana wartość raportu fiskalnego = tylko sprzedaż (bez zwrotów)
         fiscal_expected = today_all_sales
         
+        # 10. DANE DLA BIEŻĄCEJ ZMIANY (jeśli podano shift_id)
+        shift_data = None
+        day_previous_shifts = None
+        
+        if shift_id:
+            # Pobierz dane bieżącej zmiany
+            shift_sql = """
+            SELECT data_zmiany, czas_rozpoczecia FROM pos_zmiany WHERE id = ?
+            """
+            shift_result = execute_query(shift_sql, (shift_id,))
+            
+            if shift_result:
+                shift_start_date = shift_result[0]['data_zmiany']
+                shift_start_time = shift_result[0]['czas_rozpoczecia']
+                
+                # Terminal dla bieżącej zmiany - od czasu rozpoczęcia zmiany
+                shift_card_sql = """
+                SELECT COALESCE(SUM(
+                    CASE 
+                        WHEN forma_platnosci = 'karta' THEN suma_brutto
+                        WHEN COALESCE(kwota_karta, 0) > 0 AND (metoda_karta = 'karta' OR metoda_karta = 'karta+blik' OR metoda_karta IS NULL) THEN kwota_karta
+                        ELSE 0
+                    END
+                ), 0) as total
+                FROM pos_transakcje 
+                WHERE location_id = ? 
+                AND status = 'zakonczony'
+                AND date(data_transakcji) = ?
+                AND time(czas_transakcji) >= ?
+                """
+                shift_card = execute_query(shift_card_sql, (location_id, shift_start_date, shift_start_time))
+                shift_card_sales = shift_card[0]['total'] if shift_card else 0
+                
+                # BLIK dla bieżącej zmiany - obsługuje nowe i stare dane
+                shift_blik_sql = """
+                SELECT COALESCE(SUM(
+                    CASE 
+                        WHEN forma_platnosci = 'blik' THEN suma_brutto
+                        WHEN COALESCE(kwota_blik, 0) > 0 THEN kwota_blik
+                        WHEN COALESCE(kwota_karta, 0) > 0 AND metoda_karta = 'blik' THEN kwota_karta
+                        ELSE 0
+                    END
+                ), 0) as total
+                FROM pos_transakcje 
+                WHERE location_id = ? 
+                AND status = 'zakonczony'
+                AND date(data_transakcji) = ?
+                AND time(czas_transakcji) >= ?
+                """
+                shift_blik = execute_query(shift_blik_sql, (location_id, shift_start_date, shift_start_time))
+                shift_blik_sales = shift_blik[0]['total'] if shift_blik else 0
+                
+                # Sprzedaż dla bieżącej zmiany (kasa fiskalna)
+                shift_all_sales_sql = """
+                SELECT COALESCE(SUM(suma_brutto), 0) as total
+                FROM pos_transakcje 
+                WHERE location_id = ? 
+                AND status = 'zakonczony'
+                AND date(data_transakcji) = ?
+                AND time(czas_transakcji) >= ?
+                """
+                shift_all = execute_query(shift_all_sales_sql, (location_id, shift_start_date, shift_start_time))
+                shift_all_sales = shift_all[0]['total'] if shift_all else 0
+                
+                # Zwroty dla bieżącej zmiany
+                shift_returns_sql = """
+                SELECT COALESCE(SUM(suma_zwrotu_brutto), 0) as total
+                FROM pos_zwroty 
+                WHERE location_id = ? 
+                AND status = 'zatwierdzony'
+                AND date(data_zwrotu) = ?
+                AND time(czas_zwrotu) >= ?
+                """
+                shift_returns = execute_query(shift_returns_sql, (location_id, shift_start_date, shift_start_time))
+                shift_all_returns = shift_returns[0]['total'] if shift_returns else 0
+                
+                shift_data = {
+                    'terminal': {
+                        'card_sales': round(shift_card_sales, 2),
+                        'blik_sales': round(shift_blik_sales, 2),
+                        'total': round(shift_card_sales + shift_blik_sales, 2)
+                    },
+                    'fiscal': {
+                        'sales': round(shift_all_sales, 2),
+                        'returns': round(shift_all_returns, 2),
+                        'expected_total': round(shift_all_sales, 2)  # Raport fiskalny to sprzedaż (bez zwrotów)
+                    }
+                }
+                
+                # Suma z poprzednich zamkniętych zmian tego dnia
+                prev_shifts_sql = """
+                SELECT 
+                    COALESCE(SUM(dcr.terminal_rzeczywisty), 0) as prev_terminal,
+                    COALESCE(SUM(dcr.kasa_fiskalna_raport), 0) as prev_fiscal
+                FROM daily_closure_reports dcr
+                JOIN pos_zmiany pz ON dcr.zmiana_id = pz.id
+                WHERE pz.location_id = ?
+                AND pz.data_zmiany = ?
+                AND pz.id != ?
+                AND pz.status = 'zamknieta'
+                """
+                prev_shifts = execute_query(prev_shifts_sql, (location_id, target_date, shift_id))
+                
+                if prev_shifts and prev_shifts[0]:
+                    day_previous_shifts = {
+                        'terminal': {
+                            'total': round(prev_shifts[0]['prev_terminal'] or 0, 2)
+                        },
+                        'fiscal': {
+                            'total': round(prev_shifts[0]['prev_fiscal'] or 0, 2)
+                        }
+                    }
+        
         return success_response({
             'location_id': location_id,
             'date': target_date,
@@ -571,6 +689,10 @@ def get_cash_status():
                 'today_returns': round(today_all_returns, 2),
                 'expected_total': round(fiscal_expected, 2)
             },
+            'shift_data': shift_data,  # Dane tylko dla bieżącej zmiany (stara nazwa)
+            'current_shift': shift_data,  # Alias dla frontendu
+            'day_previous_shifts': day_previous_shifts,  # Stara nazwa
+            'previous_shifts': day_previous_shifts,  # Alias dla frontendu
             'breakdown': {
                 'starting_cash': round(starting_cash, 2),
                 'total_cash_sales': round(total_cash_sales, 2),

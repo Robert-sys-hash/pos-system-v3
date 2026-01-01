@@ -104,9 +104,11 @@ const PosPage = () => {
   const [dailyClosureReports, setDailyClosureReports] = useState([]);
   const [reportsLoading, setReportsLoading] = useState(false);
   const [selectedReport, setSelectedReport] = useState(null);
+  const [showClosureDetailsModal, setShowClosureDetailsModal] = useState(false);
   const [reportFilters, setReportFilters] = useState({
     date_from: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
-    date_to: new Date().toISOString().split('T')[0]
+    date_to: new Date().toISOString().split('T')[0],
+    cashier: ''
   });
 
   useEffect(() => {
@@ -2799,275 +2801,566 @@ const PosPage = () => {
         </div>
       )}
 
-      {/* Sekcja Raporty zamknięć dnia - KOMPAKTOWA */}
+      {/* Sekcja Raporty zamknięć dnia - KOMPAKTOWA (identyczna jak w AdminPage) */}
       {activeTab === "raporty" && (
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-          <div
-            style={{
-              backgroundColor: "white",
-              borderRadius: "6px",
-              padding: "0.75rem",
-              marginBottom: "0.75rem",
-              border: "1px solid #e9ecef",
-              boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-            }}
-          >
-            <h3 style={{ margin: "0 0 0.75rem 0", fontSize: "13px", fontWeight: "600" }}>
-              📊 Raporty zamknięć dnia
-            </h3>
-
-            {/* Filtry dat */}
-            <div style={{ display: "flex", gap: "8px", marginBottom: "0.75rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+          {/* Lista zamknięć dziennych */}
+          <div style={{
+            border: '1px solid #e9ecef',
+            borderRadius: '4px',
+            backgroundColor: 'white',
+            overflow: 'hidden',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+          }}>
+            <div style={{
+              padding: '0.4rem 0.6rem',
+              background: 'linear-gradient(135deg, #4a6fa5 0%, #3d5a8c 100%)',
+              borderBottom: '1px solid #e9ecef',
+              fontWeight: '600',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              color: 'white',
+              flexWrap: 'wrap',
+              gap: '8px'
+            }}>
               <div>
-                <label style={{ display: "block", fontSize: "10px", marginBottom: "3px", color: "#666", fontWeight: "500" }}>
-                  Od
-                </label>
+                <span style={{ fontSize: '11px' }}>📋 Historia zamknięć dziennych</span>
+                <div style={{ fontSize: '9px', fontWeight: '400', opacity: 0.9, marginTop: '2px' }}>
+                  💰 Finanse • 📊 Różnice • 📱 Social Media • 🎯 Osiągnięcia • 📝 Notatki
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '4px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: '9px' }}>Od:</span>
                 <input
                   type="date"
                   value={reportFilters.date_from}
                   onChange={(e) => setReportFilters(prev => ({ ...prev, date_from: e.target.value }))}
                   style={{
-                    padding: "0.25rem 0.5rem",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    fontSize: "11px",
-                    height: "28px"
+                    padding: '2px 4px',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '3px',
+                    fontSize: '9px',
+                    backgroundColor: 'rgba(255,255,255,0.9)'
                   }}
                 />
-              </div>
-              <div>
-                <label style={{ display: "block", fontSize: "10px", marginBottom: "3px", color: "#666", fontWeight: "500" }}>
-                  Do
-                </label>
+                <span style={{ fontSize: '9px' }}>Do:</span>
                 <input
                   type="date"
                   value={reportFilters.date_to}
                   onChange={(e) => setReportFilters(prev => ({ ...prev, date_to: e.target.value }))}
                   style={{
-                    padding: "0.25rem 0.5rem",
-                    border: "1px solid #ddd",
-                    borderRadius: "4px",
-                    fontSize: "11px",
-                    height: "28px"
+                    padding: '2px 4px',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '3px',
+                    fontSize: '9px',
+                    backgroundColor: 'rgba(255,255,255,0.9)'
                   }}
                 />
+                <input
+                  type="text"
+                  value={reportFilters.cashier || ''}
+                  onChange={(e) => setReportFilters(prev => ({ ...prev, cashier: e.target.value }))}
+                  placeholder="Kasjer..."
+                  style={{
+                    padding: '2px 4px',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '3px',
+                    fontSize: '9px',
+                    width: '70px',
+                    backgroundColor: 'rgba(255,255,255,0.9)'
+                  }}
+                />
+                <button
+                  onClick={loadDailyClosureReports}
+                  disabled={reportsLoading}
+                  style={{
+                    padding: '3px 8px',
+                    backgroundColor: 'rgba(255,255,255,0.2)',
+                    color: 'white',
+                    border: '1px solid rgba(255,255,255,0.3)',
+                    borderRadius: '3px',
+                    cursor: reportsLoading ? 'not-allowed' : 'pointer',
+                    fontSize: '9px'
+                  }}
+                >
+                  {reportsLoading ? '⏳' : '🔍'} Szukaj
+                </button>
               </div>
-              <button
-                onClick={loadDailyClosureReports}
-                disabled={reportsLoading}
-                style={{
-                  padding: "0.25rem 0.75rem",
-                  height: "28px",
-                  backgroundColor: "#007bff",
-                  color: "white",
-                  border: "none",
-                  borderRadius: "4px",
-                  fontSize: "11px",
-                  cursor: reportsLoading ? "not-allowed" : "pointer"
-                }}
-              >
-                {reportsLoading ? "Ładowanie..." : "🔍 Szukaj"}
-              </button>
             </div>
 
-            {/* Lista raportów */}
-            {reportsLoading ? (
-              <div style={{ textAlign: "center", padding: "1rem", color: "#6c757d", fontSize: "11px" }}>
-                ⏳ Ładowanie raportów...
-              </div>
-            ) : dailyClosureReports.length === 0 ? (
-              <div style={{ textAlign: "center", padding: "1rem", color: "#6c757d", fontSize: "11px" }}>
-                📭 Brak raportów zamknięć w wybranym okresie
-              </div>
-            ) : (
-              <div style={{ overflowX: "auto" }}>
-                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
-                  <thead>
-                    <tr style={{ backgroundColor: "#f8f9fa" }}>
-                      <th style={{ padding: "6px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Data</th>
-                      <th style={{ padding: "6px", textAlign: "left", borderBottom: "2px solid #dee2e6" }}>Kasjer</th>
-                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Transakcje</th>
-                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Gotówka</th>
-                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Karta</th>
-                      <th style={{ padding: "6px", textAlign: "right", borderBottom: "2px solid #dee2e6" }}>Razem</th>
-                      <th style={{ padding: "6px", textAlign: "center", borderBottom: "2px solid #dee2e6" }}>Akcje</th>
+            {/* Legenda wskaźników */}
+            <div style={{
+              padding: '4px 8px',
+              backgroundColor: '#f1f3f4',
+              borderBottom: '1px solid #e9ecef',
+              fontSize: '9px',
+              color: '#6c757d',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              flexWrap: 'wrap'
+            }}>
+              <strong>Legenda:</strong>
+              <span style={{ backgroundColor: '#f3e5f5', padding: '1px 4px', borderRadius: '2px' }}>📱 Social Media</span>
+              <span style={{ backgroundColor: '#fff3cd', padding: '1px 4px', borderRadius: '2px' }}>🎯 Osiągnięcia</span>
+              <span style={{ backgroundColor: '#d1ecf1', padding: '1px 4px', borderRadius: '2px' }}>📝 Notatki</span>
+              <span style={{ backgroundColor: '#fff8e1', padding: '1px 4px', borderRadius: '2px' }}>💰 Safebag</span>
+              <span style={{ fontStyle: 'italic' }}>- kliknij "👁️" aby zobaczyć pełne dane</span>
+            </div>
+
+            <div style={{ overflow: 'auto', maxHeight: '500px' }}>
+              {reportsLoading ? (
+                <div style={{ textAlign: 'center', padding: '2rem', color: '#6c757d' }}>
+                  <p style={{ margin: 0, fontSize: '11px' }}>⏳ Ładowanie raportów...</p>
+                </div>
+              ) : dailyClosureReports && dailyClosureReports.length > 0 ? (
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                  <thead style={{ backgroundColor: '#e9ecef', position: 'sticky', top: 0 }}>
+                    <tr>
+                      <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        📅 Data / Kasjer
+                      </th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        💵 Gotówka
+                      </th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        💳 Karty
+                      </th>
+                      <th style={{ padding: '6px 8px', textAlign: 'right', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        📊 Różnice
+                      </th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        🧾 Trans.
+                      </th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        📋 Dane
+                      </th>
+                      <th style={{ padding: '6px 8px', textAlign: 'center', fontSize: '10px', fontWeight: '600', borderBottom: '1px solid #dee2e6' }}>
+                        ⚙️ Akcje
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
                     {dailyClosureReports.map((report, index) => (
-                      <tr 
-                        key={report.id || index} 
-                        style={{ 
-                          borderBottom: "1px solid #e9ecef",
-                          cursor: "pointer",
-                          backgroundColor: selectedReport?.id === report.id ? "#e7f1ff" : "transparent"
-                        }}
-                        onClick={() => setSelectedReport(report)}
-                      >
-                        <td style={{ padding: "6px" }}>
-                          {report.data_zamkniecia || report.date || '-'}
+                      <tr key={report.id || index} style={{ backgroundColor: index % 2 === 0 ? 'white' : '#f8f9fa' }}>
+                        <td style={{ padding: '5px 8px', fontSize: '10px', borderBottom: '1px solid #e9ecef' }}>
+                          <div style={{ fontWeight: '600', color: '#2c3e50' }}>
+                            {report.data_zamkniecia ? new Date(report.data_zamkniecia).toLocaleDateString('pl-PL') : '-'}
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#6c757d' }}>
+                            👤 {report.kasjer_login || 'System'} • ⏰ {report.czas_zamkniecia?.split('.')[0] || ''}
+                          </div>
                         </td>
-                        <td style={{ padding: "6px" }}>
-                          {report.kasjer_login || report.cashier || '-'}
+                        <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'right', borderBottom: '1px solid #e9ecef' }}>
+                          <div style={{ fontWeight: '600', color: '#28a745' }}>
+                            {parseFloat(report.kasa_fizyczna || 0).toFixed(2)} zł
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#6c757d' }}>
+                            sys: {parseFloat(report.kasa_system || 0).toFixed(2)} zł
+                          </div>
                         </td>
-                        <td style={{ padding: "6px", textAlign: "right" }}>
-                          {report.liczba_transakcji || report.transactions_count || 0}
+                        <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'right', borderBottom: '1px solid #e9ecef' }}>
+                          <div style={{ fontWeight: '600', color: '#007bff' }}>
+                            {parseFloat(report.sprzedaz_karta || report.terminal_rzeczywisty || 0).toFixed(2)} zł
+                          </div>
+                          <div style={{ fontSize: '9px', color: '#6c757d' }}>
+                            term: {parseFloat(report.terminal_rzeczywisty || 0).toFixed(2)} zł
+                          </div>
                         </td>
-                        <td style={{ padding: "6px", textAlign: "right", color: "#198754" }}>
-                          {(report.suma_gotowka || report.cash_total || 0).toFixed(2)} zł
+                        <td style={{ 
+                          padding: '5px 8px', 
+                          fontSize: '10px', 
+                          textAlign: 'right', 
+                          borderBottom: '1px solid #e9ecef'
+                        }}>
+                          <div style={{ 
+                            fontWeight: '600',
+                            color: (report.roznica_kasa || 0) < 0 ? '#dc3545' : (report.roznica_kasa || 0) > 0 ? '#28a745' : '#495057'
+                          }}>
+                            Kasa: {parseFloat(report.roznica_kasa || 0).toFixed(2)} zł
+                          </div>
+                          <div style={{ 
+                            fontSize: '9px',
+                            color: (report.roznica_terminal || 0) < 0 ? '#dc3545' : (report.roznica_terminal || 0) > 0 ? '#28a745' : '#6c757d'
+                          }}>
+                            Term: {parseFloat(report.roznica_terminal || 0).toFixed(2)} zł
+                          </div>
                         </td>
-                        <td style={{ padding: "6px", textAlign: "right", color: "#0d6efd" }}>
-                          {(report.suma_karta || report.card_total || 0).toFixed(2)} zł
+                        <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
+                          <span style={{
+                            padding: '2px 6px',
+                            backgroundColor: '#e7f3ff',
+                            color: '#0056b3',
+                            borderRadius: '3px',
+                            fontSize: '10px',
+                            fontWeight: '600'
+                          }}>
+                            {report.liczba_transakcji || 0}
+                          </span>
                         </td>
-                        <td style={{ padding: "6px", textAlign: "right", fontWeight: "bold" }}>
-                          {(report.suma_ogolna || report.total || 0).toFixed(2)} zł
+                        <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
+                          <div style={{ display: 'flex', gap: '2px', justifyContent: 'center' }}>
+                            {(report.social_media_tiktok || report.social_media_facebook || 
+                              report.social_media_instagram || report.social_media_google) && (
+                              <span style={{
+                                padding: '2px 4px',
+                                backgroundColor: '#f3e5f5',
+                                color: '#6f42c1',
+                                borderRadius: '2px',
+                                fontSize: '9px'
+                              }} title="Social Media">
+                                📱
+                              </span>
+                            )}
+                            {(report.osiagniecia_sprzedaz || report.osiagniecia_praca) && (
+                              <span style={{
+                                padding: '2px 4px',
+                                backgroundColor: '#fff3cd',
+                                color: '#856404',
+                                borderRadius: '2px',
+                                fontSize: '9px'
+                              }} title="Osiągnięcia">
+                                🎯
+                              </span>
+                            )}
+                            {report.uwagi_zamkniecia && (
+                              <span style={{
+                                padding: '2px 4px',
+                                backgroundColor: '#d1ecf1',
+                                color: '#0c5460',
+                                borderRadius: '2px',
+                                fontSize: '9px'
+                              }} title="Notatki">
+                                📝
+                              </span>
+                            )}
+                            {(report.safebag_wplaty > 0 || report.safebag_stan > 0) && (
+                              <span style={{
+                                padding: '2px 4px',
+                                backgroundColor: '#fff8e1',
+                                color: '#e65100',
+                                borderRadius: '2px',
+                                fontSize: '9px'
+                              }} title={`Safebag: wpłaty ${parseFloat(report.safebag_wplaty || 0).toFixed(2)} zł, stan ${parseFloat(report.safebag_stan || 0).toFixed(2)} zł`}>
+                                💰
+                              </span>
+                            )}
+                            {!(report.social_media_tiktok || report.social_media_facebook || 
+                              report.social_media_instagram || report.social_media_google ||
+                              report.osiagniecia_sprzedaz || report.osiagniecia_praca || report.uwagi_zamkniecia ||
+                              report.safebag_wplaty > 0 || report.safebag_stan > 0) && (
+                              <span style={{ fontSize: '9px', color: '#adb5bd' }}>—</span>
+                            )}
+                          </div>
                         </td>
-                        <td style={{ padding: "6px", textAlign: "center" }}>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedReport(report);
-                            }}
-                            style={{
-                              padding: "3px 8px",
-                              fontSize: "10px",
-                              backgroundColor: "#6c757d",
-                              color: "white",
-                              border: "none",
-                              borderRadius: "3px",
-                              cursor: "pointer"
-                            }}
-                          >
-                            👁️ Szczegóły
-                          </button>
+                        <td style={{ padding: '5px 8px', fontSize: '10px', textAlign: 'center', borderBottom: '1px solid #e9ecef' }}>
+                          <div style={{ display: 'flex', gap: '3px', justifyContent: 'center' }}>
+                            <button
+                              onClick={() => {
+                                setSelectedReport(report);
+                                setShowClosureDetailsModal(true);
+                              }}
+                              style={{
+                                padding: '3px 6px',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '9px'
+                              }}
+                            >
+                              👁️
+                            </button>
+                            <button
+                              onClick={() => window.print()}
+                              style={{
+                                padding: '3px 6px',
+                                backgroundColor: '#28a745',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '3px',
+                                cursor: 'pointer',
+                                fontSize: '9px'
+                              }}
+                            >
+                              🖨️
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
-              </div>
-            )}
+              ) : (
+                <div style={{
+                  textAlign: 'center',
+                  padding: '1.5rem',
+                  color: '#6c757d'
+                }}>
+                  <p style={{ margin: 0, fontSize: '11px' }}>📭 Brak raportów zamknięć dla wybranych kryteriów</p>
+                  <p style={{ fontSize: '10px', marginTop: '0.3rem', color: '#adb5bd' }}>
+                    Użyj filtrów powyżej aby wygenerować raporty zamknięć dziennych
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
+        </div>
+      )}
 
-          {/* Szczegóły wybranego raportu - KOMPAKTOWE */}
-          {selectedReport && (
-            <div
-              style={{
-                backgroundColor: "white",
-                borderRadius: "6px",
-                padding: "0.75rem",
-                border: "1px solid #e9ecef",
-                boxShadow: "0 1px 3px rgba(0,0,0,0.08)",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
-                <h4 style={{ margin: 0, fontSize: "12px", fontWeight: "600" }}>
-                  📋 Szczegóły raportu z dnia {selectedReport.data_zamkniecia || selectedReport.date}
+      {/* Modal szczegółów zamknięcia */}
+      {showClosureDetailsModal && selectedReport && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            maxWidth: '700px',
+            width: '95%',
+            maxHeight: '85vh',
+            overflow: 'hidden',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
+          }}>
+            {/* Nagłówek modalu */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #4a6fa5 0%, #3d5a8c 100%)',
+              color: 'white',
+              padding: '0.5rem 0.75rem',
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center'
+            }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: '12px', fontWeight: '600' }}>
+                  📊 Szczegóły zamknięcia dziennego
+                </h3>
+                <div style={{ fontSize: '10px', opacity: 0.9, marginTop: '2px' }}>
+                  📅 {selectedReport.data_zamkniecia ? new Date(selectedReport.data_zamkniecia).toLocaleDateString('pl-PL') : '-'} • 👤 {selectedReport.kasjer_login || 'System'}
+                </div>
+              </div>
+              <button
+                onClick={() => setShowClosureDetailsModal(false)}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: 'rgba(255,255,255,0.2)',
+                  color: 'white',
+                  border: '1px solid rgba(255,255,255,0.3)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '10px'
+                }}
+              >
+                ✕ Zamknij
+              </button>
+            </div>
+
+            <div style={{ padding: '0.5rem', overflow: 'auto', maxHeight: 'calc(85vh - 80px)' }}>
+              <div style={{ display: 'grid', gap: '0.4rem' }}>
+              
+              {/* Podstawowe informacje */}
+              <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px', borderLeft: '3px solid #6c757d' }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#495057' }}>
+                  📅 Informacje podstawowe
                 </h4>
-                <button
-                  onClick={() => setSelectedReport(null)}
-                  style={{
-                    padding: "3px 8px",
-                    fontSize: "10px",
-                    backgroundColor: "#dc3545",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer"
-                  }}
-                >
-                  ✕ Zamknij
-                </button>
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: "0.5rem" }}>
-                <div style={{ padding: "0.5rem", backgroundColor: "#f8f9fa", borderRadius: "4px", borderLeft: "3px solid #6c757d" }}>
-                  <div style={{ fontSize: "10px", color: "#6c757d", marginBottom: "2px" }}>Kasjer</div>
-                  <div style={{ fontSize: "12px", fontWeight: "600" }}>{selectedReport.kasjer_login || selectedReport.cashier || '-'}</div>
-                </div>
-                <div style={{ padding: "0.5rem", backgroundColor: "#d4edda", borderRadius: "4px", borderLeft: "3px solid #198754" }}>
-                  <div style={{ fontSize: "10px", color: "#155724", marginBottom: "2px" }}>💵 Gotówka</div>
-                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#155724" }}>
-                    {(selectedReport.suma_gotowka || selectedReport.cash_total || 0).toFixed(2)} zł
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                  <div>
+                    <span style={{ color: '#6c757d' }}>Data zamknięcia:</span><br/>
+                    <strong>{selectedReport.data_zamkniecia ? new Date(selectedReport.data_zamkniecia).toLocaleString('pl-PL') : '-'}</strong>
                   </div>
-                </div>
-                <div style={{ padding: "0.5rem", backgroundColor: "#cce5ff", borderRadius: "4px", borderLeft: "3px solid #0d6efd" }}>
-                  <div style={{ fontSize: "10px", color: "#004085", marginBottom: "2px" }}>💳 Karta</div>
-                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#004085" }}>
-                    {(selectedReport.suma_karta || selectedReport.card_total || 0).toFixed(2)} zł
+                  <div>
+                    <span style={{ color: '#6c757d' }}>Użytkownik:</span><br/>
+                    <strong>{selectedReport.kasjer_login || 'System'}</strong>
                   </div>
-                </div>
-                <div style={{ padding: "0.5rem", backgroundColor: "#fff3cd", borderRadius: "4px", borderLeft: "3px solid #ffc107" }}>
-                  <div style={{ fontSize: "10px", color: "#856404", marginBottom: "2px" }}>📱 BLIK</div>
-                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#856404" }}>
-                    {(selectedReport.suma_blik || selectedReport.blik_total || 0).toFixed(2)} zł
-                  </div>
-                </div>
-                <div style={{ padding: "0.5rem", backgroundColor: "#e2d5f1", borderRadius: "4px", borderLeft: "3px solid #6f42c1" }}>
-                  <div style={{ fontSize: "10px", color: "#6f42c1", marginBottom: "2px" }}>🎟️ Kupony</div>
-                  <div style={{ fontSize: "12px", fontWeight: "600", color: "#6f42c1" }}>
-                    {(selectedReport.suma_kupon || selectedReport.coupon_total || 0).toFixed(2)} zł
-                  </div>
-                </div>
-                <div style={{ padding: "0.5rem", backgroundColor: "#343a40", borderRadius: "4px", color: "white" }}>
-                  <div style={{ fontSize: "10px", opacity: 0.8, marginBottom: "2px" }}>💰 RAZEM</div>
-                  <div style={{ fontSize: "14px", fontWeight: "bold" }}>
-                    {(selectedReport.suma_ogolna || selectedReport.total || 0).toFixed(2)} zł
+                  <div>
+                    <span style={{ color: '#6c757d' }}>Czas zamknięcia:</span><br/>
+                    <strong>{selectedReport.czas_zamkniecia?.split('.')[0] || '-'}</strong>
                   </div>
                 </div>
               </div>
 
-              {/* Dodatkowe informacje */}
-              <div style={{ marginTop: "0.75rem", padding: "0.5rem", backgroundColor: "#f8f9fa", borderRadius: "4px" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: "0.5rem", fontSize: "11px" }}>
-                  <div>
-                    <span style={{ color: "#6c757d" }}>Transakcje:</span>{" "}
-                    <strong>{selectedReport.liczba_transakcji || selectedReport.transactions_count || 0}</strong>
+              {/* Podsumowanie finansowe */}
+              <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#e7f3ff', borderRadius: '4px', borderLeft: '3px solid #007bff' }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#0056b3' }}>
+                  💰 Podsumowanie finansowe
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasa system:</span><br/>
+                    <strong>{parseFloat(selectedReport.kasa_system || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <span style={{ color: "#6c757d" }}>Stan początkowy:</span>{" "}
-                    <strong>{(selectedReport.stan_poczatkowy || selectedReport.opening_balance || 0).toFixed(2)} zł</strong>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasa fizyczna:</span><br/>
+                    <strong>{parseFloat(selectedReport.kasa_fizyczna || 0).toFixed(2)} zł</strong>
                   </div>
-                  <div>
-                    <span style={{ color: "#6c757d" }}>Stan końcowy:</span>{" "}
-                    <strong>{(selectedReport.stan_koncowy || selectedReport.closing_balance || 0).toFixed(2)} zł</strong>
-                  </div>
-                  <div>
-                    <span style={{ color: "#6c757d" }}>Różnica:</span>{" "}
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Różnica kasa:</span><br/>
                     <strong style={{ 
-                      color: (selectedReport.roznica || 0) === 0 ? "#198754" : "#dc3545" 
+                      color: (selectedReport.roznica_kasa || 0) < 0 ? '#dc3545' : (selectedReport.roznica_kasa || 0) > 0 ? '#28a745' : '#495057'
                     }}>
-                      {(selectedReport.roznica || 0).toFixed(2)} zł
+                      {parseFloat(selectedReport.roznica_kasa || 0).toFixed(2)} zł
                     </strong>
                   </div>
-                </div>
-                {selectedReport.uwagi && (
-                  <div style={{ marginTop: "0.5rem", paddingTop: "0.5rem", borderTop: "1px solid #dee2e6", fontSize: "11px" }}>
-                    <span style={{ color: "#6c757d" }}>Uwagi:</span>{" "}
-                    <span>{selectedReport.uwagi}</span>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Terminal system:</span><br/>
+                    <strong>{parseFloat(selectedReport.terminal_system || 0).toFixed(2)} zł</strong>
                   </div>
-                )}
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Terminal rzeczywisty:</span><br/>
+                    <strong>{parseFloat(selectedReport.terminal_rzeczywisty || 0).toFixed(2)} zł</strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Różnica terminal:</span><br/>
+                    <strong style={{ 
+                      color: (selectedReport.roznica_terminal || 0) < 0 ? '#dc3545' : (selectedReport.roznica_terminal || 0) > 0 ? '#28a745' : '#495057'
+                    }}>
+                      {parseFloat(selectedReport.roznica_terminal || 0).toFixed(2)} zł
+                    </strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasa fiskalna:</span><br/>
+                    <strong>{parseFloat(selectedReport.kasa_fiskalna_raport || 0).toFixed(2)} zł</strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Sprzedaż gotówka:</span><br/>
+                    <strong style={{ color: '#28a745' }}>{parseFloat(selectedReport.sprzedaz_gotowka || 0).toFixed(2)} zł</strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Sprzedaż karta:</span><br/>
+                    <strong style={{ color: '#007bff' }}>{parseFloat(selectedReport.sprzedaz_karta || 0).toFixed(2)} zł</strong>
+                  </div>
+                </div>
               </div>
 
-              {/* Przycisk drukowania */}
-              <div style={{ marginTop: "0.75rem", textAlign: "right" }}>
-                <button
-                  onClick={() => window.print()}
-                  style={{
-                    padding: "0.3rem 0.75rem",
-                    fontSize: "10px",
-                    backgroundColor: "#198754",
-                    color: "white",
-                    border: "none",
-                    borderRadius: "3px",
-                    cursor: "pointer"
-                  }}
-                >
-                  🖨️ Drukuj raport
-                </button>
+              {/* Statystyki transakcji */}
+              <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#e8f5e8', borderRadius: '4px', borderLeft: '3px solid #28a745' }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#1e7e34' }}>
+                  📈 Statystyki transakcji
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Transakcje:</span><br/>
+                    <strong style={{ fontSize: '12px', color: '#28a745' }}>{selectedReport.liczba_transakcji || 0}</strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Kasjer:</span><br/>
+                    <strong>{selectedReport.kasjer_login || 'System'}</strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Rozpoczęcie:</span><br/>
+                    <strong>{selectedReport.czas_rozpoczecia || '—'}</strong>
+                  </div>
+                  <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                    <span style={{ color: '#6c757d' }}>Zamknięcie:</span><br/>
+                    <strong>{selectedReport.czas_zamkniecia?.split('.')[0] || '—'}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Safebag */}
+              {(selectedReport.safebag_wplaty > 0 || selectedReport.safebag_stan > 0) && (
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#fff8e1', borderRadius: '4px', borderLeft: '3px solid #ff9800' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#e65100' }}>
+                    💰 Safebag
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                      <span style={{ color: '#6c757d' }}>Wpłaty tego dnia:</span><br/>
+                      <strong style={{ color: '#ff9800' }}>{parseFloat(selectedReport.safebag_wplaty || 0).toFixed(2)} zł</strong>
+                    </div>
+                    <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                      <span style={{ color: '#6c757d' }}>Stan safebag:</span><br/>
+                      <strong style={{ color: '#e65100' }}>{parseFloat(selectedReport.safebag_stan || 0).toFixed(2)} zł</strong>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Social Media */}
+              {(selectedReport.social_media_tiktok || selectedReport.social_media_facebook || 
+                selectedReport.social_media_instagram || selectedReport.social_media_google) && (
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#f3e5f5', borderRadius: '4px', borderLeft: '3px solid #6f42c1' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#5a3d8a' }}>
+                    📱 Aktywność w Social Media
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '0.3rem', fontSize: '10px' }}>
+                    {selectedReport.social_media_tiktok && (
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <span style={{ color: '#6c757d' }}>🎵 TikTok:</span><br/>
+                        <span>{selectedReport.social_media_tiktok}</span>
+                      </div>
+                    )}
+                    {selectedReport.social_media_facebook && (
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <span style={{ color: '#6c757d' }}>📘 Facebook:</span><br/>
+                        <span>{selectedReport.social_media_facebook}</span>
+                      </div>
+                    )}
+                    {selectedReport.social_media_instagram && (
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <span style={{ color: '#6c757d' }}>📷 Instagram:</span><br/>
+                        <span>{selectedReport.social_media_instagram}</span>
+                      </div>
+                    )}
+                    {selectedReport.social_media_google && (
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <span style={{ color: '#6c757d' }}>🔍 Google:</span><br/>
+                        <span>{selectedReport.social_media_google}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Osiągnięcia */}
+              {(selectedReport.osiagniecia_sprzedaz || selectedReport.osiagniecia_praca) && (
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#fff3cd', borderRadius: '4px', borderLeft: '3px solid #ffc107' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#856404' }}>
+                    🎯 Osiągnięcia dnia
+                  </h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '0.3rem', fontSize: '10px' }}>
+                    {selectedReport.osiagniecia_sprzedaz && (
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <span style={{ color: '#6c757d' }}>💼 Sprzedaż:</span><br/>
+                        <span>{selectedReport.osiagniecia_sprzedaz}</span>
+                      </div>
+                    )}
+                    {selectedReport.osiagniecia_praca && (
+                      <div style={{ backgroundColor: 'rgba(255,255,255,0.6)', padding: '4px 6px', borderRadius: '3px' }}>
+                        <span style={{ color: '#6c757d' }}>🔧 Praca:</span><br/>
+                        <span>{selectedReport.osiagniecia_praca}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Notatki */}
+              {selectedReport.uwagi_zamkniecia && (
+                <div style={{ padding: '0.4rem 0.5rem', backgroundColor: '#d1ecf1', borderRadius: '4px', borderLeft: '3px solid #17a2b8' }}>
+                  <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '11px', fontWeight: '600', color: '#0c5460' }}>
+                    📝 Uwagi / Notatki
+                  </h4>
+                  <div style={{ fontSize: '10px', color: '#0c5460', whiteSpace: 'pre-wrap' }}>
+                    {selectedReport.uwagi_zamkniecia}
+                  </div>
+                </div>
+              )}
+
               </div>
             </div>
-          )}
+          </div>
         </div>
       )}
 
