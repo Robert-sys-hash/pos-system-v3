@@ -91,6 +91,9 @@ const LocationPricingPage = () => {
   const [labelBuffer, setLabelBuffer] = useState([]);
   const [showBuffer, setShowBuffer] = useState(false);
   
+  // State dla dropdown menu akcji
+  const [openActionMenu, setOpenActionMenu] = useState(null);
+  
   const [categories, setCategories] = useState([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   
@@ -239,6 +242,15 @@ const LocationPricingPage = () => {
   useEffect(() => {
     loadManufacturers();
   }, []);
+
+  // Zamykanie dropdown menu po kliknięciu poza nim
+  useEffect(() => {
+    const handleClickOutside = () => setOpenActionMenu(null);
+    if (openActionMenu !== null) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [openActionMenu]);
 
   // Jeden useEffect do ładowania danych przy zmianie lokalizacji
   useEffect(() => {
@@ -1971,88 +1983,90 @@ const LocationPricingPage = () => {
                                 )}
                               </td>
                               
-                              {/* Akcje */}
+                              {/* Akcje - rozwijane menu */}
                               <td style={{ 
-                                width: '160px',
-                                padding: '0.5rem'
+                                width: '130px',
+                                padding: '0.4rem'
                               }}>
-                                <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
+                                <div style={{ position: 'relative' }}>
                                   <button
-                                    className="btn btn-outline-primary"
-                                    style={{ 
-                                      fontSize: '0.65rem',
-                                      padding: '0.25rem 0.5rem'
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOpenActionMenu(openActionMenu === product.id ? null : product.id);
                                     }}
-                                    onClick={() => handleShowHistory(product)}
-                                    title="Historia cen"
+                                    style={{
+                                      padding: '0.35rem 0.6rem',
+                                      fontSize: '10px',
+                                      fontWeight: '500',
+                                      border: '1px solid #6f42c1',
+                                      borderRadius: '4px',
+                                      backgroundColor: openActionMenu === product.id ? '#6f42c1' : 'white',
+                                      color: openActionMenu === product.id ? 'white' : '#6f42c1',
+                                      cursor: 'pointer',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '4px'
+                                    }}
                                   >
-                                    <FaHistory />
+                                    ⚙️ Akcje ▾
                                   </button>
-                                  <button
-                                    className="btn btn-outline-success"
-                                      style={{ 
-                                        fontSize: '0.65rem',
-                                        padding: '0.25rem 0.5rem'
-                                      }}
-                                      onClick={() => handleDirectPriceEdit(product)}
-                                      title="Wpisz cenę bezpośrednio"
-                                    >
-                                      <FaMoneyBill />
-                                    </button>
-                                    <button
-                                      className="btn btn-outline-info"
-                                      style={{ 
-                                        fontSize: '0.65rem',
-                                        padding: '0.25rem 0.5rem'
-                                      }}
-                                      onClick={() => handleEditCenowka(product)}
-                                      title="Edytuj cenówkę (skrócona nazwa + ceny)"
-                                    >
-                                      <FaTag />
-                                    </button>
-                                    <button
-                                      className="btn btn-outline-secondary"
-                                      style={{ 
-                                        fontSize: '0.65rem',
-                                        padding: '0.25rem 0.5rem'
-                                      }}
-                                      onClick={() => {
-                                        setSelectedProducts(new Set([product.id]));
-                                        handleBulkPriceChange();
-                                      }}
-                                      title="Edytuj cenę (kalkulatory)"
-                                    >
-                                      <FaEdit />
-                                    </button>
-                                    {product.hasSpecialPrice && (
-                                      <button
-                                        className="btn btn-outline-danger"
-                                        style={{ 
-                                          fontSize: '0.65rem',
-                                          padding: '0.25rem 0.5rem'
-                                        }}
-                                        onClick={() => {
-                                          setSelectedProducts(new Set([product.id]));
-                                          handleRemoveSpecialPrices();
-                                        }}
-                                        title="Usuń cenę specjalną"
-                                      >
-                                        <FaTrash />
+                                  
+                                  {openActionMenu === product.id && (
+                                    <div style={{
+                                      position: 'absolute',
+                                      top: '100%',
+                                      right: 0,
+                                      zIndex: 1000,
+                                      backgroundColor: 'white',
+                                      borderRadius: '8px',
+                                      boxShadow: '0 4px 20px rgba(0,0,0,0.15)',
+                                      border: '1px solid #dee2e6',
+                                      minWidth: '180px',
+                                      marginTop: '4px',
+                                      overflow: 'hidden'
+                                    }}>
+                                      <button onClick={() => { handleShowHistory(product); setOpenActionMenu(null); }}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'white', textAlign: 'left', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f0f0f0' }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}>
+                                        <FaHistory style={{ color: '#0d6efd' }} /> Historia cen
                                       </button>
-                                    )}
-                                    <button
-                                      className="btn btn-outline-warning"
-                                      style={{ 
-                                        fontSize: '0.65rem',
-                                        padding: '0.25rem 0.5rem'
-                                      }}
-                                      onClick={() => addToBuffer(product)}
-                                      title="Dodaj do bufora cenówek"
-                                    >
-                                      <FaTag />
-                                    </button>
-                                  </div>
-                                </td>
+                                      <button onClick={() => { handleDirectPriceEdit(product); setOpenActionMenu(null); }}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'white', textAlign: 'left', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f0f0f0' }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}>
+                                        <FaMoneyBill style={{ color: '#28a745' }} /> Wpisz cenę
+                                      </button>
+                                      <button onClick={() => { handleEditCenowka(product); setOpenActionMenu(null); }}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'white', textAlign: 'left', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f0f0f0' }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}>
+                                        <FaTag style={{ color: '#17a2b8' }} /> Edytuj cenówkę
+                                      </button>
+                                      <button onClick={() => { setSelectedProducts(new Set([product.id])); handleBulkPriceChange(); setOpenActionMenu(null); }}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'white', textAlign: 'left', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: '1px solid #f0f0f0' }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}>
+                                        <FaEdit style={{ color: '#6c757d' }} /> Kalkulatory cen
+                                      </button>
+                                      <button onClick={() => { addToBuffer(product); setOpenActionMenu(null); }}
+                                        style={{ width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: 'white', textAlign: 'left', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', borderBottom: product.hasSpecialPrice ? '1px solid #f0f0f0' : 'none' }}
+                                        onMouseEnter={(e) => e.target.style.backgroundColor = '#fff3cd'}
+                                        onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}>
+                                        <FaTag style={{ color: '#ffc107' }} /> Do bufora cenówek
+                                      </button>
+                                      {product.hasSpecialPrice && (
+                                        <button onClick={() => { setSelectedProducts(new Set([product.id])); handleRemoveSpecialPrices(); setOpenActionMenu(null); }}
+                                          style={{ width: '100%', padding: '0.5rem 0.75rem', border: 'none', background: '#fff5f5', textAlign: 'left', fontSize: '11px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: '#dc3545' }}
+                                          onMouseEnter={(e) => e.target.style.backgroundColor = '#f8d7da'}
+                                          onMouseLeave={(e) => e.target.style.backgroundColor = '#fff5f5'}>
+                                          <FaTrash style={{ color: '#dc3545' }} /> Usuń cenę specjalną
+                                        </button>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
                             </tr>
                             
                             {/* Inline edycja cenówki */}
