@@ -384,6 +384,18 @@ const InterWarehouseTransfer = () => {
     return warehouse ? warehouse.nazwa : 'Nieznany magazyn';
   };
 
+  // Sprawdź czy użytkownik jest z magazynu źródłowego transferu
+  const isFromSourceWarehouse = (transfer) => {
+    const sourceWarehouse = warehouses.find(w => w.id === transfer.magazyn_zrodlowy_id);
+    return sourceWarehouse && sourceWarehouse.location_id === currentLocationId;
+  };
+
+  // Sprawdź czy użytkownik jest z magazynu docelowego transferu
+  const isFromDestinationWarehouse = (transfer) => {
+    const destWarehouse = warehouses.find(w => w.id === transfer.magazyn_docelowy_id);
+    return destWarehouse && destWarehouse.location_id === currentLocationId;
+  };
+
   return (
     <div className="inter-warehouse-transfer" style={{ fontSize: '12px' }}>
       {error && (
@@ -490,23 +502,33 @@ const InterWarehouseTransfer = () => {
                         >
                           👁️
                         </button>
-                        {(transfer.status === 'oczekujacy' || transfer.status === 'zatwierdzony') && (
+                        {/* Przycisk Wyślij - tylko dla magazynu źródłowego */}
+                        {(transfer.status === 'oczekujacy' || transfer.status === 'zatwierdzony') && isFromSourceWarehouse(transfer) && (
                           <button 
                             style={{ padding: '0.2rem 0.4rem', fontSize: '10px', backgroundColor: '#ffc107', color: '#212529', border: 'none', borderRadius: '3px', marginRight: '0.25rem', cursor: 'pointer' }}
                             onClick={() => handleTransferAction(transfer.id, 'ship')}
                             title="Wyślij"
                           >
-                            📦
+                            📦 Wyślij
                           </button>
                         )}
-                        {transfer.status === 'w_transporcie' && (
+                        {/* Przycisk Odbierz - tylko dla magazynu docelowego */}
+                        {transfer.status === 'w_transporcie' && isFromDestinationWarehouse(transfer) && (
                           <button 
                             style={{ padding: '0.2rem 0.4rem', fontSize: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
                             onClick={() => handleTransferAction(transfer.id, 'receive')}
                             title="Potwierdź odbiór"
                           >
-                            ✅
+                            ✅ Odbierz
                           </button>
+                        )}
+                        {/* Info dla magazynu docelowego gdy transfer oczekuje na wysyłkę */}
+                        {(transfer.status === 'oczekujacy' || transfer.status === 'zatwierdzony') && isFromDestinationWarehouse(transfer) && (
+                          <span style={{ fontSize: '9px', color: '#6c757d' }}>⏳ Oczekuje na wysyłkę</span>
+                        )}
+                        {/* Info dla magazynu źródłowego gdy transfer jest w drodze */}
+                        {transfer.status === 'w_transporcie' && isFromSourceWarehouse(transfer) && (
+                          <span style={{ fontSize: '9px', color: '#17a2b8' }}>🚚 W drodze</span>
                         )}
                       </td>
                     </tr>
@@ -1024,29 +1046,46 @@ const InterWarehouseTransfer = () => {
             </div>
 
             {/* Footer */}
-            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid #e9ecef', display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
-              <button 
-                style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                onClick={() => setShowDetailsModal(false)}
-              >
-                Zamknij
-              </button>
-              {(selectedTransfer.status === 'oczekujacy' || selectedTransfer.status === 'zatwierdzony') && (
+            <div style={{ padding: '0.5rem 1rem', borderTop: '1px solid #e9ecef', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {/* Info o statusie */}
+              <div style={{ fontSize: '10px', color: '#6c757d' }}>
+                {(selectedTransfer.status === 'oczekujacy' || selectedTransfer.status === 'zatwierdzony') && isFromDestinationWarehouse(selectedTransfer) && (
+                  <span>⏳ Oczekuje na wysyłkę z magazynu źródłowego</span>
+                )}
+                {selectedTransfer.status === 'w_transporcie' && isFromSourceWarehouse(selectedTransfer) && (
+                  <span>🚚 Transfer w drodze - oczekuje na odbiór</span>
+                )}
+                {selectedTransfer.status === 'dostarczony' && (
+                  <span>✅ Transfer zakończony</span>
+                )}
+              </div>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button 
-                  style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#ffc107', color: '#212529', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                  onClick={() => handleTransferAction(selectedTransfer.id, 'ship')}
+                  style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                  onClick={() => setShowDetailsModal(false)}
                 >
-                  📦 Wyślij
+                  Zamknij
                 </button>
-              )}
-              {selectedTransfer.status === 'w_transporcie' && (
-                <button 
-                  style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                  onClick={() => handleTransferAction(selectedTransfer.id, 'receive')}
-                >
-                  ✅ Odbierz
-                </button>
-              )}
+                {/* Przycisk Wyślij - tylko dla magazynu źródłowego */}
+                {(selectedTransfer.status === 'oczekujacy' || selectedTransfer.status === 'zatwierdzony') && isFromSourceWarehouse(selectedTransfer) && (
+                  <button 
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#ffc107', color: '#212529', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                    onClick={() => handleTransferAction(selectedTransfer.id, 'ship')}
+                  >
+                    📦 Wyślij
+                  </button>
+                )}
+                {/* Przycisk Odbierz - tylko dla magazynu docelowego */}
+                {selectedTransfer.status === 'w_transporcie' && isFromDestinationWarehouse(selectedTransfer) && (
+                  <button 
+                    style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+                    onClick={() => handleTransferAction(selectedTransfer.id, 'receive')}
+                  >
+                    ✅ Odbierz
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

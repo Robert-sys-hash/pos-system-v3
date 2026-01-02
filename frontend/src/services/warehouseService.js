@@ -172,11 +172,11 @@ export const warehouseService = {
   /**
    * Pobiera statystyki magazynu
    */
-  async getStats(warehouseId = null) {
+  async getStats(locationId = null) {
     try {
       const params = {};
-      if (warehouseId) {
-        params.warehouse_id = warehouseId;
+      if (locationId) {
+        params.location_id = locationId;
       }
       
       const response = await api.get('/products/stats', { params });

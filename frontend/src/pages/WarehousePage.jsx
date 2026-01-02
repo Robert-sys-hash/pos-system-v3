@@ -132,7 +132,7 @@ const WarehousePage = () => {
       }
 
       // Ładowanie statystyk
-      const statsResult = await warehouseService.getStats();
+      const statsResult = await warehouseService.getStats(currentLocationId);
       if (statsResult.success) {
         setStats(statsResult.data || {});
       } else {
@@ -730,7 +730,7 @@ const WarehousePage = () => {
               }}
             >
               <div style={{ fontSize: "16px", fontWeight: "700", color: "#dc3545" }}>
-                {stats.out_of_stock || Math.floor((inventory.pagination?.total || 0) * 0.1)}
+                {stats.low_stock || 0}
               </div>
               <div style={{ fontSize: "10px", color: "#6c757d" }}>
                 Niski stan

@@ -506,12 +506,70 @@ def update_inventory(product_id):
 @products_bp.route('/products/stats', methods=['GET'])
 def get_products_stats():
     """
-    Statystyki produktów - bezpieczna wersja
-    GET /api/products/stats
+    Statystyki produktów - z obsługą filtrowania po lokalizacji
+    GET /api/products/stats?location_id=5
     """
     try:
-        debug_print("🔍 DEBUG: Starting products stats")
+        location_id = request.args.get('location_id')
+        warehouse_id = request.args.get('warehouse_id')
         
+        debug_print(f"🔍 DEBUG: Starting products stats, location_id={location_id}, warehouse_id={warehouse_id}")
+        
+        # Jeśli mamy location_id, pobierz statystyki z pos_magazyn dla tej lokalizacji
+        if location_id:
+            try:
+                # Liczba produktów z jakimkolwiek stanem w tej lokalizacji
+                total_sql = """
+                    SELECT COUNT(DISTINCT pm.produkt_id) as total_products
+                    FROM pos_magazyn pm
+                    WHERE pm.lokalizacja = ?
+                """
+                total_result = execute_query(total_sql, (str(location_id),))
+                total_products = total_result[0]['total_products'] if total_result else 0
+                
+                # Produkty dostępne (stan > 0)
+                in_stock_sql = """
+                    SELECT COUNT(DISTINCT pm.produkt_id) as in_stock
+                    FROM pos_magazyn pm
+                    WHERE pm.lokalizacja = ? AND pm.stan_aktualny > 0
+                """
+                in_stock_result = execute_query(in_stock_sql, (str(location_id),))
+                in_stock = in_stock_result[0]['in_stock'] if in_stock_result else 0
+                
+                # Produkty z niskim stanem (stan <= stan_minimalny)
+                low_stock_sql = """
+                    SELECT COUNT(DISTINCT pm.produkt_id) as low_stock
+                    FROM pos_magazyn pm
+                    WHERE pm.lokalizacja = ? 
+                    AND pm.stan_aktualny > 0 
+                    AND pm.stan_aktualny <= COALESCE(pm.stan_minimalny, 5)
+                """
+                low_stock_result = execute_query(low_stock_sql, (str(location_id),))
+                low_stock = low_stock_result[0]['low_stock'] if low_stock_result else 0
+                
+                # Produkty niedostępne (stan = 0 lub ujemny)
+                out_of_stock = total_products - in_stock
+                
+                stats = {
+                    'total_products': total_products,
+                    'in_stock': in_stock,
+                    'out_of_stock': out_of_stock,
+                    'low_stock': low_stock,
+                    'avg_price': 0.0,
+                    'categories_count': 0,
+                    'table_used': 'pos_magazyn',
+                    'location_id': location_id
+                }
+                
+                debug_print(f"✅ Stats for location {location_id}: total={total_products}, in_stock={in_stock}, low_stock={low_stock}")
+                return success_response(stats, "Statystyki magazynu dla lokalizacji")
+                
+            except Exception as e:
+                debug_print(f"❌ Error getting location stats: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Fallback - stara logika dla statystyk globalnych
         # Lista tabel do sprawdzenia
         tables_to_check = [
             {

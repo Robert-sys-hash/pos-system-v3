@@ -809,7 +809,7 @@ def update_transfer_status(transfer_id, action):
         if action == 'approve':
             if current_status != 'oczekujacy':
                 return error_response("Można zatwierdzić tylko transfer oczekujący", 400)
-            execute_query(
+            execute_insert(
                 "UPDATE warehouse_transfers SET status = 'zatwierdzony', approved_by = ?, data_zatwierdzenia = datetime('now') WHERE id = ?",
                 (user, transfer_id)
             )
@@ -818,7 +818,33 @@ def update_transfer_status(transfer_id, action):
         elif action == 'ship':
             if current_status not in ['oczekujacy', 'zatwierdzony']:
                 return error_response("Można wysłać tylko transfer oczekujący lub zatwierdzony", 400)
-            execute_query(
+            
+            # Pobierz location_id magazynu źródłowego
+            source_warehouse = execute_query(
+                "SELECT location_id FROM warehouses WHERE id = ?",
+                (transfer[0]['warehouse_from_id'],)
+            )
+            source_location_id = source_warehouse[0]['location_id'] if source_warehouse else None
+            
+            # Pobierz produkty do wysłania
+            transfer_items = execute_query(
+                "SELECT product_id, ilosc_zlecona FROM transfer_items WHERE transfer_id = ?",
+                (transfer_id,)
+            )
+            
+            # Odejmij produkty z magazynu źródłowego
+            if source_location_id and transfer_items:
+                for item in transfer_items:
+                    execute_insert(
+                        """UPDATE pos_magazyn 
+                           SET stan_aktualny = stan_aktualny - ?, 
+                               ostatnia_aktualizacja = datetime('now')
+                           WHERE produkt_id = ? AND lokalizacja = ?""",
+                        (item['ilosc_zlecona'], item['product_id'], str(source_location_id))
+                    )
+                print(f"📦 Odjęto {len(transfer_items)} produktów z lokalizacji {source_location_id}")
+            
+            execute_insert(
                 "UPDATE warehouse_transfers SET status = 'w_transporcie', data_wysylki = datetime('now') WHERE id = ?",
                 (transfer_id,)
             )
@@ -828,16 +854,65 @@ def update_transfer_status(transfer_id, action):
             if current_status != 'w_transporcie':
                 return error_response("Można odebrać tylko transfer w transporcie", 400)
             
-            # Aktualizuj ilości dostarczone
+            # Pobierz location_id magazynu docelowego
+            dest_warehouse = execute_query(
+                "SELECT location_id FROM warehouses WHERE id = ?",
+                (transfer[0]['warehouse_to_id'],)
+            )
+            dest_location_id = dest_warehouse[0]['location_id'] if dest_warehouse else None
+            
+            # Pobierz produkty do przyjęcia
+            transfer_items = execute_query(
+                "SELECT product_id, ilosc_zlecona FROM transfer_items WHERE transfer_id = ?",
+                (transfer_id,)
+            )
+            
+            # Aktualizuj ilości dostarczone z request body
             items = data.get('items', [])
             for item in items:
                 if item.get('id') and item.get('ilosc_dostarczona') is not None:
-                    execute_query(
+                    execute_insert(
                         "UPDATE transfer_items SET ilosc_dostarczona = ? WHERE id = ?",
                         (item['ilosc_dostarczona'], item['id'])
                     )
             
-            execute_query(
+            # Dodaj produkty do magazynu docelowego
+            if dest_location_id and transfer_items:
+                for item in transfer_items:
+                    # Sprawdź czy produkt już istnieje w tej lokalizacji
+                    existing = execute_query(
+                        "SELECT id, stan_aktualny FROM pos_magazyn WHERE produkt_id = ? AND lokalizacja = ?",
+                        (item['product_id'], str(dest_location_id))
+                    )
+                    
+                    if existing:
+                        # Aktualizuj stan
+                        execute_insert(
+                            """UPDATE pos_magazyn 
+                               SET stan_aktualny = stan_aktualny + ?, 
+                                   ostatnia_aktualizacja = datetime('now')
+                               WHERE produkt_id = ? AND lokalizacja = ?""",
+                            (item['ilosc_zlecona'], item['product_id'], str(dest_location_id))
+                        )
+                    else:
+                        # Dodaj nowy rekord
+                        execute_insert(
+                            """INSERT INTO pos_magazyn (produkt_id, stan_aktualny, lokalizacja, ostatnia_aktualizacja)
+                               VALUES (?, ?, ?, datetime('now'))""",
+                            (item['product_id'], item['ilosc_zlecona'], str(dest_location_id))
+                        )
+                    
+                    # Ustaw ilosc_dostarczona na ilosc_zlecona jeśli nie została podana
+                    execute_insert(
+                        """UPDATE transfer_items 
+                           SET ilosc_dostarczona = CASE WHEN ilosc_dostarczona = 0 THEN ilosc_zlecona ELSE ilosc_dostarczona END
+                           WHERE transfer_id = ? AND product_id = ?""",
+                        (transfer_id, item['product_id'])
+                    )
+                
+                print(f"📥 Dodano {len(transfer_items)} produktów do lokalizacji {dest_location_id}")
+            
+            execute_insert(
                 "UPDATE warehouse_transfers SET status = 'dostarczony', data_dostawy = datetime('now') WHERE id = ?",
                 (transfer_id,)
             )
@@ -846,7 +921,7 @@ def update_transfer_status(transfer_id, action):
         elif action == 'cancel':
             if current_status in ['dostarczony', 'anulowany']:
                 return error_response("Nie można anulować zakończonego transferu", 400)
-            execute_query(
+            execute_insert(
                 "UPDATE warehouse_transfers SET status = 'anulowany' WHERE id = ?",
                 (transfer_id,)
             )
