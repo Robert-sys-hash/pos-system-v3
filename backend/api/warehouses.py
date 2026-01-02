@@ -577,6 +577,297 @@ def get_warehouse_prices(warehouse_id):
         print(f"Błąd pobierania cen magazynu: {e}")
         return error_response("Wystąpił błąd podczas pobierania cen magazynu", 500)
 
+# ==========================================
+# ENDPOINTY TRANSFERÓW MIĘDZY MAGAZYNAMI
+# ==========================================
+
+@warehouses_bp.route('/warehouses/transfers', methods=['GET'])
+def get_transfers():
+    """
+    Pobierz listę transferów między magazynami
+    GET /api/warehouses/transfers?warehouse_id=5&status=oczekujacy
+    """
+    try:
+        warehouse_id = request.args.get('warehouse_id')
+        status = request.args.get('status')
+        
+        sql = """
+        SELECT 
+            wt.id,
+            wt.numer_transferu,
+            wt.warehouse_from_id as magazyn_zrodlowy_id,
+            wt.warehouse_to_id as magazyn_docelowy_id,
+            wt.requested_by,
+            wt.approved_by,
+            wt.status,
+            wt.data_zlozenia,
+            wt.data_zatwierdzenia,
+            wt.data_wysylki,
+            wt.data_dostawy,
+            wt.uwagi,
+            wt.created_at,
+            w_from.nazwa as magazyn_zrodlowy_nazwa,
+            w_to.nazwa as magazyn_docelowy_nazwa,
+            (SELECT COUNT(*) FROM transfer_items WHERE transfer_id = wt.id) as liczba_pozycji,
+            (SELECT SUM(ilosc_zlecona) FROM transfer_items WHERE transfer_id = wt.id) as suma_ilosci
+        FROM warehouse_transfers wt
+        LEFT JOIN warehouses w_from ON wt.warehouse_from_id = w_from.id
+        LEFT JOIN warehouses w_to ON wt.warehouse_to_id = w_to.id
+        WHERE 1=1
+        """
+        params = []
+        
+        if warehouse_id:
+            sql += " AND (wt.warehouse_from_id = ? OR wt.warehouse_to_id = ?)"
+            params.extend([warehouse_id, warehouse_id])
+            
+        if status:
+            sql += " AND wt.status = ?"
+            params.append(status)
+            
+        sql += " ORDER BY wt.created_at DESC LIMIT 100"
+        
+        transfers = execute_query(sql, tuple(params))
+        
+        if transfers is None:
+            return error_response("Błąd pobierania transferów", 500)
+            
+        return success_response({
+            'transfers': transfers,
+            'total': len(transfers)
+        }, "Pobrano transfery")
+        
+    except Exception as e:
+        print(f"❌ Błąd pobierania transferów: {e}")
+        return error_response(f"Błąd: {str(e)}", 500)
+
+@warehouses_bp.route('/warehouses/transfers', methods=['POST'])
+def create_transfer():
+    """
+    Utwórz nowy transfer między magazynami
+    POST /api/warehouses/transfers
+    Body: { magazyn_zrodlowy_id, magazyn_docelowy_id, uwagi, items: [...] }
+    """
+    try:
+        data = request.get_json()
+        
+        magazyn_zrodlowy_id = data.get('magazyn_zrodlowy_id')
+        magazyn_docelowy_id = data.get('magazyn_docelowy_id')
+        uwagi = data.get('uwagi', '')
+        items = data.get('items', [])
+        requested_by = data.get('requested_by', 'system')
+        
+        if not magazyn_zrodlowy_id or not magazyn_docelowy_id:
+            return error_response("Wymagane są magazyn źródłowy i docelowy", 400)
+            
+        if not items or len(items) == 0:
+            return error_response("Transfer musi zawierać co najmniej jeden produkt", 400)
+            
+        if magazyn_zrodlowy_id == magazyn_docelowy_id:
+            return error_response("Magazyn źródłowy i docelowy nie mogą być takie same", 400)
+        
+        # Sprawdź czy magazyny istnieją
+        source = execute_query("SELECT id, nazwa FROM warehouses WHERE id = ?", (magazyn_zrodlowy_id,))
+        target = execute_query("SELECT id, nazwa FROM warehouses WHERE id = ?", (magazyn_docelowy_id,))
+        
+        if not source:
+            return error_response(f"Magazyn źródłowy o ID {magazyn_zrodlowy_id} nie istnieje", 404)
+        if not target:
+            return error_response(f"Magazyn docelowy o ID {magazyn_docelowy_id} nie istnieje", 404)
+        
+        # Generuj numer transferu
+        from datetime import datetime
+        today = datetime.now().strftime('%Y%m%d')
+        
+        # Pobierz ostatni numer transferu z dzisiaj
+        last_transfer = execute_query(
+            "SELECT numer_transferu FROM warehouse_transfers WHERE numer_transferu LIKE ? ORDER BY id DESC LIMIT 1",
+            (f"MM/{today}/%",)
+        )
+        
+        if last_transfer and last_transfer[0]['numer_transferu']:
+            try:
+                last_num = int(last_transfer[0]['numer_transferu'].split('/')[-1])
+                next_num = last_num + 1
+            except:
+                next_num = 1
+        else:
+            next_num = 1
+            
+        numer_transferu = f"MM/{today}/{next_num:04d}"
+        
+        # Utwórz transfer
+        transfer_sql = """
+        INSERT INTO warehouse_transfers 
+        (numer_transferu, warehouse_from_id, warehouse_to_id, requested_by, status, data_zlozenia, uwagi)
+        VALUES (?, ?, ?, ?, 'oczekujacy', datetime('now'), ?)
+        """
+        
+        transfer_id = execute_insert(transfer_sql, (
+            numer_transferu,
+            magazyn_zrodlowy_id,
+            magazyn_docelowy_id,
+            requested_by,
+            uwagi
+        ))
+        
+        if not transfer_id:
+            return error_response("Błąd tworzenia transferu", 500)
+        
+        # Dodaj pozycje transferu
+        items_added = 0
+        for item in items:
+            produkt_id = item.get('produkt_id')
+            ilosc = float(item.get('ilosc_wyslana', item.get('ilosc', 1)))
+            
+            if produkt_id and ilosc > 0:
+                item_sql = """
+                INSERT INTO transfer_items (transfer_id, product_id, ilosc_zlecona, jednostka)
+                VALUES (?, ?, ?, 'szt')
+                """
+                execute_insert(item_sql, (transfer_id, produkt_id, ilosc))
+                items_added += 1
+        
+        print(f"✅ Utworzono transfer {numer_transferu}: {source[0]['nazwa']} → {target[0]['nazwa']}, {items_added} pozycji")
+        
+        return success_response({
+            'id': transfer_id,
+            'numer_transferu': numer_transferu,
+            'magazyn_zrodlowy': source[0]['nazwa'],
+            'magazyn_docelowy': target[0]['nazwa'],
+            'liczba_pozycji': items_added
+        }, f"Utworzono transfer {numer_transferu}")
+        
+    except Exception as e:
+        print(f"❌ Błąd tworzenia transferu: {e}")
+        import traceback
+        traceback.print_exc()
+        return error_response(f"Błąd: {str(e)}", 500)
+
+@warehouses_bp.route('/warehouses/transfers/<int:transfer_id>', methods=['GET'])
+def get_transfer_details(transfer_id):
+    """
+    Pobierz szczegóły transferu
+    GET /api/warehouses/transfers/123
+    """
+    try:
+        # Pobierz transfer
+        transfer = execute_query("""
+        SELECT 
+            wt.*,
+            w_from.nazwa as magazyn_zrodlowy_nazwa,
+            w_to.nazwa as magazyn_docelowy_nazwa
+        FROM warehouse_transfers wt
+        LEFT JOIN warehouses w_from ON wt.warehouse_from_id = w_from.id
+        LEFT JOIN warehouses w_to ON wt.warehouse_to_id = w_to.id
+        WHERE wt.id = ?
+        """, (transfer_id,))
+        
+        if not transfer:
+            return not_found_response("Transfer nie został znaleziony")
+        
+        # Pobierz pozycje transferu
+        items = execute_query("""
+        SELECT 
+            ti.*,
+            p.nazwa as nazwa_produktu,
+            p.ean as kod_kreskowy
+        FROM transfer_items ti
+        LEFT JOIN produkty p ON ti.product_id = p.id
+        WHERE ti.transfer_id = ?
+        """, (transfer_id,))
+        
+        result = dict(transfer[0])
+        result['items'] = items or []
+        
+        return success_response(result, "Pobrano szczegóły transferu")
+        
+    except Exception as e:
+        print(f"❌ Błąd pobierania szczegółów transferu: {e}")
+        return error_response(f"Błąd: {str(e)}", 500)
+
+@warehouses_bp.route('/warehouses/transfers/<int:transfer_id>/<action>', methods=['PUT'])
+def update_transfer_status(transfer_id, action):
+    """
+    Aktualizuj status transferu
+    PUT /api/warehouses/transfers/123/approve
+    PUT /api/warehouses/transfers/123/ship  
+    PUT /api/warehouses/transfers/123/receive
+    PUT /api/warehouses/transfers/123/cancel
+    """
+    try:
+        data = request.get_json() or {}
+        user = data.get('user', 'system')
+        
+        # Pobierz aktualny transfer
+        transfer = execute_query("SELECT * FROM warehouse_transfers WHERE id = ?", (transfer_id,))
+        if not transfer:
+            return not_found_response("Transfer nie został znaleziony")
+        
+        current_status = transfer[0]['status']
+        
+        if action == 'approve':
+            if current_status != 'oczekujacy':
+                return error_response("Można zatwierdzić tylko transfer oczekujący", 400)
+            execute_query(
+                "UPDATE warehouse_transfers SET status = 'zatwierdzony', approved_by = ?, data_zatwierdzenia = datetime('now') WHERE id = ?",
+                (user, transfer_id)
+            )
+            new_status = 'zatwierdzony'
+            
+        elif action == 'ship':
+            if current_status not in ['oczekujacy', 'zatwierdzony']:
+                return error_response("Można wysłać tylko transfer oczekujący lub zatwierdzony", 400)
+            execute_query(
+                "UPDATE warehouse_transfers SET status = 'w_transporcie', data_wysylki = datetime('now') WHERE id = ?",
+                (transfer_id,)
+            )
+            new_status = 'w_transporcie'
+            
+        elif action == 'receive':
+            if current_status != 'w_transporcie':
+                return error_response("Można odebrać tylko transfer w transporcie", 400)
+            
+            # Aktualizuj ilości dostarczone
+            items = data.get('items', [])
+            for item in items:
+                if item.get('id') and item.get('ilosc_dostarczona') is not None:
+                    execute_query(
+                        "UPDATE transfer_items SET ilosc_dostarczona = ? WHERE id = ?",
+                        (item['ilosc_dostarczona'], item['id'])
+                    )
+            
+            execute_query(
+                "UPDATE warehouse_transfers SET status = 'dostarczony', data_dostawy = datetime('now') WHERE id = ?",
+                (transfer_id,)
+            )
+            new_status = 'dostarczony'
+            
+        elif action == 'cancel':
+            if current_status in ['dostarczony', 'anulowany']:
+                return error_response("Nie można anulować zakończonego transferu", 400)
+            execute_query(
+                "UPDATE warehouse_transfers SET status = 'anulowany' WHERE id = ?",
+                (transfer_id,)
+            )
+            new_status = 'anulowany'
+            
+        else:
+            return error_response(f"Nieznana akcja: {action}", 400)
+        
+        print(f"✅ Transfer {transfer_id}: {current_status} → {new_status}")
+        
+        return success_response({
+            'id': transfer_id,
+            'previous_status': current_status,
+            'new_status': new_status
+        }, f"Status transferu zmieniony na {new_status}")
+        
+    except Exception as e:
+        print(f"❌ Błąd aktualizacji statusu transferu: {e}")
+        return error_response(f"Błąd: {str(e)}", 500)
+
+
 # Funkcja inicjalizacyjna - należy wywołać przy starcie aplikacji
 def initialize_warehouse_system():
     """

@@ -36,13 +36,16 @@ const InterWarehouseTransfer = () => {
   // Form dodawania produktu do transferu
   const [productForm, setProductForm] = useState({
     produkt_id: '',
-    ilosc: '',
+    ilosc: '1',
     cena_jednostkowa: ''
   });
   
-  // Wyszukiwanie produktów
+  // Wyszukiwanie produktów - autocomplete
   const [productSearch, setProductSearch] = useState('');
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [showProductDropdown, setShowProductDropdown] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [onlyAvailable, setOnlyAvailable] = useState(true); // Domyślnie tylko dostępne
 
   useEffect(() => {
     loadData();
@@ -71,7 +74,8 @@ const InterWarehouseTransfer = () => {
         }
       }
       if (transfersRes.success) {
-        setTransfers(transfersRes.data);
+        // API zwraca { transfers: [...], total: N }
+        setTransfers(transfersRes.data?.transfers || transfersRes.data || []);
       }
     } catch (err) {
       setError('Błąd podczas ładowania danych');
@@ -83,16 +87,23 @@ const InterWarehouseTransfer = () => {
   const loadProducts = async (searchQuery = '') => {
     try {
       // Pobierz więcej produktów na start lub szukaj po query
-      const url = searchQuery 
+      // Dodaj location_id aby API zwróciło prawidłowe stany magazynowe
+      let url = searchQuery 
         ? `http://localhost:8000/api/products/search?limit=500&query=${encodeURIComponent(searchQuery)}`
         : 'http://localhost:8000/api/products/search?limit=500';
+      
+      // Dodaj location_id dla prawidłowych stanów magazynowych
+      if (currentLocationId) {
+        url += `&location_id=${currentLocationId}`;
+      }
+      
       console.log('🔍 Ładowanie produktów z:', url);
       const response = await fetch(url);
       if (response.ok) {
         const result = await response.json();
         // API zwraca: { data: { products: [...] }, success: true }
         const prods = result.data?.products || result.products || [];
-        console.log('✅ Załadowano produktów:', prods.length, prods.slice(0,2));
+        console.log('✅ Załadowano produktów:', prods.length, 'z location_id:', currentLocationId);
         setProducts(prods);
         setFilteredProducts(prods);
       } else {
@@ -103,20 +114,101 @@ const InterWarehouseTransfer = () => {
     }
   };
 
-  // Filtrowanie produktów na podstawie wyszukiwania
+  // Filtrowanie produktów na podstawie wyszukiwania - w czasie rzeczywistym
   useEffect(() => {
-    if (productSearch.trim() === '') {
-      setFilteredProducts(products);
+    if (productSearch.trim().length < 2) {
+      setFilteredProducts([]);
+      setShowProductDropdown(false);
     } else {
       const search = productSearch.toLowerCase();
-      const filtered = products.filter(p => 
+      let filtered = products.filter(p => 
         (p.name || p.nazwa || '').toLowerCase().includes(search) ||
         (p.barcode || p.kod_kreskowy || '').toLowerCase().includes(search)
       );
-      console.log('🔎 Filtrowanie:', search, '-> znaleziono:', filtered.length);
+      
+      // Filtruj tylko dostępne jeśli checkbox zaznaczony
+      if (onlyAvailable) {
+        filtered = filtered.filter(p => (p.stock_quantity || 0) > 0);
+      }
+      
+      // Sortuj: najpierw dostępne (malejąco po ilości), potem niedostępne
+      filtered.sort((a, b) => {
+        const stockA = a.stock_quantity || 0;
+        const stockB = b.stock_quantity || 0;
+        return stockB - stockA;
+      });
+      
+      filtered = filtered.slice(0, 15); // Pokaż max 15 wyników
       setFilteredProducts(filtered);
+      setShowProductDropdown(filtered.length > 0);
     }
-  }, [productSearch, products]);
+  }, [productSearch, products, onlyAvailable]);
+
+  // Funkcja wyboru produktu z listy - od razu dodaje do listy jak w koszyku
+  const handleSelectProduct = (product) => {
+    // Sprawdź czy produkt już jest na liście
+    const existingIndex = transferForm.items.findIndex(item => item.produkt_id === product.id);
+    
+    if (existingIndex >= 0) {
+      // Jeśli produkt już jest - zwiększ ilość o 1
+      setTransferForm(prev => ({
+        ...prev,
+        items: prev.items.map((item, idx) => 
+          idx === existingIndex 
+            ? { ...item, ilosc_wyslana: item.ilosc_wyslana + 1 }
+            : item
+        )
+      }));
+    } else {
+      // Dodaj nowy produkt z ilością 1 i ceną zakupu
+      const purchasePrice = product.current_purchase_price || product.cena_zakupu || product.purchase_price || 0;
+      const stockQty = product.stock_quantity || product.stan_magazynowy || 0;
+      const newItem = {
+        produkt_id: product.id,
+        nazwa_produktu: product.name || product.nazwa,
+        kod_kreskowy: product.barcode || product.kod_kreskowy,
+        ilosc_wyslana: 1,
+        cena_jednostkowa: purchasePrice,
+        dostepna_ilosc: stockQty
+      };
+      
+      setTransferForm(prev => ({
+        ...prev,
+        items: [...prev.items, newItem]
+      }));
+    }
+    
+    // Wyczyść wyszukiwarkę
+    setProductSearch('');
+    setShowProductDropdown(false);
+    setError(null);
+  };
+
+  // Funkcja aktualizacji ilości produktu na liście
+  const handleUpdateItemQuantity = (index, newQuantity) => {
+    const qty = parseFloat(newQuantity);
+    if (isNaN(qty) || qty <= 0) return;
+    
+    setTransferForm(prev => ({
+      ...prev,
+      items: prev.items.map((item, idx) => 
+        idx === index ? { ...item, ilosc_wyslana: qty } : item
+      )
+    }));
+  };
+
+  // Funkcja aktualizacji ceny produktu na liście
+  const handleUpdateItemPrice = (index, newPrice) => {
+    const price = parseFloat(newPrice);
+    if (isNaN(price) || price < 0) return;
+    
+    setTransferForm(prev => ({
+      ...prev,
+      items: prev.items.map((item, idx) => 
+        idx === index ? { ...item, cena_jednostkowa: price } : item
+      )
+    }));
+  };
 
   // Załaduj produkty przy otwarciu modalu
   useEffect(() => {
@@ -154,36 +246,40 @@ const InterWarehouseTransfer = () => {
   };
 
   const handleAddProduct = () => {
-    if (!productForm.produkt_id || !productForm.ilosc) {
+    if (!selectedProduct || !productForm.ilosc) {
       setError('Wybierz produkt i podaj ilość');
       return;
     }
 
-    const product = products.find(p => p.id === parseInt(productForm.produkt_id));
-    if (!product) {
-      setError('Nie znaleziono produktu');
-      return;
-    }
-
     const newItem = {
-      produkt_id: parseInt(productForm.produkt_id),
-      nazwa_produktu: product.name || product.nazwa,
-      kod_kreskowy: product.barcode || product.kod_kreskowy,
+      produkt_id: selectedProduct.id,
+      nazwa_produktu: selectedProduct.name || selectedProduct.nazwa,
+      kod_kreskowy: selectedProduct.barcode || selectedProduct.kod_kreskowy,
       ilosc_wyslana: parseFloat(productForm.ilosc),
       cena_jednostkowa: parseFloat(productForm.cena_jednostkowa) || 0
     };
+
+    // Sprawdź czy produkt już jest na liście
+    const exists = transferForm.items.some(item => item.produkt_id === newItem.produkt_id);
+    if (exists) {
+      setError('Ten produkt jest już na liście');
+      return;
+    }
 
     setTransferForm(prev => ({
       ...prev,
       items: [...prev.items, newItem]
     }));
 
+    // Reset formularza
     setProductForm({
       produkt_id: '',
-      ilosc: '',
+      ilosc: '1',
       cena_jednostkowa: ''
     });
     setProductSearch('');
+    setSelectedProduct(null);
+    setError(null);
   };
 
   const handleRemoveProduct = (index) => {
@@ -194,7 +290,13 @@ const InterWarehouseTransfer = () => {
   };
 
   const handleTransferAction = async (transferId, action, items = []) => {
-    if (!window.confirm(`Czy na pewno chcesz ${action === 'send' ? 'wysłać' : 'odebrać'} ten transfer?`)) {
+    const actionLabels = {
+      'approve': 'zatwierdzić',
+      'ship': 'wysłać',
+      'receive': 'odebrać',
+      'cancel': 'anulować'
+    };
+    if (!window.confirm(`Czy na pewno chcesz ${actionLabels[action] || action} ten transfer?`)) {
       return;
     }
 
@@ -212,7 +314,7 @@ const InterWarehouseTransfer = () => {
         setError(result.error);
       }
     } catch (err) {
-      setError(`Błąd podczas ${action === 'send' ? 'wysyłania' : 'odbierania'} transferu`);
+      setError(`Błąd podczas wykonywania akcji: ${actionLabels[action] || action}`);
     } finally {
       setLoading(false);
     }
@@ -241,13 +343,22 @@ const InterWarehouseTransfer = () => {
     });
     setProductForm({
       produkt_id: '',
-      ilosc: '',
+      ilosc: '1',
       cena_jednostkowa: ''
     });
+    setProductSearch('');
+    setSelectedProduct(null);
+    setShowProductDropdown(false);
   };
 
   const getStatusBadge = (status) => {
     const statusMap = {
+      'oczekujacy': { bg: '#6c757d', text: 'Oczekujący' },
+      'zatwierdzony': { bg: '#17a2b8', text: 'Zatwierdzony' },
+      'w_transporcie': { bg: '#ffc107', color: '#212529', text: 'W transporcie' },
+      'dostarczony': { bg: '#28a745', text: 'Dostarczony' },
+      'anulowany': { bg: '#dc3545', text: 'Anulowany' },
+      // stare mapowania dla kompatybilności
       'utworzone': { bg: '#6c757d', text: 'Utworzone' },
       'wyslane': { bg: '#ffc107', color: '#212529', text: 'Wysłane' },
       'otrzymane': { bg: '#28a745', text: 'Otrzymane' },
@@ -313,10 +424,11 @@ const InterWarehouseTransfer = () => {
                 onChange={(e) => setFilters({...filters, status: e.target.value})}
               >
                 <option value="">Wszystkie statusy</option>
-                <option value="utworzone">Utworzone</option>
-                <option value="wyslane">Wysłane</option>
-                <option value="otrzymane">Otrzymane</option>
-                <option value="anulowane">Anulowane</option>
+                <option value="oczekujacy">Oczekujący</option>
+                <option value="zatwierdzony">Zatwierdzony</option>
+                <option value="w_transporcie">W transporcie</option>
+                <option value="dostarczony">Dostarczony</option>
+                <option value="anulowany">Anulowany</option>
               </select>
             </div>
             <div className="col-md-4">
@@ -366,11 +478,11 @@ const InterWarehouseTransfer = () => {
                 <tbody>
                   {transfers.map(transfer => (
                     <tr key={transfer.id} style={{ borderBottom: '1px solid #e9ecef' }}>
-                      <td style={{ padding: '0.3rem 0.5rem' }}><code style={{ fontSize: '10px', backgroundColor: '#f1f3f4', padding: '1px 4px', borderRadius: '2px' }}>{transfer.numer_dokumentu}</code></td>
-                      <td style={{ padding: '0.3rem 0.5rem' }}>{getWarehouseName(transfer.magazyn_zrodlowy_id)}</td>
-                      <td style={{ padding: '0.3rem 0.5rem' }}>{getWarehouseName(transfer.magazyn_docelowy_id)}</td>
+                      <td style={{ padding: '0.3rem 0.5rem' }}><code style={{ fontSize: '10px', backgroundColor: '#f1f3f4', padding: '1px 4px', borderRadius: '2px' }}>{transfer.numer_transferu}</code></td>
+                      <td style={{ padding: '0.3rem 0.5rem' }}>{transfer.magazyn_zrodlowy_nazwa || getWarehouseName(transfer.magazyn_zrodlowy_id)}</td>
+                      <td style={{ padding: '0.3rem 0.5rem' }}>{transfer.magazyn_docelowy_nazwa || getWarehouseName(transfer.magazyn_docelowy_id)}</td>
                       <td style={{ padding: '0.3rem 0.5rem' }}>{getStatusBadge(transfer.status)}</td>
-                      <td style={{ padding: '0.3rem 0.5rem' }}>{new Date(transfer.data_utworzenia).toLocaleDateString()}</td>
+                      <td style={{ padding: '0.3rem 0.5rem' }}>{new Date(transfer.data_zlozenia || transfer.created_at).toLocaleDateString()}</td>
                       <td style={{ padding: '0.3rem 0.5rem' }}>
                         <button 
                           style={{ padding: '0.2rem 0.4rem', fontSize: '10px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '3px', marginRight: '0.25rem', cursor: 'pointer' }}
@@ -378,18 +490,20 @@ const InterWarehouseTransfer = () => {
                         >
                           👁️
                         </button>
-                        {transfer.status === 'utworzone' && (
+                        {(transfer.status === 'oczekujacy' || transfer.status === 'zatwierdzony') && (
                           <button 
                             style={{ padding: '0.2rem 0.4rem', fontSize: '10px', backgroundColor: '#ffc107', color: '#212529', border: 'none', borderRadius: '3px', marginRight: '0.25rem', cursor: 'pointer' }}
-                            onClick={() => handleTransferAction(transfer.id, 'send')}
+                            onClick={() => handleTransferAction(transfer.id, 'ship')}
+                            title="Wyślij"
                           >
                             📦
                           </button>
                         )}
-                        {transfer.status === 'wyslane' && (
+                        {transfer.status === 'w_transporcie' && (
                           <button 
                             style={{ padding: '0.2rem 0.4rem', fontSize: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
                             onClick={() => handleTransferAction(transfer.id, 'receive')}
+                            title="Potwierdź odbiór"
                           >
                             ✅
                           </button>
@@ -533,104 +647,226 @@ const InterWarehouseTransfer = () => {
 
                 {/* Sekcja produktów */}
                 <div style={{ borderTop: '1px solid #e9ecef', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
-                  <h6 style={{ fontSize: '12px', fontWeight: '600', marginBottom: '0.5rem', color: '#495057' }}>
-                    📦 Produkty do przeniesienia 
-                    <span style={{ fontWeight: 'normal', color: '#6c757d', marginLeft: '0.5rem' }}>
-                      ({products.length > 0 ? `${filteredProducts.length} z ${products.length}` : 'ładowanie...'})
-                    </span>
-                  </h6>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <h6 style={{ fontSize: '12px', fontWeight: '600', margin: 0, color: '#495057' }}>
+                      📦 Produkty do przeniesienia
+                    </h6>
+                    <label style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '0.3rem', 
+                      fontSize: '10px', 
+                      cursor: 'pointer',
+                      color: onlyAvailable ? '#28a745' : '#6c757d'
+                    }}>
+                      <input
+                        type="checkbox"
+                        checked={onlyAvailable}
+                        onChange={(e) => setOnlyAvailable(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      Tylko dostępne
+                    </label>
+                  </div>
                   
-                  {/* Wyszukiwanie produktu */}
-                  <div style={{ marginBottom: '0.5rem' }}>
+                  {/* Wyszukiwanie produktu - autocomplete */}
+                  <div style={{ position: 'relative', marginBottom: '0.5rem' }}>
                     <input
                       type="text"
-                      style={{ width: '100%', fontSize: '11px', padding: '0.4rem', border: '1px solid #ced4da', borderRadius: '4px' }}
-                      placeholder="🔍 Wyszukaj produkt po nazwie lub kodzie kreskowym..."
+                      style={{ 
+                        width: '100%', 
+                        fontSize: '11px', 
+                        padding: '0.5rem', 
+                        border: selectedProduct ? '2px solid #28a745' : '1px solid #ced4da', 
+                        borderRadius: '4px',
+                        backgroundColor: selectedProduct ? '#f0fff4' : 'white'
+                      }}
+                      placeholder="🔍 Wpisz min. 2 znaki aby wyszukać produkt..."
                       value={productSearch}
-                      onChange={(e) => setProductSearch(e.target.value)}
+                      onChange={(e) => {
+                        setProductSearch(e.target.value);
+                        setSelectedProduct(null); // Reset wyboru przy edycji
+                      }}
+                      onFocus={() => {
+                        if (productSearch.length >= 2 && filteredProducts.length > 0) {
+                          setShowProductDropdown(true);
+                        }
+                      }}
                     />
-                  </div>
-                  
-                  {/* Dodawanie produktu */}
-                  <div style={{ display: 'grid', gridTemplateColumns: '3fr 1.5fr 1.5fr auto', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                    <select
-                      style={{ fontSize: '10px', padding: '0.35rem', border: '1px solid #ced4da', borderRadius: '3px' }}
-                      value={productForm.produkt_id}
-                      onChange={(e) => setProductForm({...productForm, produkt_id: e.target.value})}
-                    >
-                      <option value="">{products.length === 0 ? 'Ładowanie produktów...' : 'Wybierz produkt'}</option>
-                      {filteredProducts.map(product => (
-                        <option key={product.id} value={product.id}>
-                          {product.name || product.nazwa} ({product.barcode || product.kod_kreskowy || 'brak kodu'})
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      type="number"
-                      style={{ fontSize: '10px', padding: '0.35rem', border: '1px solid #ced4da', borderRadius: '3px' }}
-                      placeholder="Ilość"
-                      step="0.001"
-                      value={productForm.ilosc}
-                      onChange={(e) => setProductForm({...productForm, ilosc: e.target.value})}
-                    />
-                    <input
-                      type="number"
-                      style={{ fontSize: '10px', padding: '0.35rem', border: '1px solid #ced4da', borderRadius: '3px' }}
-                      placeholder="Cena (opc.)"
-                      step="0.01"
-                      value={productForm.cena_jednostkowa}
-                      onChange={(e) => setProductForm({...productForm, cena_jednostkowa: e.target.value})}
-                    />
-                    <button 
-                      type="button"
-                      style={{ padding: '0.35rem 0.6rem', fontSize: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                      onClick={handleAddProduct}
-                    >
-                      ➕
-                    </button>
+                    
+                    {/* Dropdown z wynikami */}
+                    {showProductDropdown && filteredProducts.length > 0 && (
+                      <div style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                        backgroundColor: 'white',
+                        border: '1px solid #ced4da',
+                        borderTop: 'none',
+                        borderRadius: '0 0 4px 4px',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
+                        zIndex: 1000
+                      }}>
+                        {filteredProducts.map(product => (
+                          <div
+                            key={product.id}
+                            onClick={() => handleSelectProduct(product)}
+                            style={{
+                              padding: '0.5rem',
+                              cursor: 'pointer',
+                              borderBottom: '1px solid #f0f0f0',
+                              fontSize: '11px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center'
+                            }}
+                            onMouseEnter={(e) => e.target.style.backgroundColor = '#f8f9fa'}
+                            onMouseLeave={(e) => e.target.style.backgroundColor = 'white'}
+                          >
+                            <div style={{ flex: 1 }}>
+                              <div style={{ fontWeight: '500' }}>{product.name || product.nazwa}</div>
+                              <div style={{ color: '#6c757d', fontSize: '10px' }}>
+                                {product.barcode || product.kod_kreskowy || 'brak kodu'}
+                              </div>
+                            </div>
+                            <div style={{ 
+                              textAlign: 'center', 
+                              padding: '0 0.5rem',
+                              minWidth: '50px'
+                            }}>
+                              <div style={{ 
+                                fontWeight: '700', 
+                                fontSize: '11px',
+                                color: (product.stock_quantity || 0) > 0 ? '#28a745' : '#dc3545'
+                              }}>
+                                {product.stock_quantity || 0}
+                              </div>
+                              <div style={{ color: '#6c757d', fontSize: '8px' }}>dostępne</div>
+                            </div>
+                            <div style={{ textAlign: 'right', minWidth: '60px' }}>
+                              <div style={{ color: '#007bff', fontWeight: '600' }}>
+                                {(product.current_purchase_price || product.cena_zakupu || 0).toFixed(2)} zł
+                              </div>
+                              <div style={{ color: '#6c757d', fontSize: '8px' }}>cena zak.</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
-                  {/* Lista dodanych produktów */}
-                  {transferForm.items.length > 0 && (
-                    <div style={{ maxHeight: '150px', overflow: 'auto', border: '1px solid #e9ecef', borderRadius: '4px' }}>
+                  {/* Lista dodanych produktów - z edycją inline */}
+                  {transferForm.items.length > 0 ? (
+                    <div style={{ maxHeight: '200px', overflow: 'auto', border: '1px solid #e9ecef', borderRadius: '4px' }}>
                       <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
                         <thead style={{ backgroundColor: '#f8f9fa', position: 'sticky', top: 0 }}>
                           <tr>
                             <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Produkt</th>
-                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Kod</th>
-                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>Ilość</th>
-                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>Cena</th>
-                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}></th>
+                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', borderBottom: '1px solid #dee2e6', width: '55px' }}>Dostępne</th>
+                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', borderBottom: '1px solid #dee2e6', width: '70px' }}>Ilość</th>
+                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', borderBottom: '1px solid #dee2e6', width: '80px' }}>Cena zak.</th>
+                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right', borderBottom: '1px solid #dee2e6', width: '65px' }}>Wartość</th>
+                            <th style={{ padding: '0.3rem 0.4rem', textAlign: 'center', borderBottom: '1px solid #dee2e6', width: '30px' }}></th>
                           </tr>
                         </thead>
                         <tbody>
                           {transferForm.items.map((item, index) => (
                             <tr key={index} style={{ borderBottom: '1px solid #e9ecef' }}>
-                              <td style={{ padding: '0.3rem 0.4rem' }}>{item.nazwa_produktu}</td>
                               <td style={{ padding: '0.3rem 0.4rem' }}>
-                                <code style={{ fontSize: '9px', backgroundColor: '#f1f3f4', padding: '1px 3px', borderRadius: '2px' }}>{item.kod_kreskowy}</code>
+                                <div style={{ fontWeight: '500', fontSize: '10px' }}>{item.nazwa_produktu}</div>
+                                <code style={{ fontSize: '8px', backgroundColor: '#f1f3f4', padding: '1px 3px', borderRadius: '2px', color: '#6c757d' }}>
+                                  {item.kod_kreskowy}
+                                </code>
                               </td>
-                              <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.ilosc_wyslana}</td>
-                              <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.cena_jednostkowa > 0 ? `${item.cena_jednostkowa.toFixed(2)} zł` : '-'}</td>
-                              <td style={{ padding: '0.3rem 0.4rem', textAlign: 'center' }}>
+                              <td style={{ 
+                                padding: '0.3rem 0.4rem', 
+                                textAlign: 'center', 
+                                fontWeight: '600',
+                                fontSize: '10px',
+                                color: item.dostepna_ilosc > 0 ? (item.ilosc_wyslana > item.dostepna_ilosc ? '#dc3545' : '#28a745') : '#dc3545'
+                              }}>
+                                {item.dostepna_ilosc || 0}
+                                {item.ilosc_wyslana > item.dostepna_ilosc && (
+                                  <span title="Ilość przekracza dostępny stan" style={{ marginLeft: '2px' }}>⚠️</span>
+                                )}
+                              </td>
+                              <td style={{ padding: '0.2rem' }}>
+                                <input
+                                  type="number"
+                                  style={{ 
+                                    width: '100%', 
+                                    fontSize: '10px', 
+                                    padding: '0.25rem', 
+                                    border: `1px solid ${item.ilosc_wyslana > item.dostepna_ilosc ? '#dc3545' : '#ced4da'}`, 
+                                    borderRadius: '3px',
+                                    textAlign: 'center',
+                                    backgroundColor: item.ilosc_wyslana > item.dostepna_ilosc ? '#fff5f5' : 'white'
+                                  }}
+                                  step="1"
+                                  min="1"
+                                  value={item.ilosc_wyslana}
+                                  onChange={(e) => handleUpdateItemQuantity(index, e.target.value)}
+                                />
+                              </td>
+                              <td style={{ padding: '0.2rem' }}>
+                                <input
+                                  type="number"
+                                  style={{ 
+                                    width: '100%', 
+                                    fontSize: '10px', 
+                                    padding: '0.25rem', 
+                                    border: '1px solid #ced4da', 
+                                    borderRadius: '3px',
+                                    textAlign: 'center'
+                                  }}
+                                  step="0.01"
+                                  min="0"
+                                  value={item.cena_jednostkowa}
+                                  onChange={(e) => handleUpdateItemPrice(index, e.target.value)}
+                                />
+                              </td>
+                              <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right', fontWeight: '600', color: '#28a745' }}>
+                                {(item.ilosc_wyslana * item.cena_jednostkowa).toFixed(2)} zł
+                              </td>
+                              <td style={{ padding: '0.2rem', textAlign: 'center' }}>
                                 <button 
                                   type="button"
-                                  style={{ padding: '0.15rem 0.3rem', fontSize: '9px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '2px', cursor: 'pointer' }}
+                                  style={{ 
+                                    padding: '0.2rem 0.4rem', 
+                                    fontSize: '10px', 
+                                    backgroundColor: '#dc3545', 
+                                    color: 'white', 
+                                    border: 'none', 
+                                    borderRadius: '2px', 
+                                    cursor: 'pointer'
+                                  }}
                                   onClick={() => handleRemoveProduct(index)}
                                 >
-                                  🗑️
+                                  ✕
                                 </button>
                               </td>
                             </tr>
                           ))}
                         </tbody>
+                        <tfoot style={{ backgroundColor: '#e9ecef' }}>
+                          <tr>
+                            <td colSpan="4" style={{ padding: '0.4rem', textAlign: 'right', fontWeight: '600' }}>
+                              Razem ({transferForm.items.length} poz.):
+                            </td>
+                            <td style={{ padding: '0.4rem', textAlign: 'right', fontWeight: '700', color: '#28a745' }}>
+                              {transferForm.items.reduce((sum, item) => sum + (item.ilosc_wyslana * item.cena_jednostkowa), 0).toFixed(2)} zł
+                            </td>
+                            <td></td>
+                          </tr>
+                        </tfoot>
                       </table>
                     </div>
-                  )}
-
-                  {transferForm.items.length === 0 && (
+                  ) : (
                     <div style={{ padding: '1rem', textAlign: 'center', color: '#6c757d', backgroundColor: '#f8f9fa', borderRadius: '4px', fontSize: '11px' }}>
-                      Brak dodanych produktów. Wybierz produkt i kliknij ➕ aby dodać.
+                      📦 Wyszukaj i kliknij produkt aby dodać do listy
                     </div>
                   )}
                 </div>
@@ -714,7 +950,7 @@ const InterWarehouseTransfer = () => {
               </div>
               <div style={{ flex: 1 }}>
                 <h6 style={{ margin: 0, fontWeight: '600', fontSize: '12px' }}>
-                  Szczegóły transferu {selectedTransfer.numer_dokumentu}
+                  Szczegóły transferu {selectedTransfer.numer_transferu}
                 </h6>
               </div>
               <button
@@ -739,11 +975,11 @@ const InterWarehouseTransfer = () => {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.75rem', padding: '0.5rem', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
                 <div>
                   <p style={{ margin: '0.2rem 0' }}><strong>Status:</strong> {getStatusBadge(selectedTransfer.status)}</p>
-                  <p style={{ margin: '0.2rem 0' }}><strong>Magazyn źródłowy:</strong> {getWarehouseName(selectedTransfer.magazyn_zrodlowy_id)}</p>
+                  <p style={{ margin: '0.2rem 0' }}><strong>Magazyn źródłowy:</strong> {selectedTransfer.magazyn_zrodlowy_nazwa || getWarehouseName(selectedTransfer.magazyn_zrodlowy_id)}</p>
                 </div>
                 <div>
-                  <p style={{ margin: '0.2rem 0' }}><strong>Data utworzenia:</strong> {new Date(selectedTransfer.data_utworzenia).toLocaleString()}</p>
-                  <p style={{ margin: '0.2rem 0' }}><strong>Magazyn docelowy:</strong> {getWarehouseName(selectedTransfer.magazyn_docelowy_id)}</p>
+                  <p style={{ margin: '0.2rem 0' }}><strong>Data utworzenia:</strong> {new Date(selectedTransfer.data_zlozenia || selectedTransfer.created_at).toLocaleString()}</p>
+                  <p style={{ margin: '0.2rem 0' }}><strong>Magazyn docelowy:</strong> {selectedTransfer.magazyn_docelowy_nazwa || getWarehouseName(selectedTransfer.magazyn_docelowy_id)}</p>
                 </div>
               </div>
 
@@ -763,9 +999,9 @@ const InterWarehouseTransfer = () => {
                         <tr>
                           <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left' }}>Produkt</th>
                           <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left' }}>Kod</th>
-                          <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>Wysłano</th>
-                          <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>Otrzymano</th>
-                          <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>Cena</th>
+                          <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>Ilość</th>
+                          <th style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>Dostarczone</th>
+                          <th style={{ padding: '0.3rem 0.4rem', textAlign: 'left' }}>Jednostka</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -775,9 +1011,9 @@ const InterWarehouseTransfer = () => {
                             <td style={{ padding: '0.3rem 0.4rem' }}>
                               <code style={{ fontSize: '9px', backgroundColor: '#f1f3f4', padding: '1px 3px', borderRadius: '2px' }}>{item.kod_kreskowy}</code>
                             </td>
-                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.ilosc_wyslana}</td>
-                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.ilosc_otrzymana || '-'}</td>
-                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.cena_jednostkowa > 0 ? `${item.cena_jednostkowa.toFixed(2)} zł` : '-'}</td>
+                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.ilosc_zlecona}</td>
+                            <td style={{ padding: '0.3rem 0.4rem', textAlign: 'right' }}>{item.ilosc_dostarczona > 0 ? item.ilosc_dostarczona : '-'}</td>
+                            <td style={{ padding: '0.3rem 0.4rem' }}>{item.jednostka || 'szt'}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -795,15 +1031,15 @@ const InterWarehouseTransfer = () => {
               >
                 Zamknij
               </button>
-              {selectedTransfer.status === 'utworzone' && (
+              {(selectedTransfer.status === 'oczekujacy' || selectedTransfer.status === 'zatwierdzony') && (
                 <button 
                   style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#ffc107', color: '#212529', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                  onClick={() => handleTransferAction(selectedTransfer.id, 'send')}
+                  onClick={() => handleTransferAction(selectedTransfer.id, 'ship')}
                 >
                   📦 Wyślij
                 </button>
               )}
-              {selectedTransfer.status === 'wyslane' && (
+              {selectedTransfer.status === 'w_transporcie' && (
                 <button 
                   style={{ padding: '0.35rem 0.75rem', fontSize: '11px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
                   onClick={() => handleTransferAction(selectedTransfer.id, 'receive')}
