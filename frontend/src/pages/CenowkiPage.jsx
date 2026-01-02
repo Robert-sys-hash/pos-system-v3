@@ -874,315 +874,478 @@ const CenowkiPage = () => {
         </>
       )}
 
-      {/* Modal podglądu etykiet */}
+      {/* Modal podglądu etykiet - nowoczesny styl */}
       {showPreview && (
-        <div className="modal show d-block" tabIndex="-1" style={{ backgroundColor: 'rgba(0,0,0,0.5)' }}>
-          <div className="modal-dialog modal-xl">
-            <div className="modal-content">
-              <div className="modal-header">
-                <h5 className="modal-title">
-                  <FaEye className="me-2" />
-                  Podgląd etykiet cenowych ({previewProducts.length} produktów)
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1050,
+          overflow: 'auto'
+        }}>
+          <div style={{
+            background: '#fff',
+            borderRadius: '0.5rem',
+            width: '900px',
+            maxWidth: '95vw',
+            maxHeight: '90vh',
+            overflow: 'hidden',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+            fontSize: '12px',
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderBottom: '1px solid #e9ecef',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.75rem',
+              background: 'linear-gradient(135deg, #6f42c1, #5a32a3)',
+              color: 'white',
+              borderRadius: '0.5rem 0.5rem 0 0'
+            }}>
+              <span style={{ fontSize: '1.25rem' }}>🏷️</span>
+              <div style={{ flex: 1 }}>
+                <h5 style={{ margin: 0, fontWeight: '600', fontSize: '14px' }}>
+                  Podgląd etykiet cenowych
                 </h5>
-                <button
-                  type="button"
-                  className="btn-close"
-                  onClick={() => setShowPreview(false)}
-                ></button>
+                <p style={{ margin: 0, fontSize: '11px', opacity: 0.9 }}>
+                  {previewProducts.length} produktów do wydruku
+                </p>
               </div>
-              <div className="modal-body" style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                {/* Ustawienia etykiet */}
-                <div className="row mb-4">
-                  <div className="col-12">
-                    <div className="card bg-light">
-                      <div className="card-header">
-                        <h6 className="mb-0">
-                          <FaCog className="me-2" />
-                          Ustawienia etykiet
-                        </h6>
-                      </div>
-                      <div className="card-body">
-                        <div className="row g-3">
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="includeManufacturer"
-                                checked={labelSettings.includeManufacturer}
-                                onChange={(e) => setLabelSettings({...labelSettings, includeManufacturer: e.target.checked})}
-                              />
-                              <label className="form-check-label" htmlFor="includeManufacturer">
-                                Nazwa producenta
-                              </label>
-                            </div>
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="includeSimplifiedName"
-                                checked={labelSettings.includeSimplifiedName}
-                                onChange={(e) => setLabelSettings({...labelSettings, includeSimplifiedName: e.target.checked})}
-                              />
-                              <label className="form-check-label" htmlFor="includeSimplifiedName">
-                                Nazwa produktu uproszczona
-                              </label>
-                            </div>
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="includeQuantity"
-                                checked={labelSettings.includeQuantity}
-                                onChange={(e) => setLabelSettings({...labelSettings, includeQuantity: e.target.checked})}
-                              />
-                              <label className="form-check-label" htmlFor="includeQuantity">
-                                Ilość w opakowaniu
-                              </label>
-                            </div>
-                          </div>
-                          <div className="col-md-6">
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="includePrice"
-                                checked={labelSettings.includePrice}
-                                onChange={(e) => setLabelSettings({...labelSettings, includePrice: e.target.checked})}
-                              />
-                              <label className="form-check-label" htmlFor="includePrice">
-                                Cena aktualna
-                              </label>
-                            </div>
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="includeSpecialPrice"
-                                checked={labelSettings.includeSpecialPrice}
-                                onChange={(e) => setLabelSettings({...labelSettings, includeSpecialPrice: e.target.checked})}
-                              />
-                              <label className="form-check-label" htmlFor="includeSpecialPrice">
-                                Cena specjalna (przekreślona stara)
-                              </label>
-                            </div>
-                            <div className="form-check">
-                              <input
-                                className="form-check-input"
-                                type="checkbox"
-                                id="includeWeight"
-                                checked={labelSettings.includeWeight}
-                                onChange={(e) => setLabelSettings({...labelSettings, includeWeight: e.target.checked})}
-                              />
-                              <label className="form-check-label" htmlFor="includeWeight">
-                                Waga produktu
-                              </label>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+              <button
+                onClick={() => setShowPreview(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  fontSize: '1rem',
+                  color: 'white',
+                  cursor: 'pointer',
+                  padding: '0.25rem 0.5rem',
+                  borderRadius: '4px',
+                  lineHeight: 1
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Body */}
+            <div style={{ 
+              padding: '1rem', 
+              overflowY: 'auto', 
+              flex: 1,
+              background: '#f8f9fa'
+            }}>
+              
+              {/* Sekcja ustawień - kompaktowa */}
+              <div style={{ 
+                marginBottom: '1rem', 
+                padding: '0.75rem', 
+                background: 'white', 
+                borderRadius: '8px',
+                border: '1px solid #e9ecef',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '0.5rem', 
+                  marginBottom: '0.75rem',
+                  paddingBottom: '0.5rem',
+                  borderBottom: '1px solid #f0f0f0'
+                }}>
+                  <FaCog style={{ color: '#6c757d' }} />
+                  <span style={{ fontWeight: '600', color: '#495057', fontSize: '12px' }}>
+                    Ustawienia etykiet
+                  </span>
+                </div>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.75rem' }}>
+                  {/* Kolumna 1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '11px' }}>
+                      <input
+                        type="checkbox"
+                        checked={labelSettings.includeManufacturer}
+                        onChange={(e) => setLabelSettings({...labelSettings, includeManufacturer: e.target.checked})}
+                        style={{ accentColor: '#6f42c1' }}
+                      />
+                      <span>Nazwa producenta</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '11px' }}>
+                      <input
+                        type="checkbox"
+                        checked={labelSettings.includeSimplifiedName}
+                        onChange={(e) => setLabelSettings({...labelSettings, includeSimplifiedName: e.target.checked})}
+                        style={{ accentColor: '#6f42c1' }}
+                      />
+                      <span>Nazwa produktu</span>
+                    </label>
+                  </div>
+                  
+                  {/* Kolumna 2 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '11px' }}>
+                      <input
+                        type="checkbox"
+                        checked={labelSettings.includeQuantity}
+                        onChange={(e) => setLabelSettings({...labelSettings, includeQuantity: e.target.checked})}
+                        style={{ accentColor: '#6f42c1' }}
+                      />
+                      <span>Ilość w opakowaniu</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '11px' }}>
+                      <input
+                        type="checkbox"
+                        checked={labelSettings.includeWeight}
+                        onChange={(e) => setLabelSettings({...labelSettings, includeWeight: e.target.checked})}
+                        style={{ accentColor: '#6f42c1' }}
+                      />
+                      <span>Waga produktu</span>
+                    </label>
+                  </div>
+                  
+                  {/* Kolumna 3 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '11px' }}>
+                      <input
+                        type="checkbox"
+                        checked={labelSettings.includePrice}
+                        onChange={(e) => setLabelSettings({...labelSettings, includePrice: e.target.checked})}
+                        style={{ accentColor: '#6f42c1' }}
+                      />
+                      <span>Cena aktualna</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '11px' }}>
+                      <input
+                        type="checkbox"
+                        checked={labelSettings.includeSpecialPrice}
+                        onChange={(e) => setLabelSettings({...labelSettings, includeSpecialPrice: e.target.checked})}
+                        style={{ accentColor: '#6f42c1' }}
+                      />
+                      <span>Cena specjalna</span>
+                    </label>
                   </div>
                 </div>
+              </div>
 
-                {/* Opcje powielania cenówek */}
-                <div className="row mb-4">
-                  <div className="col-12">
-                    <div className="card bg-warning bg-opacity-10 border-warning">
-                      <div className="card-header bg-warning bg-opacity-25">
-                        <h6 className="mb-0">
-                          <FaBox className="me-2" />
-                          Opcje powielania cenówek
-                        </h6>
-                      </div>
-                      <div className="card-body">
-                        <div className="row g-3 align-items-center">
-                          <div className="col-md-4">
-                            <label className="form-label fw-bold">Ilość kopii każdej cenówki:</label>
-                            <select 
-                              className="form-select form-select-lg"
-                              value={copyMultiplier}
-                              onChange={(e) => setCopyMultiplier(parseInt(e.target.value))}
-                            >
-                              <option value={1}>1x (pojedyncza cenówka)</option>
-                              <option value={2}>2x (podwójna cenówka)</option>
-                              <option value={4}>4x (poczwórna cenówka)</option>
-                              <option value={6}>6x (sześciokrotna cenówka)</option>
-                              <option value={8}>8x (ośmiokrotna cenówka)</option>
-                              <option value={10}>10x (dziesięciokrotna cenówka)</option>
-                            </select>
-                          </div>
-                          <div className="col-md-8">
-                            <div className="alert alert-info mb-2">
-                              <small>
-                                <FaBox className="me-1" />
-                                <strong>Wybrana opcja:</strong> Zaznaczone cenówki zostaną powtórzone <strong>{copyMultiplier}x</strong>
-                                {copyMultiplier > 1 && selectedForCopy.size > 0 && (
-                                  <span> - łącznie zostanie wydrukowanych <strong>{selectedForCopy.size * copyMultiplier}</strong> dodatkowych etykiet</span>
-                                )}
-                              </small>
-                            </div>
-                            <div className="d-flex gap-2">
-                              <button 
-                                className="btn btn-sm btn-outline-success" 
-                                onClick={handleSelectAllForCopy}
-                                disabled={previewProducts.length === 0}
-                              >
-                                Zaznacz wszystkie ({previewProducts.length})
-                              </button>
-                              <button 
-                                className="btn btn-sm btn-outline-warning" 
-                                onClick={handleDeselectAllForCopy}
-                                disabled={selectedForCopy.size === 0}
-                              >
-                                Odznacz wszystkie
-                              </button>
-                              <span className="badge bg-primary ms-2 align-self-center">
-                                Zaznaczono: {selectedForCopy.size}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
+              {/* Sekcja powielania - kompaktowa */}
+              <div style={{ 
+                marginBottom: '1rem', 
+                padding: '0.75rem', 
+                background: 'linear-gradient(135deg, #fff3cd, #ffeeba)',
+                borderRadius: '8px',
+                border: '1px solid #ffc107'
+              }}>
+                <div style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: '0.75rem'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <FaBox style={{ color: '#856404' }} />
+                    <span style={{ fontWeight: '600', color: '#856404', fontSize: '12px' }}>
+                      Powielanie:
+                    </span>
+                    <select 
+                      value={copyMultiplier}
+                      onChange={(e) => setCopyMultiplier(parseInt(e.target.value))}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        borderRadius: '4px',
+                        border: '1px solid #ffc107',
+                        background: 'white',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        color: '#856404'
+                      }}
+                    >
+                      <option value={1}>1x</option>
+                      <option value={2}>2x</option>
+                      <option value={4}>4x</option>
+                      <option value={6}>6x</option>
+                      <option value={8}>8x</option>
+                      <option value={10}>10x</option>
+                    </select>
+                  </div>
+                  
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <button 
+                      type="button"
+                      onClick={handleSelectAllForCopy}
+                      disabled={previewProducts.length === 0}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '10px',
+                        border: '1px solid #28a745',
+                        background: 'white',
+                        color: '#28a745',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                    >
+                      ✓ Zaznacz wszystkie
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={handleDeselectAllForCopy}
+                      disabled={selectedForCopy.size === 0}
+                      style={{
+                        padding: '0.25rem 0.5rem',
+                        fontSize: '10px',
+                        border: '1px solid #dc3545',
+                        background: 'white',
+                        color: '#dc3545',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                    >
+                      ✕ Odznacz
+                    </button>
+                    <span style={{ 
+                      padding: '0.25rem 0.5rem', 
+                      background: '#6f42c1', 
+                      color: 'white', 
+                      borderRadius: '4px',
+                      fontSize: '10px',
+                      fontWeight: '600'
+                    }}>
+                      {selectedForCopy.size} zaznaczonych
+                    </span>
                   </div>
                 </div>
+                
+                {copyMultiplier > 1 && selectedForCopy.size > 0 && (
+                  <div style={{ 
+                    marginTop: '0.5rem', 
+                    padding: '0.4rem 0.6rem', 
+                    background: 'rgba(255,255,255,0.7)', 
+                    borderRadius: '4px',
+                    fontSize: '10px',
+                    color: '#856404'
+                  }}>
+                    📋 Łącznie zostanie wydrukowanych <strong>{previewProducts.length + (selectedForCopy.size * (copyMultiplier - 1))}</strong> etykiet
+                  </div>
+                )}
+              </div>
 
-                {/* Podgląd etykiet */}
-                <div className="row" id="labelsToPrint">
-                  {previewProducts.flatMap((product, productIndex) => {
-                    const priceInfo = getDisplayPrice(product);
-                    const unitPrice = product.packageQuantity && product.packageQuantity !== '1' ? 
-                      (priceInfo.price / parseFloat(product.packageQuantity)).toFixed(2) : null;
-                    
-                    // Sprawdzamy czy ten produkt jest zaznaczony do powielania
-                    const isSelectedForCopy = selectedForCopy.has(product.id);
-                    const multiplier = isSelectedForCopy ? copyMultiplier : 1;
-                    
-                    // Tworzymy tablicę z kopiami cenówki (tylko dla zaznaczonych produktów)
-                    return Array.from({ length: multiplier }, (_, copyIndex) => (
-                      <div key={`${product.id}-${copyIndex}`} className="col-md-6 col-lg-4 mb-3">
-                        {/* Checkbox do powielania - tylko przy pierwszej kopii */}
-                        {copyIndex === 0 && (
-                          <div className="form-check mb-2">
-                            <input
-                              className="form-check-input"
-                              type="checkbox"
-                              id={`copy-${product.id}`}
-                              checked={selectedForCopy.has(product.id)}
-                              onChange={() => handleToggleCopySelection(product.id)}
-                            />
-                            <label className="form-check-label small text-primary fw-bold" htmlFor={`copy-${product.id}`}>
-                              Podwój tę cenówkę {copyMultiplier}x
-                              {isSelectedForCopy && copyMultiplier > 1 && (
-                                <span className="badge bg-warning text-dark ms-1">+{copyMultiplier - 1} kopii</span>
-                              )}
-                            </label>
-                          </div> 
-                        )}
-                        
-                        <div className="price-label border border-dark" style={{ 
-                          width: '4cm',
-                          height: '2cm',
-                          fontSize: labelSettings.fontSize === 'small' ? '6px' : 
-                                    labelSettings.fontSize === 'large' ? '9px' : '7px',
+              {/* Podgląd etykiet - siatka */}
+              <div style={{ 
+                display: 'grid', 
+                gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', 
+                gap: '0.75rem'
+              }} id="labelsToPrint">
+                {previewProducts.flatMap((product, productIndex) => {
+                  const priceInfo = getDisplayPrice(product);
+                  const unitPrice = product.packageQuantity && product.packageQuantity !== '1' ? 
+                    (priceInfo.price / parseFloat(product.packageQuantity)).toFixed(2) : null;
+                  
+                  const isSelectedForCopy = selectedForCopy.has(product.id);
+                  const multiplier = isSelectedForCopy ? copyMultiplier : 1;
+                  
+                  return Array.from({ length: multiplier }, (_, copyIndex) => (
+                    <div key={`${product.id}-${copyIndex}`} style={{
+                      background: 'white',
+                      borderRadius: '8px',
+                      padding: '0.5rem',
+                      border: isSelectedForCopy && copyIndex === 0 ? '2px solid #6f42c1' : '1px solid #e9ecef',
+                      boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+                      opacity: copyIndex > 0 ? 0.7 : 1
+                    }}>
+                      {/* Checkbox do powielania - tylko przy pierwszej kopii */}
+                      {copyIndex === 0 && (
+                        <div style={{ 
+                          marginBottom: '0.4rem', 
+                          paddingBottom: '0.4rem', 
+                          borderBottom: '1px dashed #e9ecef',
                           display: 'flex',
-                          flexDirection: 'column',
-                          padding: '1.5mm',
-                          boxSizing: 'border-box',
-                          justifyContent: 'center',
-                          textAlign: 'center',
-                          opacity: copyIndex > 0 ? 0.7 : 1 // Kopie będą lekko przezroczyste
+                          alignItems: 'center',
+                          gap: '0.4rem'
                         }}>
-                          {/* Cena na górze - znacznie większa */}
-                          {labelSettings.includePrice && (
-                            <div style={{ 
-                              fontSize: labelSettings.fontSize === 'small' ? '16px' : 
-                                        labelSettings.fontSize === 'large' ? '22px' : '19px',
-                              fontWeight: 'bold',
-                              color: priceInfo.type === 'special' ? '#ff6b35' : '#28a745',
-                              lineHeight: '1',
-                              marginBottom: '1mm'
-                            }}>
-                              {priceInfo.price?.toFixed(2)} zł
-                            </div>
-                          )}
-
-                          {/* Nazwa produktu - jeszcze większa */}
-                          {labelSettings.includeSimplifiedName && (
-                            <div style={{ 
-                              fontWeight: 'bold',
-                              fontSize: labelSettings.fontSize === 'small' ? '9px' : 
-                                        labelSettings.fontSize === 'large' ? '12px' : '10px',
-                              lineHeight: '1.1',
-                              marginBottom: '0.5mm',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              color: '#333'
-                            }}>
-                              {product.simplifiedName || product.nazwa}
-                            </div>
-                          )}
-
-                          {/* Marka pod nazwą */}
-                          {labelSettings.includeManufacturer && product.manufacturer && (
-                            <div style={{ 
-                              fontWeight: 'bold',
-                              fontSize: labelSettings.fontSize === 'small' ? '7px' : 
-                                        labelSettings.fontSize === 'large' ? '9px' : '8px',
-                              color: '#007bff',
-                              lineHeight: '1.1',
-                              marginBottom: '0.5mm'
-                            }}>
-                              {product.manufacturer}
-                            </div>
-                          )}
-
-                          {/* Jednostki oddzielone kreską */}
-                          <div style={{ 
-                            fontSize: labelSettings.fontSize === 'small' ? '6px' : 
-                                      labelSettings.fontSize === 'large' ? '8px' : '7px',
-                            color: '#666',
-                            lineHeight: '1.1',
-                            marginTop: 'auto'
+                          <input
+                            type="checkbox"
+                            id={`copy-${product.id}`}
+                            checked={selectedForCopy.has(product.id)}
+                            onChange={() => handleToggleCopySelection(product.id)}
+                            style={{ accentColor: '#6f42c1' }}
+                          />
+                          <label htmlFor={`copy-${product.id}`} style={{ 
+                            fontSize: '9px', 
+                            color: '#6f42c1', 
+                            fontWeight: '600',
+                            cursor: 'pointer'
                           }}>
-                            {[
-                              unitPrice && `${unitPrice} zł/szt`,
-                              labelSettings.includeQuantity && product.packageQuantity && product.packageQuantity !== '1' && `${product.packageQuantity} szt`,
-                              labelSettings.includeWeight && product.weight && (!product.packageQuantity || product.packageQuantity === '1') && product.weight
-                            ].filter(Boolean).join(' - ')}
+                            Podwój {copyMultiplier}x
+                            {isSelectedForCopy && copyMultiplier > 1 && (
+                              <span style={{ 
+                                marginLeft: '4px',
+                                padding: '1px 4px',
+                                background: '#ffc107',
+                                color: '#856404',
+                                borderRadius: '3px',
+                                fontSize: '8px'
+                              }}>+{copyMultiplier - 1}</span>
+                            )}
+                          </label>
+                        </div>
+                      )}
+                      
+                      {/* Etykieta cenowa */}
+                      <div style={{ 
+                        width: '4cm',
+                        height: '2cm',
+                        margin: '0 auto',
+                        border: '1px solid #333',
+                        borderRadius: '2px',
+                        fontSize: labelSettings.fontSize === 'small' ? '6px' : 
+                                  labelSettings.fontSize === 'large' ? '9px' : '7px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        padding: '1.5mm',
+                        boxSizing: 'border-box',
+                        justifyContent: 'center',
+                        textAlign: 'center',
+                        background: 'white'
+                      }}>
+                        {/* Cena na górze */}
+                        {labelSettings.includePrice && (
+                          <div style={{ 
+                            fontSize: labelSettings.fontSize === 'small' ? '16px' : 
+                                      labelSettings.fontSize === 'large' ? '22px' : '19px',
+                            fontWeight: 'bold',
+                            color: priceInfo.type === 'special' ? '#ff6b35' : '#28a745',
+                            lineHeight: '1',
+                            marginBottom: '1mm'
+                          }}>
+                            {priceInfo.price?.toFixed(2)} zł
                           </div>
+                        )}
+
+                        {/* Nazwa produktu */}
+                        {labelSettings.includeSimplifiedName && (
+                          <div style={{ 
+                            fontWeight: 'bold',
+                            fontSize: labelSettings.fontSize === 'small' ? '9px' : 
+                                      labelSettings.fontSize === 'large' ? '12px' : '10px',
+                            lineHeight: '1.1',
+                            marginBottom: '0.5mm',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            color: '#333'
+                          }}>
+                            {product.simplifiedName || product.nazwa}
+                          </div>
+                        )}
+
+                        {/* Marka */}
+                        {labelSettings.includeManufacturer && product.manufacturer && (
+                          <div style={{ 
+                            fontWeight: 'bold',
+                            fontSize: labelSettings.fontSize === 'small' ? '7px' : 
+                                      labelSettings.fontSize === 'large' ? '9px' : '8px',
+                            color: '#007bff',
+                            lineHeight: '1.1',
+                            marginBottom: '0.5mm'
+                          }}>
+                            {product.manufacturer}
+                          </div>
+                        )}
+
+                        {/* Jednostki */}
+                        <div style={{ 
+                          fontSize: labelSettings.fontSize === 'small' ? '6px' : 
+                                    labelSettings.fontSize === 'large' ? '8px' : '7px',
+                          color: '#666',
+                          lineHeight: '1.1',
+                          marginTop: 'auto'
+                        }}>
+                          {[
+                            unitPrice && `${unitPrice} zł/szt`,
+                            labelSettings.includeQuantity && product.packageQuantity && product.packageQuantity !== '1' && `${product.packageQuantity} szt`,
+                            labelSettings.includeWeight && product.weight && (!product.packageQuantity || product.packageQuantity === '1') && product.weight
+                          ].filter(Boolean).join(' - ')}
                         </div>
                       </div>
-                    ));
-                  })}
-                </div>
+                    </div>
+                  ));
+                })}
               </div>
-              <div className="modal-footer">
-                <div className="me-auto">
-                  <select
-                    className="form-select form-select-sm"
-                    value={labelSettings.fontSize}
-                    onChange={(e) => setLabelSettings({...labelSettings, fontSize: e.target.value})}
-                  >
-                    <option value="small">Mała czcionka</option>
-                    <option value="medium">Średnia czcionka</option>
-                    <option value="large">Duża czcionka</option>
-                  </select>
-                </div>
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '0.75rem 1rem',
+              borderTop: '1px solid #e9ecef',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'white'
+            }}>
+              <select
+                value={labelSettings.fontSize}
+                onChange={(e) => setLabelSettings({...labelSettings, fontSize: e.target.value})}
+                style={{
+                  padding: '0.35rem 0.75rem',
+                  borderRadius: '4px',
+                  border: '1px solid #dee2e6',
+                  fontSize: '11px',
+                  background: 'white'
+                }}
+              >
+                <option value="small">Mała czcionka</option>
+                <option value="medium">Średnia czcionka</option>
+                <option value="large">Duża czcionka</option>
+              </select>
+              
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
                 <button
                   type="button"
-                  className="btn btn-secondary"
                   onClick={() => setShowPreview(false)}
+                  style={{
+                    padding: '0.5rem 1rem',
+                    borderRadius: '6px',
+                    border: '1px solid #dee2e6',
+                    background: 'white',
+                    color: '#6c757d',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    cursor: 'pointer'
+                  }}
                 >
                   Zamknij
                 </button>
                 <button
                   type="button"
-                  className="btn btn-success"
                   onClick={handlePrintLabels}
+                  style={{
+                    padding: '0.5rem 1.25rem',
+                    borderRadius: '6px',
+                    border: 'none',
+                    background: 'linear-gradient(135deg, #28a745, #20c997)',
+                    color: 'white',
+                    fontSize: '12px',
+                    fontWeight: '600',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.4rem',
+                    boxShadow: '0 2px 8px rgba(40, 167, 69, 0.3)'
+                  }}
                 >
-                  <FaPrint className="me-1" />
+                  <FaPrint />
                   Drukuj etykiety
                 </button>
               </div>
